@@ -2337,6 +2337,12 @@ impl App {
                 self.refresh_status_line();
                 tui.frame_requester().schedule_frame();
             }
+            AppEvent::SyntaxThemeConfigChanged { name } => {
+                if self.apply_runtime_theme_from_config(name) {
+                    self.refresh_status_line();
+                    tui.frame_requester().schedule_frame();
+                }
+            }
             AppEvent::OpenKeymapActionMenu { context, action } => {
                 self.chat_widget
                     .open_keymap_action_menu(context, action, &self.keymap);

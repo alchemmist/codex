@@ -1,9 +1,12 @@
 use crate::color::blend;
 use crate::color::is_light;
+use crate::render::highlight::current_syntax_theme_base_colors;
 use crate::terminal_palette::StdoutColorLevel;
 use crate::terminal_palette::best_color;
+use crate::terminal_palette::best_color_for_level;
 use crate::terminal_palette::default_bg;
 use crate::terminal_palette::default_fg;
+use crate::terminal_palette::effective_stdout_color_level;
 use crate::terminal_palette::rgb_color;
 use crate::terminal_palette::stdout_color_level;
 use ratatui::style::Color;
@@ -14,7 +17,12 @@ const LIGHT_BG_ACCENT_RGB: (u8, u8, u8) = (0, 95, 135);
 const TABLE_SEPARATOR_FG_ALPHA: f32 = 0.20;
 
 pub fn user_message_style() -> Style {
-    user_message_style_for(default_bg())
+    let theme = current_syntax_theme_base_colors();
+    let background = theme.background.or_else(default_bg);
+    match theme.foreground {
+        Some(foreground) => user_message_style_for_theme(background, Some(foreground)),
+        None => user_message_style_for(background),
+    }
 }
 
 pub fn proposed_plan_style() -> Style {
@@ -33,10 +41,29 @@ pub(crate) fn accent_style() -> Style {
 
 /// Returns the style for a user-authored message using the provided terminal background.
 pub fn user_message_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
-    match terminal_bg {
-        Some(bg) => Style::default().bg(user_message_bg(bg)),
-        None => Style::default(),
+    user_message_style_for_theme(terminal_bg, /*theme_fg*/ None)
+}
+
+fn user_message_style_for_theme(
+    background: Option<(u8, u8, u8)>,
+    theme_fg: Option<(u8, u8, u8)>,
+) -> Style {
+    user_message_style_for_theme_and_level(background, theme_fg, effective_stdout_color_level())
+}
+
+fn user_message_style_for_theme_and_level(
+    background: Option<(u8, u8, u8)>,
+    theme_fg: Option<(u8, u8, u8)>,
+    color_level: StdoutColorLevel,
+) -> Style {
+    let mut style = Style::default();
+    if let Some(bg) = background {
+        style = style.bg(best_color_for_level(user_message_bg_rgb(bg), color_level));
     }
+    if let Some(fg) = theme_fg {
+        style = style.fg(best_color_for_level(fg, color_level));
+    }
+    style
 }
 
 pub fn proposed_plan_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
@@ -153,6 +180,39 @@ mod tests {
                 StdoutColorLevel::TrueColor,
             ),
             expected
+        );
+    }
+
+    #[test]
+    fn user_message_style_tracks_theme_base_colors_snapshot() {
+        insta::assert_debug_snapshot!(
+            "user_message_style_theme_base_colors",
+            [
+                (
+                    "dark",
+                    user_message_style_for_theme_and_level(
+                        Some((40, 40, 40)),
+                        Some((235, 219, 178)),
+                        StdoutColorLevel::TrueColor,
+                    ),
+                ),
+                (
+                    "light",
+                    user_message_style_for_theme_and_level(
+                        Some((251, 241, 199)),
+                        Some((60, 56, 54)),
+                        StdoutColorLevel::TrueColor,
+                    ),
+                ),
+                (
+                    "terminal fallback",
+                    user_message_style_for_theme_and_level(
+                        Some((0, 0, 0)),
+                        /*theme_fg*/ None,
+                        StdoutColorLevel::TrueColor,
+                    ),
+                ),
+            ]
         );
     }
 }

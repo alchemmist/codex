@@ -225,6 +225,7 @@ mod safety_buffering;
 mod session_lifecycle;
 mod side;
 mod startup_prompts;
+mod theme_watcher;
 mod thread_events;
 mod thread_goal_actions;
 mod thread_routing;
@@ -1087,6 +1088,11 @@ See the Codex keymap documentation for supported actions and examples."
             pending_plugin_enabled_writes: HashMap::new(),
             pending_hook_enabled_writes: HashMap::new(),
         };
+        theme_watcher::spawn(
+            app.config.codex_home.to_path_buf(),
+            app.config.tui_theme.clone(),
+            app.app_event_tx.clone(),
+        );
         if let Some(entry) = startup_hooks_browser {
             app.chat_widget.open_hooks_browser(entry);
         }

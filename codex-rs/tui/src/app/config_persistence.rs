@@ -860,6 +860,32 @@ impl App {
         self.chat_widget.set_tui_theme(Some(name));
     }
 
+    pub(super) fn apply_runtime_theme_from_config(&mut self, name: Option<String>) -> bool {
+        if self.config.tui_theme == name {
+            return false;
+        }
+
+        let theme_name = match name.as_deref() {
+            Some(name) => name,
+            None => crate::render::highlight::adaptive_default_theme_name(),
+        };
+        let Some(theme) = crate::render::highlight::resolve_theme_by_name(
+            theme_name,
+            Some(&self.config.codex_home),
+        ) else {
+            tracing::warn!(
+                theme = theme_name,
+                "ignoring invalid externally configured theme"
+            );
+            return false;
+        };
+
+        crate::render::highlight::set_syntax_theme(theme);
+        self.config.tui_theme = name.clone();
+        self.chat_widget.set_tui_theme(name);
+        true
+    }
+
     #[cfg(test)]
     pub(super) fn sync_tui_pet_selection(&mut self, pet: String) {
         self.config.tui_pet = Some(pet.clone());

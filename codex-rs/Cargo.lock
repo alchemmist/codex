@@ -4254,6 +4254,7 @@ dependencies = [
  "codex-features",
  "codex-feedback",
  "codex-file-search",
+ "codex-file-watcher",
  "codex-git-utils",
  "codex-http-client",
  "codex-install-context",
