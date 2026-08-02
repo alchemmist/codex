@@ -461,6 +461,7 @@ pub(crate) struct ChatComposer {
     app_event_tx: AppEventSender,
     history: ChatComposerHistory,
     footer: FooterState,
+    prompt_stashed: bool,
     has_focus: bool,
     frame_requester: Option<FrameRequester>,
     effort_tier: Option<EffortTier>,
@@ -647,6 +648,7 @@ impl ChatComposer {
                 reasoning_up_key: default_keymap
                     .primary_hint(KeymapContext::Chat, "increase_reasoning_effort"),
             },
+            prompt_stashed: false,
             has_focus: has_input_focus,
             frame_requester: None,
             effort_tier: None,
@@ -1345,6 +1347,12 @@ impl ChatComposer {
             }
             spans.extend(indicators.spans);
         }
+        if self.prompt_stashed {
+            if !spans.is_empty() {
+                spans.push(" · ".dim());
+            }
+            spans.push("stashed".magenta());
+        }
         if spans.is_empty() {
             None
         } else {
@@ -1360,6 +1368,12 @@ impl ChatComposer {
         if let Some(vim_mode) = self.vim_mode_indicator_span() {
             line.spans.push(" | ".dim());
             line.spans.push(vim_mode);
+        }
+        if self.prompt_stashed {
+            if !line.spans.is_empty() {
+                line.spans.push(" · ".dim());
+            }
+            line.spans.push("stashed".magenta());
         }
         line
     }
@@ -1912,6 +1926,14 @@ impl ChatComposer {
     /// Return true if any popup or history search is active.
     pub(crate) fn popup_active(&self) -> bool {
         self.history_search.is_some() || self.popups.active()
+    }
+
+    pub(crate) fn show_prompt_stashed_indicator(&mut self) {
+        self.prompt_stashed = true;
+    }
+
+    pub(crate) fn hide_prompt_stashed_indicator(&mut self) {
+        self.prompt_stashed = false;
     }
 
     #[inline]
@@ -5237,6 +5259,18 @@ mod tests {
             /*enhanced_keys_supported*/ true,
             |composer| {
                 type_chars_humanlike(composer, &['h']);
+            },
+        );
+
+        snapshot_composer_state(
+            "footer_mode_prompt_stashed",
+            /*enhanced_keys_supported*/ true,
+            |composer| {
+                composer.set_status_line_enabled(/*enabled*/ true);
+                composer.set_status_line(Some(Line::from(
+                    "gpt-5.4 high fast · ~/code/codex-1 · Context 0% used",
+                )));
+                composer.show_prompt_stashed_indicator();
             },
         );
 

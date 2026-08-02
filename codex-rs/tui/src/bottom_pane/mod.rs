@@ -888,6 +888,20 @@ impl BottomPane {
         self.composer.draft_snapshot()
     }
 
+    pub(crate) fn composer_history_search_active(&self) -> bool {
+        self.composer.history_search_active()
+    }
+
+    pub(crate) fn show_prompt_stashed_indicator(&mut self) {
+        self.composer.show_prompt_stashed_indicator();
+        self.request_redraw();
+    }
+
+    pub(crate) fn hide_prompt_stashed_indicator(&mut self) {
+        self.composer.hide_prompt_stashed_indicator();
+        self.request_redraw();
+    }
+
     #[cfg(test)]
     pub(crate) fn composer_text_elements(&self) -> Vec<TextElement> {
         self.composer.text_elements()

@@ -387,6 +387,7 @@ mod plan_implementation;
 use self::plan_implementation::PLAN_IMPLEMENTATION_TITLE;
 mod model_popups;
 mod notifications;
+mod prompt_stash;
 use self::notifications::Notification;
 mod permission_popups;
 mod permissions_menu;
@@ -684,6 +685,7 @@ pub(crate) struct ChatWidget {
     // history has been rendered so resumed/forked prompts keep chronological
     // order.
     suppress_initial_user_message_submit: bool,
+    stashed_composer: Option<ThreadComposerState>,
     input_queue: InputQueueState,
     safety_buffering_prompt: Option<UserMessage>,
     /// Main chat-surface bindings resolved from `tui.keymap.chat`.

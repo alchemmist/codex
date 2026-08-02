@@ -399,10 +399,23 @@ pub(super) fn merge_user_messages(messages: Vec<UserMessage>) -> UserMessage {
             .map(|message| (message, UserMessageHistoryRecord::UserMessageText))
             .collect(),
     );
-    merge_remapped_user_messages(messages.into_iter().map(|(message, _)| message))
+    merge_remapped_user_messages(messages.into_iter().map(|(message, _)| message), "\n")
 }
 
-fn merge_remapped_user_messages(messages: impl IntoIterator<Item = UserMessage>) -> UserMessage {
+pub(super) fn append_user_messages(messages: Vec<UserMessage>) -> UserMessage {
+    let messages = remap_user_messages_with_history_records(
+        messages
+            .into_iter()
+            .map(|message| (message, UserMessageHistoryRecord::UserMessageText))
+            .collect(),
+    );
+    merge_remapped_user_messages(messages.into_iter().map(|(message, _)| message), "")
+}
+
+fn merge_remapped_user_messages(
+    messages: impl IntoIterator<Item = UserMessage>,
+    separator: &str,
+) -> UserMessage {
     let mut combined = UserMessage {
         text: String::new(),
         text_elements: Vec::new(),
@@ -413,7 +426,7 @@ fn merge_remapped_user_messages(messages: impl IntoIterator<Item = UserMessage>)
 
     for (idx, message) in messages.into_iter().enumerate() {
         if idx > 0 {
-            combined.text.push('\n');
+            combined.text.push_str(separator);
         }
         let UserMessage {
             text,
@@ -527,7 +540,7 @@ pub(super) fn merge_user_messages_with_history_record(
     };
 
     (
-        merge_remapped_user_messages(messages.into_iter().map(|(message, _)| message)),
+        merge_remapped_user_messages(messages.into_iter().map(|(message, _)| message), "\n"),
         history_record,
     )
 }

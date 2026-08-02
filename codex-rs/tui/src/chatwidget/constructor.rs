@@ -216,6 +216,7 @@ impl ChatWidget {
             startup_tooltip_override,
             suppress_session_configured_redraw: false,
             suppress_initial_user_message_submit: false,
+            stashed_composer: None,
             pending_notification: None,
             quit_shortcut_expires_at: None,
             quit_shortcut_key: None,

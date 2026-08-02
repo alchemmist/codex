@@ -163,6 +163,13 @@ impl ChatWidget {
             return;
         }
 
+        if key_hint::ctrl(KeyCode::Char('s')).is_press(key_event)
+            && !self.bottom_pane.composer_history_search_active()
+        {
+            self.toggle_prompt_stash();
+            return;
+        }
+
         match key_event {
             KeyEvent {
                 code: KeyCode::BackTab,

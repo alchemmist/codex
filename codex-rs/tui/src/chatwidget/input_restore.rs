@@ -301,7 +301,7 @@ impl ChatWidget {
         self.bottom_pane.set_composer_pending_pastes(pending_pastes);
     }
 
-    fn composer_state_from_user_message(
+    pub(super) fn composer_state_from_user_message(
         user_message: UserMessage,
         pending_pastes: Vec<(String, String)>,
     ) -> ThreadComposerState {
