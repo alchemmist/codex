@@ -1,0 +1,18 @@
+---
+source: tui/src/app/tests.rs
+expression: "format!(\"dark:\\n{dark_lines:#?}\\nlight:\\n{light_lines:#?}\")"
+---
+dark:
+[
+    HyperlinkLine {
+        line: Line::from("Previously submitted prompt").white().on_black(),
+        hyperlinks: [],
+    },
+]
+light:
+[
+    HyperlinkLine {
+        line: Line::from("Previously submitted prompt").black().on_white(),
+        hyperlinks: [],
+    },
+]

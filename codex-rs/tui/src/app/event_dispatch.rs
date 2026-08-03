@@ -2322,7 +2322,7 @@ impl App {
                         }
                         self.sync_tui_theme_selection(name);
                         self.refresh_status_line();
-                        tui.frame_requester().schedule_frame();
+                        self.schedule_theme_change_reflow(tui);
                     }
                     Err(err) => {
                         self.restore_runtime_theme_from_config();
@@ -2340,7 +2340,7 @@ impl App {
             AppEvent::SyntaxThemeConfigChanged { name } => {
                 if self.apply_runtime_theme_from_config(name) {
                     self.refresh_status_line();
-                    tui.frame_requester().schedule_frame();
+                    self.schedule_theme_change_reflow(tui);
                 }
             }
             AppEvent::OpenKeymapActionMenu { context, action } => {

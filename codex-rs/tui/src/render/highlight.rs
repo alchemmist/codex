@@ -283,10 +283,20 @@ pub(crate) fn current_syntax_theme_base_colors() -> SyntaxThemeBaseColors {
     }
 }
 
-fn syntax_theme_base_colors(theme: &Theme) -> SyntaxThemeBaseColors {
+pub(crate) fn syntax_theme_base_colors(theme: &Theme) -> SyntaxThemeBaseColors {
+    let background = theme
+        .settings
+        .background
+        .and_then(syntect_color_rgb)
+        .or_else(|| {
+            // `ansi` deliberately delegates its default background to the terminal. This fork uses
+            // it as the dark counterpart to the light `github` theme, so give theme-aware TUI
+            // surfaces a deterministic dark base instead of the startup-cached terminal palette.
+            (theme.name.as_deref() == Some("ANSI")).then_some((0, 0, 0))
+        });
     SyntaxThemeBaseColors {
         foreground: theme.settings.foreground.and_then(syntect_color_rgb),
-        background: theme.settings.background.and_then(syntect_color_rgb),
+        background,
     }
 }
 
@@ -1358,24 +1368,23 @@ mod tests {
     }
 
     #[test]
-    fn bundled_light_and_dark_themes_expose_base_ui_colors() {
-        let dark = resolve_theme_by_name("gruvbox-dark", /*codex_home*/ None)
-            .expect("expected built-in dark theme to load");
-        let light = resolve_theme_by_name("gruvbox-light", /*codex_home*/ None)
-            .expect("expected built-in light theme to load");
+    fn configured_light_and_dark_themes_expose_base_ui_colors() {
+        let dark = resolve_theme_by_name("ansi", /*codex_home*/ None)
+            .expect("expected built-in ANSI theme to load");
+        let light = resolve_theme_by_name("github", /*codex_home*/ None)
+            .expect("expected built-in GitHub theme to load");
 
         let dark = syntax_theme_base_colors(&dark);
         let light = syntax_theme_base_colors(&light);
 
         assert_eq!(
             (
-                dark.foreground.is_some(),
+                dark.foreground,
                 light.foreground.is_some(),
-                dark.background
-                    .is_some_and(|background| !crate::color::is_light(background)),
+                dark.background,
                 light.background.is_some_and(crate::color::is_light),
             ),
-            (true, true, true, true),
+            (None, true, Some((0, 0, 0)), true),
         );
     }
 

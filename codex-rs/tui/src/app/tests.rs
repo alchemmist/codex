@@ -124,6 +124,7 @@ use insta::assert_snapshot;
 use pretty_assertions::assert_eq;
 use ratatui::buffer::Buffer;
 use ratatui::prelude::Line;
+use ratatui::style::Color;
 use std::path::Path;
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -5102,6 +5103,60 @@ fn rendered_line_text(line: &crate::terminal_hyperlinks::HyperlinkLine) -> Strin
         .iter()
         .map(|span| span.content.as_ref())
         .collect()
+}
+
+#[tokio::test]
+async fn theme_change_schedules_source_backed_transcript_reflow() -> Result<()> {
+    let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;
+    let mut tui = crate::tui::test_support::make_test_tui()?;
+
+    app.schedule_theme_change_reflow(&mut tui);
+
+    assert!(app.transcript_reflow.has_pending_reflow());
+    Ok(())
+}
+
+#[tokio::test]
+async fn transcript_reflow_restyles_existing_user_message_after_theme_change() {
+    #[derive(Debug)]
+    struct ThemeAwareUserMessageCell {
+        light_theme: Arc<AtomicBool>,
+    }
+
+    impl HistoryCell for ThemeAwareUserMessageCell {
+        fn display_lines(&self, _width: u16) -> Vec<Line<'static>> {
+            let style = if self.light_theme.load(Ordering::Relaxed) {
+                ratatui::style::Style::default()
+                    .fg(Color::Black)
+                    .bg(Color::White)
+            } else {
+                ratatui::style::Style::default()
+                    .fg(Color::White)
+                    .bg(Color::Black)
+            };
+            vec![Line::from("Previously submitted prompt").style(style)]
+        }
+
+        fn raw_lines(&self) -> Vec<Line<'static>> {
+            vec![Line::from("Previously submitted prompt")]
+        }
+    }
+
+    let (mut app, _rx, _op_rx) = make_test_app_with_channels().await;
+    app.config.terminal_resize_reflow.max_rows = TerminalResizeReflowMaxRows::Disabled;
+    let light_theme = Arc::new(AtomicBool::new(false));
+    app.transcript_cells = vec![Arc::new(ThemeAwareUserMessageCell {
+        light_theme: Arc::clone(&light_theme),
+    })];
+
+    let dark_lines = app.render_transcript_lines_for_reflow(/*width*/ 80).lines;
+    light_theme.store(true, Ordering::Relaxed);
+    let light_lines = app.render_transcript_lines_for_reflow(/*width*/ 80).lines;
+
+    assert_app_snapshot!(
+        "transcript_reflow_restyles_existing_user_message_after_theme_change",
+        format!("dark:\n{dark_lines:#?}\nlight:\n{light_lines:#?}"),
+    );
 }
 
 #[tokio::test]

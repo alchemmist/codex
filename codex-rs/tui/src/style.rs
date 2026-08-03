@@ -185,30 +185,31 @@ mod tests {
 
     #[test]
     fn user_message_style_tracks_theme_base_colors_snapshot() {
+        let ansi =
+            crate::render::highlight::resolve_theme_by_name("ansi", /*codex_home*/ None)
+                .expect("expected built-in ANSI theme to load");
+        let github =
+            crate::render::highlight::resolve_theme_by_name("github", /*codex_home*/ None)
+                .expect("expected built-in GitHub theme to load");
+        let ansi = crate::render::highlight::syntax_theme_base_colors(&ansi);
+        let github = crate::render::highlight::syntax_theme_base_colors(&github);
+
         insta::assert_debug_snapshot!(
             "user_message_style_theme_base_colors",
             [
                 (
-                    "dark",
+                    "ansi dark",
                     user_message_style_for_theme_and_level(
-                        Some((40, 40, 40)),
-                        Some((235, 219, 178)),
+                        ansi.background,
+                        ansi.foreground,
                         StdoutColorLevel::TrueColor,
                     ),
                 ),
                 (
-                    "light",
+                    "github light",
                     user_message_style_for_theme_and_level(
-                        Some((251, 241, 199)),
-                        Some((60, 56, 54)),
-                        StdoutColorLevel::TrueColor,
-                    ),
-                ),
-                (
-                    "terminal fallback",
-                    user_message_style_for_theme_and_level(
-                        Some((0, 0, 0)),
-                        /*theme_fg*/ None,
+                        github.background,
+                        github.foreground,
                         StdoutColorLevel::TrueColor,
                     ),
                 ),

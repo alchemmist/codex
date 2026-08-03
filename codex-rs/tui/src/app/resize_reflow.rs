@@ -276,6 +276,16 @@ impl App {
         tui.frame_requester().schedule_frame();
     }
 
+    /// Re-render committed transcript rows after a runtime theme change.
+    ///
+    /// Finalized history lives in terminal scrollback, so redrawing the active frame is not enough
+    /// to update colors that were emitted under the previous theme. Reuse the source-backed reflow
+    /// path so the rebuild remains deferred while an alternate-screen overlay owns the terminal and
+    /// retains the existing stream-consolidation safeguards.
+    pub(super) fn schedule_theme_change_reflow(&mut self, tui: &mut tui::Tui) {
+        self.schedule_immediate_resize_reflow(tui);
+    }
+
     /// Force stream-finalized output through the resize reflow path.
     ///
     /// Proposed plan consolidation uses this stricter path because a completed plan is inserted or

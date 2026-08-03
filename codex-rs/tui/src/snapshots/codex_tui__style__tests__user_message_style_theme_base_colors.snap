@@ -1,18 +1,14 @@
 ---
 source: tui/src/style.rs
-expression: "[(\"dark\",\nuser_message_style_for_theme_and_level(Some((40, 40, 40)),\nSome((235, 219, 178)), StdoutColorLevel::TrueColor,),),\n(\"light\",\nuser_message_style_for_theme_and_level(Some((251, 241, 199)),\nSome((60, 56, 54)), StdoutColorLevel::TrueColor,),),\n(\"terminal fallback\",\nuser_message_style_for_theme_and_level(Some((0, 0, 0)), None,\nStdoutColorLevel::TrueColor,),),]"
+expression: "[(\"ansi dark\",\nuser_message_style_for_theme_and_level(ansi.background, ansi.foreground,\nStdoutColorLevel::TrueColor,),),\n(\"github light\",\nuser_message_style_for_theme_and_level(github.background, github.foreground,\nStdoutColorLevel::TrueColor,),),]"
 ---
 [
     (
-        "dark",
-        Style::new().fg(Color::Rgb(235, 219, 178)).bg(Color::Rgb(65, 65, 65)),
-    ),
-    (
-        "light",
-        Style::new().fg(Color::Rgb(60, 56, 54)).bg(Color::Rgb(240, 231, 191)),
-    ),
-    (
-        "terminal fallback",
+        "ansi dark",
         Style::new().bg(Color::Rgb(30, 30, 30)),
+    ),
+    (
+        "github light",
+        Style::new().fg(Color::Rgb(51, 51, 51)).bg(Color::Rgb(244, 244, 244)),
     ),
 ]
