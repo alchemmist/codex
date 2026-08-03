@@ -1,0 +1,51 @@
+---
+source: tui/src/terminal_palette.rs
+expression: "[(\"neutral RGB foreground\", terminal_foreground(rgb_color((228, 228, 228))),\nColor::Reset,),\n(\"chromatic RGB foreground\", terminal_foreground(rgb_color((220, 40, 40))),\nColor::Reset,),\n(\"extended foreground\", terminal_foreground(indexed_color(196)),\nColor::Reset,),\n(\"system foreground\", terminal_foreground(indexed_color(9)), Color::Reset),\n(\"neutral RGB background\", Color::Reset,\nterminal_background(rgb_color((32, 32, 32))),),\n(\"extended background\", Color::Reset,\nterminal_background(indexed_color(236)),),\n(\"system accent background\", Color::Reset,\nterminal_background(indexed_color(9)),),\n(\"diff addition\", terminal_foreground(Color::Green),\nterminal_background(rgb_color((33, 58, 43))),),\n(\"diff deletion\", terminal_foreground(Color::Red),\nterminal_background(rgb_color((74, 34, 29))),),]"
+---
+[
+    (
+        "neutral RGB foreground",
+        Reset,
+        Reset,
+    ),
+    (
+        "chromatic RGB foreground",
+        Red,
+        Reset,
+    ),
+    (
+        "extended foreground",
+        Red,
+        Reset,
+    ),
+    (
+        "system foreground",
+        LightRed,
+        Reset,
+    ),
+    (
+        "neutral RGB background",
+        Reset,
+        Reset,
+    ),
+    (
+        "extended background",
+        Reset,
+        Reset,
+    ),
+    (
+        "system accent background",
+        Reset,
+        LightRed,
+    ),
+    (
+        "diff addition",
+        Green,
+        Reset,
+    ),
+    (
+        "diff deletion",
+        Red,
+        Reset,
+    ),
+]

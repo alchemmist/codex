@@ -12,6 +12,8 @@ use crate::terminal_hyperlinks::HyperlinkLine;
 use crate::terminal_hyperlinks::decorate_spans;
 use crate::terminal_hyperlinks::plain_hyperlink_lines;
 use crate::terminal_hyperlinks::remap_wrapped_line;
+use crate::terminal_palette::terminal_background;
+use crate::terminal_palette::terminal_foreground;
 use crate::wrapping::RtOptions;
 use crate::wrapping::adaptive_wrap_line;
 use crate::wrapping::line_contains_url_like;
@@ -300,11 +302,13 @@ fn write_history_line<W: Write>(
             line.line
                 .style
                 .fg
+                .map(terminal_foreground)
                 .map(IntoCrossterm::into_crossterm)
                 .unwrap_or(CColor::Reset),
             line.line
                 .style
                 .bg
+                .map(terminal_background)
                 .map(IntoCrossterm::into_crossterm)
                 .unwrap_or(CColor::Reset)
         ))
@@ -455,8 +459,8 @@ where
             diff.queue(&mut writer)?;
             last_modifier = modifier;
         }
-        let next_fg = span.style.fg.unwrap_or(Color::Reset);
-        let next_bg = span.style.bg.unwrap_or(Color::Reset);
+        let next_fg = terminal_foreground(span.style.fg.unwrap_or(Color::Reset));
+        let next_bg = terminal_background(span.style.bg.unwrap_or(Color::Reset));
         if next_fg != fg || next_bg != bg {
             queue!(
                 writer,
@@ -514,6 +518,25 @@ mod tests {
             String::from_utf8(actual).unwrap(),
             String::from_utf8(expected).unwrap()
         );
+    }
+
+    #[test]
+    fn writes_rgb_spans_as_terminal_palette_colors() {
+        let write = |style: ratatui::style::Style| {
+            let spans = [Span::styled("x", style)];
+            let mut output = Vec::new();
+            write_spans(&mut output, spans.iter()).expect("write span");
+            output
+        };
+
+        let actual = write(
+            ratatui::style::Style::default()
+                .fg(crate::terminal_palette::rgb_color((220, 40, 40)))
+                .bg(crate::terminal_palette::rgb_color((32, 32, 32))),
+        );
+        let expected = write(ratatui::style::Style::default().fg(Color::Red));
+
+        assert_eq!(actual, expected);
     }
 
     #[test]

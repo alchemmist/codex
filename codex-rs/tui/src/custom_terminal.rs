@@ -48,6 +48,9 @@ use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::widgets::WidgetRef;
 
+use crate::terminal_palette::terminal_background;
+use crate::terminal_palette::terminal_foreground;
+
 fn osc8_hyperlink_parts(symbol: &str) -> Option<(&str, &str)> {
     let content = symbol.strip_prefix("\x1b]8;;")?;
     let destination_end = content.find('\x07')?;
@@ -685,6 +688,8 @@ where
         last_pos = Some(Position { x: *x, y: *y });
         match &command {
             DrawCommand::Put { cell, .. } => {
+                let cell_fg = terminal_foreground(cell.fg);
+                let cell_bg = terminal_background(cell.bg);
                 if cell.modifier != modifier {
                     let diff = ModifierDiff {
                         from: modifier,
@@ -693,16 +698,16 @@ where
                     diff.queue(writer)?;
                     modifier = cell.modifier;
                 }
-                if cell.fg != fg || cell.bg != bg {
+                if cell_fg != fg || cell_bg != bg {
                     queue!(
                         writer,
                         SetColors(Colors::new(
-                            cell.fg.into_crossterm(),
-                            cell.bg.into_crossterm()
+                            cell_fg.into_crossterm(),
+                            cell_bg.into_crossterm()
                         ))
                     )?;
-                    fg = cell.fg;
-                    bg = cell.bg;
+                    fg = cell_fg;
+                    bg = cell_bg;
                 }
 
                 if hyperlink_changed && let Some(destination) = destination {
@@ -712,10 +717,11 @@ where
                 queue!(writer, Print(symbol))?;
             }
             DrawCommand::ClearToEnd { bg: clear_bg, .. } => {
+                let clear_bg = terminal_background(*clear_bg);
                 queue!(writer, SetAttribute(crossterm::style::Attribute::Reset))?;
                 modifier = Modifier::empty();
-                queue!(writer, SetBackgroundColor((*clear_bg).into_crossterm()))?;
-                bg = *clear_bg;
+                queue!(writer, SetBackgroundColor(clear_bg.into_crossterm()))?;
+                bg = clear_bg;
                 queue!(writer, Clear(crossterm::terminal::ClearType::UntilNewLine))?;
             }
         }
@@ -1064,6 +1070,37 @@ mod tests {
         assert_eq!(output.matches(close).count(), 1);
         let footer = output.find("Press").expect("footer");
         assert!(output.find(close).expect("hyperlink close") < footer);
+    }
+
+    #[test]
+    fn terminal_draw_reduces_rgb_and_diff_backgrounds_to_terminal_palette_colors() {
+        let draw_cell = |fg: Color, bg: Color| {
+            let mut cell = Cell::default();
+            cell.set_symbol("x").set_fg(fg).set_bg(bg);
+            let mut output = Vec::new();
+            draw(
+                &mut output,
+                [DrawCommand::Put { x: 0, y: 0, cell }].into_iter(),
+            )
+            .expect("draw cell");
+            output
+        };
+
+        let actual = draw_cell(
+            crate::terminal_palette::rgb_color((220, 40, 40)),
+            crate::terminal_palette::rgb_color((32, 32, 32)),
+        );
+        let expected = draw_cell(Color::Red, Color::Reset);
+
+        assert_eq!(actual, expected);
+
+        let actual_diff = draw_cell(
+            Color::Green,
+            crate::terminal_palette::rgb_color((33, 58, 43)),
+        );
+        let expected_diff = draw_cell(Color::Green, Color::Reset);
+
+        assert_eq!(actual_diff, expected_diff);
     }
 
     #[test]

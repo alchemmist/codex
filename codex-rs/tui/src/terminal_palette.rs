@@ -30,6 +30,107 @@ pub fn indexed_color(index: u8) -> Color {
     Color::Indexed(index)
 }
 
+/// Convert a foreground color into a terminal-palette semantic color.
+///
+/// Neutral colors become the terminal's default foreground so they follow live palette changes.
+/// Chromatic RGB and extended-palette colors are reduced to one of the six ANSI accent slots.
+/// System ANSI colors are preserved, except for neutral slots which also become the default.
+pub(crate) fn terminal_foreground(color: Color) -> Color {
+    match color {
+        Color::Reset | Color::Black | Color::Gray | Color::DarkGray | Color::White => Color::Reset,
+        Color::Rgb(r, g, b) => terminal_accent_for_rgb((r, g, b)),
+        Color::Indexed(index) => ansi_system_color(index)
+            .map(terminal_foreground)
+            .unwrap_or_else(|| terminal_accent_for_rgb(XTERM_COLORS[index as usize])),
+        Color::Red
+        | Color::Green
+        | Color::Yellow
+        | Color::Blue
+        | Color::Magenta
+        | Color::Cyan
+        | Color::LightRed
+        | Color::LightGreen
+        | Color::LightYellow
+        | Color::LightBlue
+        | Color::LightMagenta
+        | Color::LightCyan => color,
+    }
+}
+
+/// Convert a background color into a terminal-palette semantic color.
+///
+/// Computed neutral surfaces intentionally collapse to the terminal's default background. This
+/// keeps transcript and composer cells theme-agnostic after they have entered terminal scrollback.
+/// Explicit chromatic ANSI backgrounds remain available for selections and warnings.
+pub(crate) fn terminal_background(color: Color) -> Color {
+    match color {
+        Color::Reset
+        | Color::Black
+        | Color::Gray
+        | Color::DarkGray
+        | Color::White
+        | Color::Rgb(..) => Color::Reset,
+        Color::Indexed(index) => ansi_system_color(index)
+            .map(terminal_background)
+            .unwrap_or(Color::Reset),
+        Color::Red
+        | Color::Green
+        | Color::Yellow
+        | Color::Blue
+        | Color::Magenta
+        | Color::Cyan
+        | Color::LightRed
+        | Color::LightGreen
+        | Color::LightYellow
+        | Color::LightBlue
+        | Color::LightMagenta
+        | Color::LightCyan => color,
+    }
+}
+
+fn terminal_accent_for_rgb(target: (u8, u8, u8)) -> Color {
+    let (r, g, b) = target;
+    let min = r.min(g).min(b);
+    let max = r.max(g).max(b);
+    let chroma = max.saturating_sub(min);
+    if chroma < 32 {
+        return Color::Reset;
+    }
+
+    let midpoint = min.saturating_add(chroma / 2);
+    match (r > midpoint, g > midpoint, b > midpoint) {
+        (true, false, false) => Color::Red,
+        (false, true, false) => Color::Green,
+        (false, false, true) => Color::Blue,
+        (true, true, false) => Color::Yellow,
+        (true, false, true) => Color::Magenta,
+        (false, true, true) => Color::Cyan,
+        (true, true, true) | (false, false, false) => Color::Reset,
+    }
+}
+
+fn ansi_system_color(index: u8) -> Option<Color> {
+    Some(match index {
+        0 => Color::Black,
+        1 => Color::Red,
+        2 => Color::Green,
+        3 => Color::Yellow,
+        4 => Color::Blue,
+        5 => Color::Magenta,
+        6 => Color::Cyan,
+        7 => Color::Gray,
+        8 => Color::DarkGray,
+        9 => Color::LightRed,
+        10 => Color::LightGreen,
+        11 => Color::LightYellow,
+        12 => Color::LightBlue,
+        13 => Color::LightMagenta,
+        14 => Color::LightCyan,
+        15 => Color::White,
+        _ => return None,
+    })
+}
+
 /// Returns the closest color to the target color that the terminal can display.
 pub fn best_color(target: (u8, u8, u8)) -> Color {
     best_color_for_color_level(target, effective_stdout_color_level())
@@ -542,6 +643,60 @@ mod tests {
         assert_eq!(
             best_color_for_color_level((12, 34, 56), StdoutColorLevel::Ansi16),
             Color::Reset
+        );
+    }
+
+    #[test]
+    fn terminal_output_color_normalization_snapshot() {
+        insta::assert_debug_snapshot!(
+            "terminal_output_color_normalization",
+            [
+                (
+                    "neutral RGB foreground",
+                    terminal_foreground(rgb_color((228, 228, 228))),
+                    Color::Reset,
+                ),
+                (
+                    "chromatic RGB foreground",
+                    terminal_foreground(rgb_color((220, 40, 40))),
+                    Color::Reset,
+                ),
+                (
+                    "extended foreground",
+                    terminal_foreground(indexed_color(196)),
+                    Color::Reset,
+                ),
+                (
+                    "system foreground",
+                    terminal_foreground(indexed_color(9)),
+                    Color::Reset
+                ),
+                (
+                    "neutral RGB background",
+                    Color::Reset,
+                    terminal_background(rgb_color((32, 32, 32))),
+                ),
+                (
+                    "extended background",
+                    Color::Reset,
+                    terminal_background(indexed_color(236)),
+                ),
+                (
+                    "system accent background",
+                    Color::Reset,
+                    terminal_background(indexed_color(9)),
+                ),
+                (
+                    "diff addition",
+                    terminal_foreground(Color::Green),
+                    terminal_background(rgb_color((33, 58, 43))),
+                ),
+                (
+                    "diff deletion",
+                    terminal_foreground(Color::Red),
+                    terminal_background(rgb_color((74, 34, 29))),
+                ),
+            ]
         );
     }
 

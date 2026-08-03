@@ -1,0 +1,22 @@
+---
+source: tui/src/style.rs
+expression: "[(\"user message\", user_message_style()),\n(\"proposed plan\", proposed_plan_style()),\n(\"table separator\", table_separator_style()), (\"accent\", accent_style()),]"
+---
+[
+    (
+        "user message",
+        Style::new(),
+    ),
+    (
+        "proposed plan",
+        Style::new(),
+    ),
+    (
+        "table separator",
+        Style::new().dim(),
+    ),
+    (
+        "accent",
+        Style::new().cyan().bold(),
+    ),
+]

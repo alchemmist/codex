@@ -265,48 +265,6 @@ pub(crate) fn current_syntax_theme() -> Theme {
     }
 }
 
-/// Base foreground and background colors exposed by the active syntax theme.
-///
-/// These colors are also used by theme-aware UI surfaces such as the composer.
-/// ANSI-family themes may defer either color to the terminal, represented by
-/// `None` so callers can preserve their terminal-derived fallback.
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
-pub(crate) struct SyntaxThemeBaseColors {
-    pub foreground: Option<(u8, u8, u8)>,
-    pub background: Option<(u8, u8, u8)>,
-}
-
-pub(crate) fn current_syntax_theme_base_colors() -> SyntaxThemeBaseColors {
-    match theme_lock().read() {
-        Ok(theme) => syntax_theme_base_colors(&theme),
-        Err(poisoned) => syntax_theme_base_colors(&poisoned.into_inner()),
-    }
-}
-
-pub(crate) fn syntax_theme_base_colors(theme: &Theme) -> SyntaxThemeBaseColors {
-    let background = theme
-        .settings
-        .background
-        .and_then(syntect_color_rgb)
-        .or_else(|| {
-            // `ansi` deliberately delegates its default background to the terminal. This fork uses
-            // it as the dark counterpart to the light `github` theme, so give theme-aware TUI
-            // surfaces a deterministic dark base instead of the startup-cached terminal palette.
-            (theme.name.as_deref() == Some("ANSI")).then_some((0, 0, 0))
-        });
-    SyntaxThemeBaseColors {
-        foreground: theme.settings.foreground.and_then(syntect_color_rgb),
-        background,
-    }
-}
-
-fn syntect_color_rgb(color: SyntectColor) -> Option<(u8, u8, u8)> {
-    match color.a {
-        ANSI_ALPHA_INDEX | ANSI_ALPHA_DEFAULT => None,
-        _ => Some((color.r, color.g, color.b)),
-    }
-}
-
 /// Raw RGB background colors extracted from syntax theme diff/markup scopes.
 ///
 /// These are theme-provided colors, not yet adapted for any particular color
@@ -1364,27 +1322,6 @@ mod tests {
         assert!(
             rgbs.inserted.is_some() && rgbs.deleted.is_some(),
             "expected built-in theme to provide insert/delete backgrounds, got {rgbs:?}"
-        );
-    }
-
-    #[test]
-    fn configured_light_and_dark_themes_expose_base_ui_colors() {
-        let dark = resolve_theme_by_name("ansi", /*codex_home*/ None)
-            .expect("expected built-in ANSI theme to load");
-        let light = resolve_theme_by_name("github", /*codex_home*/ None)
-            .expect("expected built-in GitHub theme to load");
-
-        let dark = syntax_theme_base_colors(&dark);
-        let light = syntax_theme_base_colors(&light);
-
-        assert_eq!(
-            (
-                dark.foreground,
-                light.foreground.is_some(),
-                dark.background,
-                light.background.is_some_and(crate::color::is_light),
-            ),
-            (None, true, Some((0, 0, 0)), true),
         );
     }
 

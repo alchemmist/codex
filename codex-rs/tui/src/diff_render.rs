@@ -7,12 +7,10 @@
 //! is present, the content text is syntax-highlighted using
 //! [`crate::render::highlight`].
 //!
-//! **Theme-aware styling:** diff backgrounds adapt to the terminal's
-//! background lightness via [`DiffTheme`].  Dark terminals get muted tints
-//! (`#212922` green, `#3C170F` red); light terminals get GitHub-style pastels
-//! with distinct gutter backgrounds for contrast. The renderer uses fixed
-//! palettes for truecolor / 256-color / 16-color terminals so add/delete lines
-//! remain visually distinct even when quantizing to limited palettes.
+//! **Terminal-palette styling:** add/delete content always carries ANSI green/red foregrounds.
+//! Rich background colors may still be produced for internal previews and tests, but the terminal
+//! output boundary removes computed backgrounds before cells reach the active screen or scrollback.
+//! This keeps committed diffs readable across live terminal palette changes.
 //!
 //! **Syntax-theme scope backgrounds:** when the active syntax theme defines
 //! background colors for `markup.inserted` / `markup.deleted` (or fallback
@@ -1257,32 +1255,23 @@ fn style_sign_del(
 
 /// Content style for insert lines (plain, non-syntax-highlighted text).
 ///
-/// Foreground-only on ANSI-16.  On rich levels, uses the pre-resolved
-/// background from `diff_backgrounds` — which is the theme scope color when
-/// available, or the hardcoded palette otherwise.  Dark themes add an
-/// explicit green foreground for readability over the tinted background;
-/// light themes rely on the default (dark) foreground against the pastel.
+/// Always uses an ANSI green foreground. On rich levels it also carries the pre-resolved background
+/// for internal previews; the terminal output boundary removes that computed background.
 ///
 /// When no background is resolved (e.g. a theme that defines no diff
 /// scopes and the fallback palette is somehow empty), the style degrades
 /// to foreground-only so the line is still legible.
 fn style_add(
-    theme: DiffTheme,
+    _theme: DiffTheme,
     color_level: DiffColorLevel,
     diff_backgrounds: ResolvedDiffBackgrounds,
 ) -> Style {
-    match (theme, color_level, diff_backgrounds.add) {
-        (_, DiffColorLevel::Ansi16, _) => Style::default().fg(Color::Green),
-        (DiffTheme::Light, DiffColorLevel::TrueColor, Some(bg))
-        | (DiffTheme::Light, DiffColorLevel::Ansi256, Some(bg)) => Style::default().bg(bg),
-        (DiffTheme::Dark, DiffColorLevel::TrueColor, Some(bg))
-        | (DiffTheme::Dark, DiffColorLevel::Ansi256, Some(bg)) => {
-            Style::default().fg(Color::Green).bg(bg)
-        }
-        (DiffTheme::Light, DiffColorLevel::TrueColor, None)
-        | (DiffTheme::Light, DiffColorLevel::Ansi256, None) => Style::default(),
-        (DiffTheme::Dark, DiffColorLevel::TrueColor, None)
-        | (DiffTheme::Dark, DiffColorLevel::Ansi256, None) => Style::default().fg(Color::Green),
+    let style = Style::default().fg(Color::Green);
+    match (color_level, diff_backgrounds.add) {
+        (DiffColorLevel::TrueColor, Some(bg)) | (DiffColorLevel::Ansi256, Some(bg)) => style.bg(bg),
+        (DiffColorLevel::TrueColor, None)
+        | (DiffColorLevel::Ansi256, None)
+        | (DiffColorLevel::Ansi16, _) => style,
     }
 }
 
@@ -1291,22 +1280,16 @@ fn style_add(
 /// Mirror of [`style_add`] with red foreground and the delete-side
 /// resolved background.
 fn style_del(
-    theme: DiffTheme,
+    _theme: DiffTheme,
     color_level: DiffColorLevel,
     diff_backgrounds: ResolvedDiffBackgrounds,
 ) -> Style {
-    match (theme, color_level, diff_backgrounds.del) {
-        (_, DiffColorLevel::Ansi16, _) => Style::default().fg(Color::Red),
-        (DiffTheme::Light, DiffColorLevel::TrueColor, Some(bg))
-        | (DiffTheme::Light, DiffColorLevel::Ansi256, Some(bg)) => Style::default().bg(bg),
-        (DiffTheme::Dark, DiffColorLevel::TrueColor, Some(bg))
-        | (DiffTheme::Dark, DiffColorLevel::Ansi256, Some(bg)) => {
-            Style::default().fg(Color::Red).bg(bg)
-        }
-        (DiffTheme::Light, DiffColorLevel::TrueColor, None)
-        | (DiffTheme::Light, DiffColorLevel::Ansi256, None) => Style::default(),
-        (DiffTheme::Dark, DiffColorLevel::TrueColor, None)
-        | (DiffTheme::Dark, DiffColorLevel::Ansi256, None) => Style::default().fg(Color::Red),
+    let style = Style::default().fg(Color::Red);
+    match (color_level, diff_backgrounds.del) {
+        (DiffColorLevel::TrueColor, Some(bg)) | (DiffColorLevel::Ansi256, Some(bg)) => style.bg(bg),
+        (DiffColorLevel::TrueColor, None)
+        | (DiffColorLevel::Ansi256, None)
+        | (DiffColorLevel::Ansi16, _) => style,
     }
 }
 
@@ -1365,6 +1348,19 @@ mod tests {
         );
         assert_eq!(del_sign.fg, Some(Color::Red));
         assert_eq!(del_sign.bg, None);
+    }
+
+    #[test]
+    fn light_rich_diff_content_keeps_ansi_foregrounds() {
+        let backgrounds = fallback_diff_backgrounds(DiffTheme::Light, DiffColorLevel::TrueColor);
+
+        assert_eq!(
+            (
+                style_add(DiffTheme::Light, DiffColorLevel::TrueColor, backgrounds).fg,
+                style_del(DiffTheme::Light, DiffColorLevel::TrueColor, backgrounds).fg,
+            ),
+            (Some(Color::Green), Some(Color::Red)),
+        );
     }
     fn diff_summary_for_tests(changes: &HashMap<PathBuf, FileChange>) -> Vec<RtLine<'static>> {
         create_diff_summary(changes, &PathBuf::from("/"), /*wrap_cols*/ 80)
