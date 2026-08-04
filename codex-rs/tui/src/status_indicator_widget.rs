@@ -22,10 +22,6 @@ use crate::app_event_sender::AppEventSender;
 use crate::key_hint;
 use crate::key_hint::ShortcutHint;
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
-use crate::motion::MotionMode;
-use crate::motion::ReducedMotionIndicator;
-use crate::motion::activity_indicator;
-use crate::motion::shimmer_text;
 use crate::render::renderable::Renderable;
 use crate::text_formatting::capitalize_first;
 use crate::tui::FrameRequester;
@@ -34,6 +30,8 @@ use crate::wrapping::word_wrap_lines;
 
 pub(crate) const STATUS_DETAILS_DEFAULT_MAX_LINES: usize = 3;
 const DETAILS_PREFIX: &str = "  └ ";
+const STATUS_ANIMATION_INTERVAL: Duration = Duration::from_millis(400);
+const STATUS_ANIMATION_FRAMES: [&str; 4] = [".", "..", "...", ""];
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum StatusDetailsCapitalization {
@@ -243,26 +241,23 @@ impl Renderable for StatusIndicatorWidget {
         if self.animations_enabled {
             // Schedule next animation frame.
             self.frame_requester
-                .schedule_frame_in(Duration::from_millis(32));
+                .schedule_frame_in(STATUS_ANIMATION_INTERVAL);
         }
         let now = Instant::now();
         let elapsed_duration = self.elapsed_duration_at(now);
         let pretty_elapsed = fmt_elapsed_compact(elapsed_duration.as_secs());
-        let motion_mode = MotionMode::from_animations_enabled(self.animations_enabled);
 
         let mut spans = Vec::with_capacity(5);
-        if let Some(indicator) = activity_indicator(
-            Some(self.last_resume_at),
-            motion_mode,
-            ReducedMotionIndicator::Hidden,
-        ) {
-            spans.push(indicator);
-            spans.push(" ".into());
+        if self.animations_enabled {
+            let frame = (elapsed_duration.as_millis() / STATUS_ANIMATION_INTERVAL.as_millis())
+                % STATUS_ANIMATION_FRAMES.len() as u128;
+            let header = &self.header;
+            let suffix = STATUS_ANIMATION_FRAMES[frame as usize];
+            spans.push(format!("{header}{suffix:<3}").into());
+        } else {
+            spans.push(self.header.clone().into());
         }
-        spans.extend(shimmer_text(&self.header, motion_mode));
-        if !spans.is_empty() {
-            spans.push(" ".into());
-        }
+        spans.push(" ".into());
         if self.show_interrupt_hint
             && let Some(interrupt_binding) = self.interrupt_binding
         {
@@ -411,6 +406,43 @@ mod tests {
             .collect::<String>();
 
         assert!(line.starts_with("Working (0s • esc to interrupt)"));
+    }
+
+    #[test]
+    fn renders_working_dot_animation_frames() {
+        let (tx_raw, _rx) = unbounded_channel::<AppEvent>();
+        let tx = AppEventSender::new(tx_raw);
+        let mut widget = StatusIndicatorWidget::new(
+            tx,
+            crate::tui::FrameRequester::test_dummy(),
+            /*animations_enabled*/ true,
+        );
+        widget.is_paused = true;
+        widget.set_interrupt_hint_visible(/*visible*/ false);
+
+        let frames = [0, 400, 800, 1_200]
+            .map(Duration::from_millis)
+            .map(|elapsed| {
+                widget.elapsed_running = elapsed;
+                let mut terminal = Terminal::new(TestBackend::new(24, 1)).expect("terminal");
+                terminal
+                    .draw(|f| widget.render(f.area(), f.buffer_mut()))
+                    .expect("draw");
+                terminal.backend().buffer().content()[..24]
+                    .iter()
+                    .map(ratatui::buffer::Cell::symbol)
+                    .collect::<String>()
+            });
+
+        assert_eq!(
+            frames,
+            [
+                "Working.   (0s)         ".to_string(),
+                "Working..  (0s)         ".to_string(),
+                "Working... (0s)         ".to_string(),
+                "Working    (1s)         ".to_string(),
+            ]
+        );
     }
 
     #[test]

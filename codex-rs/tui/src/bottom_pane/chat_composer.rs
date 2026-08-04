@@ -4764,10 +4764,10 @@ impl ChatComposer {
                 .render(remote_images_rect, buf);
         }
         if !textarea_rect.is_empty() {
-            let prompt = if self.draft.input_enabled {
-                if self.draft.is_bash_mode {
-                    Span::from("!").light_red().bold()
-                } else if let Some(tier) = self.effort_tier {
+            let rail = if self.draft.input_enabled {
+                if !self.draft.is_bash_mode
+                    && let Some(tier) = self.effort_tier
+                {
                     let charge = self
                         .effort_ignition
                         .as_ref()
@@ -4775,17 +4775,23 @@ impl ChatComposer {
                         .unwrap_or(1.0);
                     tier.prompt(charge)
                 } else {
-                    "›".bold()
+                    "┃".cyan().bold()
                 }
             } else {
-                "›".dim()
+                "┃".cyan().dim()
             };
-            buf.set_span(
-                textarea_rect.x - LIVE_PREFIX_COLS,
-                textarea_rect.y,
-                &prompt,
-                textarea_rect.width,
-            );
+            let rail_x = textarea_rect.x.saturating_sub(LIVE_PREFIX_COLS);
+            for y in textarea_rect.y..textarea_rect.bottom() {
+                buf.set_span(rail_x, y, &rail, /*width*/ 1);
+            }
+            if self.draft.input_enabled && self.draft.is_bash_mode {
+                buf.set_span(
+                    rail_x.saturating_add(1),
+                    textarea_rect.y,
+                    &Span::from("!").light_red().bold(),
+                    /*width*/ 1,
+                );
+            }
         }
 
         let mut state = self.draft.textarea_state.borrow_mut();
@@ -5372,7 +5378,11 @@ mod tests {
         let mut buf = Buffer::empty(area);
         composer.render(area, &mut buf);
 
-        let prompt_cell = &buf[(0, 1)];
+        let rail_cell = &buf[(0, 1)];
+        assert_eq!(rail_cell.symbol(), "┃");
+        assert_eq!(rail_cell.style().fg, Some(Color::Cyan));
+
+        let prompt_cell = &buf[(1, 1)];
         assert_eq!(prompt_cell.symbol(), "!");
         assert_eq!(prompt_cell.style().fg, Some(Color::LightRed));
 

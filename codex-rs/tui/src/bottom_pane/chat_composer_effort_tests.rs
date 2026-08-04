@@ -176,9 +176,9 @@ fn effort_transition_keeps_the_full_footer_row() {
 }
 
 #[test]
-fn ultra_accent_upgrades_prompt_glyph() {
+fn ultra_accent_colors_composer_rail() {
     snapshot_composer_state_with_width(
-        "ultra_accent_upgrades_prompt_glyph",
+        "ultra_accent_colors_composer_rail",
         /*width*/ 60,
         /*enhanced_keys_supported*/ false,
         |composer| {

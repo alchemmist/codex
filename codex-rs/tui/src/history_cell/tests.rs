@@ -2123,7 +2123,8 @@ fn user_history_cell_wraps_and_prefixes_each_line_snapshot() {
         remote_image_urls: Vec::new(),
     };
 
-    // Small width to force wrapping more clearly. Effective wrap width is width-2 due to the ▌ prefix and trailing space.
+    // Small width to force wrapping more clearly. Effective wrap width accounts for the rail,
+    // its trailing space, and the right margin.
     let width: u16 = 12;
     let lines = cell.display_lines(width);
     let rendered = render_lines(&lines).join("\n");

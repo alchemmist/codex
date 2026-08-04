@@ -177,19 +177,19 @@ impl HistoryCell for UserHistoryCell {
         if let Some(wrapped_remote_images) = wrapped_remote_images {
             lines.extend(prefix_lines(
                 wrapped_remote_images,
-                "  ".into(),
-                "  ".into(),
+                "┃ ".cyan().bold(),
+                "┃ ".cyan().bold(),
             ));
             if wrapped_message.is_some() {
-                lines.push(Line::from("").style(style));
+                lines.push(Line::from("┃ ").cyan().bold());
             }
         }
 
         if let Some(wrapped_message) = wrapped_message {
             lines.extend(prefix_lines(
                 wrapped_message,
-                "› ".bold().dim(),
-                "  ".into(),
+                "┃ ".cyan().bold(),
+                "┃ ".cyan().bold(),
             ));
         }
 
