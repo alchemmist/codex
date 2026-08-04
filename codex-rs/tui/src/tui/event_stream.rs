@@ -277,9 +277,11 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
             Event::Paste(pasted) => Some(TuiEvent::Paste(pasted)),
             Event::FocusGained => {
                 self.terminal_focused.store(true, Ordering::Relaxed);
-                // Keep the startup-cached palette: querying terminal colors here blocks the
-                // input loop, and a direct probe would discard keys typed during the refresh.
-                Some(TuiEvent::Draw)
+                // tmux can move focus back to a pane at the same time as it resizes that pane. A
+                // plain draw would reuse the old cached dimensions if the corresponding resize
+                // event was coalesced or observed before the PTY reached its final size. Resume
+                // refreshes geometry without probing the terminal palette or consuming input.
+                Some(TuiEvent::Resume)
             }
             Event::FocusLost => {
                 self.terminal_focused.store(false, Ordering::Relaxed);
@@ -448,7 +450,7 @@ mod tests {
         handle.send(Ok(Event::FocusGained));
         handle.send(Ok(Event::Key(expected_key)));
 
-        assert!(matches!(stream.next().await, Some(TuiEvent::Draw)));
+        assert!(matches!(stream.next().await, Some(TuiEvent::Resume)));
         assert!(terminal_focused.load(Ordering::Relaxed));
         assert!(matches!(
             &*broker
@@ -466,6 +468,45 @@ mod tests {
             Some(TuiEvent::Key(key)) => assert_eq!(key, expected_key),
             other => panic!("expected queued key event, got {other:?}"),
         }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn focus_gained_refreshes_stale_tmux_pane_height() {
+        let (broker, handle, _draw_tx, draw_rx, terminal_focused) = setup();
+        terminal_focused.store(false, Ordering::Relaxed);
+        let mut stream = make_stream(broker, draw_rx, terminal_focused);
+        let mut tui = crate::tui::test_support::make_test_tui().expect("test tui");
+        let stale_size = ratatui::layout::Size::new(/*width*/ 80, /*height*/ 12);
+        tui.terminal.last_known_screen_size = stale_size;
+        tui.terminal.set_viewport_area(ratatui::layout::Rect::new(
+            /*x*/ 0,
+            /*y*/ 0,
+            stale_size.width,
+            stale_size.height,
+        ));
+
+        handle.send(Ok(Event::FocusGained));
+        let event = stream.next().await.expect("focus event");
+        let refreshed_size = tui.screen_size_for_event(&event).expect("refresh size");
+        tui.draw_with_resize_reflow(refreshed_size.height, refreshed_size, |_| {})
+            .expect("redraw resized pane");
+
+        insta::assert_snapshot!(
+            format!(
+                "event: {event:?}\ncached: {}x{}\nrefreshed: {}x{}\nviewport: {:?}",
+                stale_size.width,
+                stale_size.height,
+                refreshed_size.width,
+                refreshed_size.height,
+                tui.terminal.viewport_area,
+            ),
+            @r"
+        event: Resume
+        cached: 80x12
+        refreshed: 80x24
+        viewport: Rect { x: 0, y: 0, width: 80, height: 24 }
+        "
+        );
     }
 
     #[tokio::test(flavor = "current_thread")]
@@ -489,7 +530,7 @@ mod tests {
         ));
 
         handle.send(Ok(Event::FocusGained));
-        assert!(matches!(stream.next().await, Some(TuiEvent::Draw)));
+        assert!(matches!(stream.next().await, Some(TuiEvent::Resume)));
     }
 
     #[tokio::test(flavor = "current_thread")]
