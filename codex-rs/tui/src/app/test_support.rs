@@ -70,6 +70,7 @@ pub(super) async fn make_test_app() -> App {
         rate_limit_hard_stop_generation: 0,
         pending_plugin_enabled_writes: HashMap::new(),
         pending_hook_enabled_writes: HashMap::new(),
+        workflow_state: super::workflows::WorkflowAppState::default(),
     }
 }
 

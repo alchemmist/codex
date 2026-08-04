@@ -34,6 +34,7 @@ pub(crate) struct CustomPromptView {
     placeholder: String,
     context_label: Option<String>,
     on_submit: PromptSubmitted,
+    allow_empty_submission: bool,
 
     // UI state
     textarea: TextArea,
@@ -50,6 +51,41 @@ impl CustomPromptView {
         context_label: Option<String>,
         on_submit: PromptSubmitted,
     ) -> Self {
+        Self::new_with_empty_submission(
+            title,
+            placeholder,
+            initial_text,
+            context_label,
+            on_submit,
+            /*allow_empty_submission*/ false,
+        )
+    }
+
+    pub(crate) fn new_allow_empty(
+        title: String,
+        placeholder: String,
+        initial_text: String,
+        context_label: Option<String>,
+        on_submit: PromptSubmitted,
+    ) -> Self {
+        Self::new_with_empty_submission(
+            title,
+            placeholder,
+            initial_text,
+            context_label,
+            on_submit,
+            /*allow_empty_submission*/ true,
+        )
+    }
+
+    fn new_with_empty_submission(
+        title: String,
+        placeholder: String,
+        initial_text: String,
+        context_label: Option<String>,
+        on_submit: PromptSubmitted,
+        allow_empty_submission: bool,
+    ) -> Self {
         let mut textarea = TextArea::new();
         if !initial_text.is_empty() {
             textarea.set_text_clearing_elements(&initial_text);
@@ -61,6 +97,7 @@ impl CustomPromptView {
             placeholder,
             context_label,
             on_submit,
+            allow_empty_submission,
             textarea,
             textarea_state: RefCell::new(TextAreaState::default()),
             paste_burst: PasteBurst::default(),
@@ -87,7 +124,7 @@ impl CustomPromptView {
                 }
                 if modifiers == KeyModifiers::NONE {
                     let text = self.textarea.text().trim().to_string();
-                    if !text.is_empty() {
+                    if self.allow_empty_submission || !text.is_empty() {
                         (self.on_submit)(text);
                         self.completion = Some(ViewCompletion::Accepted);
                     }

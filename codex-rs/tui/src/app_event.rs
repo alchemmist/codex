@@ -58,6 +58,9 @@ use codex_protocol::models::ActivePermissionProfile;
 use codex_protocol::openai_models::ReasoningEffort;
 
 use crate::history_cell::HistoryCell;
+use crate::workflow::StoredWorkflowRun;
+use crate::workflow::WorkflowDefinition;
+use crate::workflow::WorkflowUpdate;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum ThreadGoalSetMode {
@@ -186,6 +189,25 @@ pub(crate) enum KeymapCaptureMode {
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub(crate) enum AppEvent {
+    /// Discover and show Python workflows, optionally selecting one by id.
+    OpenWorkflowPicker {
+        workflow_id: Option<String>,
+    },
+    /// Open the list of interrupted or failed workflow runs.
+    OpenWorkflowResumePicker,
+    /// Start collecting manifest-declared inputs for a workflow.
+    ConfigureWorkflow(Box<WorkflowDefinition>),
+    /// Submit one manifest-declared workflow field value.
+    WorkflowFieldAnswered(String),
+    /// Resume a persisted workflow run from its last checkpoint.
+    ResumeWorkflow(Box<StoredWorkflowRun>),
+    /// Cooperatively stop the active workflow and retain its checkpoint.
+    PauseWorkflow,
+    /// Cancel the active workflow. Its checkpoint remains available for an explicit resume.
+    CancelWorkflow,
+    /// Runtime progress from a Python workflow.
+    WorkflowUpdate(WorkflowUpdate),
+
     /// Open the agent picker for switching active threads.
     OpenAgentPicker,
     /// Merge a completed root-scoped agent-picker refresh without blocking terminal input.

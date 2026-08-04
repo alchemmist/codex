@@ -40,6 +40,7 @@ pub enum SlashCommand {
     Compact,
     Plan,
     Goal,
+    Workflow,
     Agent,
     Side,
     Btw,
@@ -124,6 +125,7 @@ impl SlashCommand {
             SlashCommand::Personality => "choose a communication style for Codex",
             SlashCommand::Plan => "switch to Plan mode",
             SlashCommand::Goal => "set or view the goal for a long-running task",
+            SlashCommand::Workflow => "run, pause, resume, or cancel a Python workflow",
             SlashCommand::Agent | SlashCommand::MultiAgents => "switch the active agent thread",
             SlashCommand::Side | SlashCommand::Btw => {
                 "start a side conversation in an ephemeral fork"
@@ -164,6 +166,7 @@ impl SlashCommand {
                 | SlashCommand::Fork
                 | SlashCommand::Plan
                 | SlashCommand::Goal
+                | SlashCommand::Workflow
                 | SlashCommand::Ide
                 | SlashCommand::Keymap
                 | SlashCommand::Mcp
@@ -214,6 +217,7 @@ impl SlashCommand {
             | SlashCommand::MemoryDrop
             | SlashCommand::MemoryUpdate => false,
             SlashCommand::Diff
+            | SlashCommand::Workflow
             | SlashCommand::Resume
             | SlashCommand::Model
             | SlashCommand::Personality

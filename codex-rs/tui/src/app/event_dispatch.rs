@@ -22,6 +22,30 @@ impl App {
         event: AppEvent,
     ) -> Result<AppRunControl> {
         match event {
+            AppEvent::OpenWorkflowPicker { workflow_id } => {
+                self.open_workflow_picker(workflow_id).await;
+            }
+            AppEvent::OpenWorkflowResumePicker => {
+                self.open_workflow_resume_picker().await;
+            }
+            AppEvent::ConfigureWorkflow(definition) => {
+                self.configure_workflow(*definition).await;
+            }
+            AppEvent::WorkflowFieldAnswered(answer) => {
+                self.answer_workflow_field(answer).await;
+            }
+            AppEvent::ResumeWorkflow(run) => {
+                self.resume_workflow(*run);
+            }
+            AppEvent::PauseWorkflow => {
+                self.control_workflow(crate::workflow::WorkflowControl::Pause);
+            }
+            AppEvent::CancelWorkflow => {
+                self.control_workflow(crate::workflow::WorkflowControl::Cancel);
+            }
+            AppEvent::WorkflowUpdate(update) => {
+                self.apply_workflow_update(update);
+            }
             AppEvent::NewSession { name } => {
                 self.start_fresh_session_with_summary_hint(
                     tui, app_server, /*session_start_source*/ None,

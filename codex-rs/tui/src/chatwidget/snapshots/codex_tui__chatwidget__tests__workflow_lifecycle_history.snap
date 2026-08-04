@@ -1,0 +1,9 @@
+---
+source: tui/src/chatwidget/tests/workflows.rs
+expression: rendered
+---
+● Workflow started: Ruff cleanup  20260805-120000-12345678
+
+✓ Workflow completed: Ruff cleanup  48 agents · 13 shell calls
+
+  Result: {"passes":12,"agent_calls":48}

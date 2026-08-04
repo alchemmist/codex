@@ -462,6 +462,7 @@ use self::user_messages::user_message_display_for_history;
 use self::user_messages::user_message_for_restore;
 use self::user_messages::user_message_preview_text;
 mod warnings;
+mod workflows;
 use self::warnings::WarningDisplayState;
 pub(crate) use crate::branch_summary::StatusLineGitSummary;
 use crate::streaming::chunking::AdaptiveChunkingPolicy;
@@ -1674,9 +1675,13 @@ impl ChatWidget {
         self.bottom_pane.composer_is_empty()
     }
 
+    pub(crate) fn has_running_task(&self) -> bool {
+        self.bottom_pane.is_task_running()
+    }
+
     #[cfg(test)]
     pub(crate) fn is_task_running_for_test(&self) -> bool {
-        self.bottom_pane.is_task_running()
+        self.has_running_task()
     }
 
     pub(crate) fn toggle_vim_mode_and_notify(&mut self) {

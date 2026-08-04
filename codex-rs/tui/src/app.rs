@@ -231,6 +231,7 @@ mod thread_goal_actions;
 mod thread_routing;
 mod thread_session_state;
 mod thread_settings;
+mod workflows;
 
 use self::agent_navigation::AgentNavigationDirection;
 use self::agent_navigation::AgentNavigationState;
@@ -598,6 +599,7 @@ pub(crate) struct App {
     // Serialize hook enablement writes per hook so stale completions cannot
     // persist an older toggle after a newer one.
     pending_hook_enabled_writes: HashMap<String, Option<bool>>,
+    workflow_state: workflows::WorkflowAppState,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -1087,6 +1089,7 @@ See the Codex keymap documentation for supported actions and examples."
             rate_limit_hard_stop_generation: 0,
             pending_plugin_enabled_writes: HashMap::new(),
             pending_hook_enabled_writes: HashMap::new(),
+            workflow_state: workflows::WorkflowAppState::default(),
         };
         theme_watcher::spawn(
             app.config.codex_home.to_path_buf(),

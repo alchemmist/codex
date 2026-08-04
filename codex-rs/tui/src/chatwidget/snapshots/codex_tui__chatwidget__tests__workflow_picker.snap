@@ -1,0 +1,11 @@
+---
+source: tui/src/chatwidget/tests/workflows.rs
+expression: "normalize_snapshot_paths(render_bottom_popup(&chat, 80))"
+---
+  Python workflows
+  Project .codex/workflows overrides ~/.codex/workflows and built-ins
+
+  Search workflows
+› Ruff cleanup  built-in · Fix a large Ruff backlog in small agent batches.
+
+  Press enter to confirm or esc to go back

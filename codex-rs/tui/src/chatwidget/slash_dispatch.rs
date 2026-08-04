@@ -308,6 +308,10 @@ impl ChatWidget {
                     );
                 }
             }
+            SlashCommand::Workflow => {
+                self.app_event_tx
+                    .send(AppEvent::OpenWorkflowPicker { workflow_id: None });
+            }
             SlashCommand::Side | SlashCommand::Btw => {
                 self.request_empty_side_conversation(cmd);
             }
@@ -881,6 +885,16 @@ impl ChatWidget {
                     self.clear_live_goal_submission();
                 }
             }
+            SlashCommand::Workflow if !trimmed.is_empty() => {
+                match trimmed.to_ascii_lowercase().as_str() {
+                    "pause" => self.app_event_tx.send(AppEvent::PauseWorkflow),
+                    "stop" | "cancel" => self.app_event_tx.send(AppEvent::CancelWorkflow),
+                    "resume" => self.app_event_tx.send(AppEvent::OpenWorkflowResumePicker),
+                    _ => self.app_event_tx.send(AppEvent::OpenWorkflowPicker {
+                        workflow_id: Some(trimmed.to_string()),
+                    }),
+                }
+            }
             SlashCommand::Side | SlashCommand::Btw if !trimmed.is_empty() => {
                 let Some(parent_thread_id) = self.thread_id else {
                     let command = cmd.command();
@@ -1107,6 +1121,7 @@ impl ChatWidget {
             | SlashCommand::Personality
             | SlashCommand::Plan
             | SlashCommand::Goal
+            | SlashCommand::Workflow
             | SlashCommand::Side
             | SlashCommand::Btw
             | SlashCommand::Keymap
