@@ -45,6 +45,7 @@ pub enum SlashCommand {
     Btw,
     Copy,
     Raw,
+    TmuxCommandLog,
     Diff,
     Mention,
     Status,
@@ -97,6 +98,9 @@ impl SlashCommand {
             SlashCommand::Quit | SlashCommand::Exit => "exit Codex",
             SlashCommand::Copy => "copy last response as markdown",
             SlashCommand::Raw => "toggle raw scrollback mode for copy-friendly terminal selection",
+            SlashCommand::TmuxCommandLog => {
+                "mirror this session's shell commands in a dedicated tmux window"
+            }
             SlashCommand::Diff => "show git diff (including untracked files)",
             SlashCommand::Mention => "mention a file",
             SlashCommand::Skills => "use skills to improve how Codex performs specific tasks",
@@ -216,6 +220,7 @@ impl SlashCommand {
             | SlashCommand::Permissions
             | SlashCommand::Copy
             | SlashCommand::Raw
+            | SlashCommand::TmuxCommandLog
             | SlashCommand::Rename
             | SlashCommand::Mention
             | SlashCommand::Skills
@@ -297,6 +302,7 @@ mod tests {
         assert!(SlashCommand::Raw.available_during_task());
         assert!(SlashCommand::Raw.available_in_side_conversation());
         assert!(SlashCommand::Raw.supports_inline_args());
+        assert!(SlashCommand::TmuxCommandLog.available_during_task());
         assert!(SlashCommand::App.available_during_task());
     }
 

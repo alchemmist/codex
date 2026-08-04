@@ -1015,6 +1015,9 @@ supports_websockets = true
 #[test]
 fn config_toml_deserializes_model_availability_nux() {
     let toml = r#"
+[tui]
+tmux_command_log = true
+
 [tui.model_availability_nux]
 "gpt-foo" = 2
 "gpt-bar" = 4
@@ -1030,6 +1033,7 @@ fn config_toml_deserializes_model_availability_nux() {
             show_tooltips: true,
             vim_mode_default: false,
             raw_output_mode: false,
+            tmux_command_log: true,
             alternate_screen: AltScreenMode::default(),
             status_line: None,
             status_line_use_colors: true,
@@ -3922,6 +3926,7 @@ fn tui_config_missing_notifications_field_defaults_to_enabled() {
             show_tooltips: true,
             vim_mode_default: false,
             raw_output_mode: false,
+            tmux_command_log: false,
             alternate_screen: AltScreenMode::Auto,
             status_line: None,
             status_line_use_colors: true,

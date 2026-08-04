@@ -52,6 +52,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_exec_command_output_delta(&mut self, call_id: &str, delta: &str) {
+        if let Some(log) = self.tmux_command_log.as_ref() {
+            log.record_output(call_id, delta);
+        }
         self.track_unified_exec_output_chunk(call_id, delta.as_bytes());
         if !self.bottom_pane.is_task_running() {
             return;
@@ -73,6 +76,9 @@ impl ChatWidget {
     }
 
     pub(super) fn on_terminal_interaction(&mut self, process_id: String, stdin: String) {
+        if let Some(log) = self.tmux_command_log.as_ref() {
+            log.record_stdin(&process_id, &stdin);
+        }
         if !self.bottom_pane.is_task_running() {
             return;
         }

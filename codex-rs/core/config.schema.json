@@ -3480,6 +3480,11 @@
           "description": "Syntax highlighting theme name (kebab-case).\n\nWhen set, overrides automatic light/dark theme detection. Use `/theme` in the TUI or see `$CODEX_HOME/themes` for custom themes.",
           "type": "string"
         },
+        "tmux_command_log": {
+          "default": false,
+          "description": "Mirror shell commands and their live output into a dedicated tmux window.\n\nThis only takes effect when the TUI itself is running inside tmux. Command text, stdin, stdout, and stderr are written to tmux scrollback and to a private temporary file for the lifetime of the TUI session. When this is disabled, `/tmux-command-log` can still enable logging for the current session. Defaults to `false`.",
+          "type": "boolean"
+        },
         "vim_mode_default": {
           "default": false,
           "description": "Start the composer in Vim mode (`Normal`) by default. Defaults to `false`.",

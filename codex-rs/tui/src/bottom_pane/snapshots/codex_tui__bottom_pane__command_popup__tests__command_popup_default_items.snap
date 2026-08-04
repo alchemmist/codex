@@ -27,6 +27,7 @@ expression: commands
 /side - start a side conversation in an ephemeral fork
 /copy - copy last response as markdown
 /raw - toggle raw scrollback mode for copy-friendly terminal selection
+/tmux-command-log - mirror this session's shell commands in a dedicated tmux window
 /diff - show git diff (including untracked files)
 /mention - mention a file
 /status - show current session configuration and token usage

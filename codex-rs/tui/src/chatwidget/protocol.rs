@@ -318,6 +318,9 @@ impl ChatWidget {
         notification: ItemStartedNotification,
         from_replay: bool,
     ) {
+        if !from_replay && let Some(log) = self.tmux_command_log.as_ref() {
+            log.record_started(&notification.item);
+        }
         match notification.item {
             item @ ThreadItem::CommandExecution { .. } => self.on_command_execution_started(item),
             ThreadItem::FileChange { id: _, changes, .. } => {
@@ -364,6 +367,11 @@ impl ChatWidget {
         notification: ItemCompletedNotification,
         replay_kind: Option<ReplayKind>,
     ) {
+        if replay_kind.is_none()
+            && let Some(log) = self.tmux_command_log.as_ref()
+        {
+            log.record_completed(&notification.item);
+        }
         self.handle_thread_item(
             notification.item,
             notification.turn_id,

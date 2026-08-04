@@ -713,6 +713,15 @@ pub struct Tui {
     #[serde(default)]
     pub raw_output_mode: bool,
 
+    /// Mirror shell commands and their live output into a dedicated tmux window.
+    ///
+    /// This only takes effect when the TUI itself is running inside tmux. Command text, stdin,
+    /// stdout, and stderr are written to tmux scrollback and to a private temporary file for the
+    /// lifetime of the TUI session. When this is disabled, `/tmux-command-log` can still enable
+    /// logging for the current session. Defaults to `false`.
+    #[serde(default)]
+    pub tmux_command_log: bool,
+
     /// Controls whether the TUI uses the terminal's alternate screen buffer.
     ///
     /// - `auto` (default): Use alternate screen.

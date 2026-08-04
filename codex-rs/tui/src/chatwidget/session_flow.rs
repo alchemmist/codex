@@ -9,6 +9,9 @@ impl ChatWidget {
         display: SessionConfiguredDisplay,
         fork_parent_title: Option<String>,
     ) {
+        if display != SessionConfiguredDisplay::SideConversation {
+            self.ensure_tmux_command_log(session.thread_id, session.cwd.as_path());
+        }
         self.transcript.reset_copy_history();
         let history_metadata = session.message_history.unwrap_or_default();
         self.bottom_pane.set_history_metadata(
@@ -153,6 +156,66 @@ impl ChatWidget {
         }
         if !self.suppress_session_configured_redraw {
             self.request_redraw();
+        }
+    }
+
+    fn ensure_tmux_command_log(&mut self, thread_id: ThreadId, cwd: &std::path::Path) {
+        if self
+            .tmux_command_log
+            .as_ref()
+            .is_some_and(|log| log.is_for(thread_id))
+        {
+            return;
+        }
+        self.tmux_command_log = None;
+        if !self.config.tui_tmux_command_log {
+            return;
+        }
+        self.tmux_command_log = TmuxCommandLog::start(thread_id, cwd.to_string_lossy().as_ref());
+    }
+
+    pub(super) fn enable_tmux_command_log(&mut self) {
+        let Some(thread_id) = self.thread_id else {
+            self.add_error_message(
+                "Session is still starting; try /tmux-command-log again in a moment.".to_string(),
+            );
+            return;
+        };
+        if let Some(log) = self
+            .tmux_command_log
+            .as_ref()
+            .filter(|log| log.is_for(thread_id))
+        {
+            let message = match log.ensure_viewer() {
+                Ok(TmuxViewerState::AlreadyOpen) => {
+                    "Tmux command log is already enabled for this session.".to_string()
+                }
+                Ok(TmuxViewerState::Reopened) => {
+                    "Tmux command log window reopened for this session.".to_string()
+                }
+                Err(err) => {
+                    self.add_error_message(format!("Failed to reopen tmux command log: {err}"));
+                    return;
+                }
+            };
+            self.add_info_message(message, /*hint*/ None);
+            return;
+        }
+
+        let cwd = self
+            .current_cwd
+            .as_deref()
+            .unwrap_or_else(|| self.config.cwd.as_path());
+        self.tmux_command_log = TmuxCommandLog::start(thread_id, &cwd.to_string_lossy());
+        if self.tmux_command_log.is_some() {
+            self.add_info_message(
+                "Tmux command log enabled for this session.".to_string(),
+                /*hint*/ None,
+            );
+        } else {
+            self.add_error_message(
+                "Tmux command log requires Codex to be running inside tmux.".to_string(),
+            );
         }
     }
 

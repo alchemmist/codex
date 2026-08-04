@@ -749,6 +749,9 @@ pub struct Config {
     /// Start the TUI in raw scrollback mode for copy-friendly transcript output.
     pub tui_raw_output_mode: bool,
 
+    /// Mirror shell command activity into a dedicated tmux window when running inside tmux.
+    pub tui_tmux_command_log: bool,
+
     /// Start the TUI in the specified collaboration mode (plan/default).
 
     /// Controls whether the TUI uses the terminal's alternate screen buffer.
@@ -4212,6 +4215,11 @@ impl Config {
                 .tui
                 .as_ref()
                 .map(|t| t.raw_output_mode)
+                .unwrap_or(false),
+            tui_tmux_command_log: cfg
+                .tui
+                .as_ref()
+                .map(|t| t.tmux_command_log)
                 .unwrap_or(false),
             tui_alternate_screen: cfg
                 .tui

@@ -403,6 +403,9 @@ impl ChatWidget {
                 let enabled = self.toggle_raw_output_mode_and_notify();
                 self.emit_raw_output_mode_changed(enabled);
             }
+            SlashCommand::TmuxCommandLog => {
+                self.enable_tmux_command_log();
+            }
             SlashCommand::Diff => {
                 self.add_diff_in_progress();
                 let tx = self.app_event_tx.clone();
@@ -1084,6 +1087,7 @@ impl ChatWidget {
             | SlashCommand::Rollout
             | SlashCommand::Copy
             | SlashCommand::Raw
+            | SlashCommand::TmuxCommandLog
             | SlashCommand::Vim
             | SlashCommand::Diff
             | SlashCommand::App
