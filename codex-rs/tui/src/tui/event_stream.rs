@@ -238,9 +238,13 @@ impl<S: EventSource + Default + Unpin> TuiEventStream<S> {
     /// Poll the draw broadcast stream for the next draw event. Draw events are used to trigger a redraw of the TUI.
     pub fn poll_draw_event(&mut self, cx: &mut Context<'_>) -> Poll<Option<TuiEvent>> {
         match Pin::new(&mut self.draw_stream).poll_next(cx) {
-            Poll::Ready(Some(Ok(()))) => Poll::Ready(Some(TuiEvent::Draw)),
-            Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) => {
-                Poll::Ready(Some(TuiEvent::Draw))
+            Poll::Ready(Some(Ok(())))
+            | Poll::Ready(Some(Err(BroadcastStreamRecvError::Lagged(_)))) => {
+                if self.terminal_focused.load(Ordering::Relaxed) {
+                    Poll::Ready(Some(TuiEvent::Draw))
+                } else {
+                    Poll::Pending
+                }
             }
             Poll::Ready(None) => Poll::Ready(None),
             Poll::Pending => Poll::Pending,
@@ -462,6 +466,30 @@ mod tests {
             Some(TuiEvent::Key(key)) => assert_eq!(key, expected_key),
             other => panic!("expected queued key event, got {other:?}"),
         }
+    }
+
+    #[tokio::test(flavor = "current_thread")]
+    async fn draw_events_are_suppressed_while_unfocused() {
+        let (broker, handle, draw_tx, draw_rx, terminal_focused) = setup();
+        let mut stream = make_stream(broker, draw_rx, terminal_focused.clone());
+
+        handle.send(Ok(Event::FocusLost));
+        handle.send(Ok(Event::Key(KeyEvent::new(
+            KeyCode::Char('a'),
+            KeyModifiers::NONE,
+        ))));
+        assert!(matches!(stream.next().await, Some(TuiEvent::Key(_))));
+        assert!(!terminal_focused.load(Ordering::Relaxed));
+
+        let _ = draw_tx.send(());
+        let mut context = Context::from_waker(std::task::Waker::noop());
+        assert!(matches!(
+            stream.poll_draw_event(&mut context),
+            Poll::Pending
+        ));
+
+        handle.send(Ok(Event::FocusGained));
+        assert!(matches!(stream.next().await, Some(TuiEvent::Draw)));
     }
 
     #[tokio::test(flavor = "current_thread")]
