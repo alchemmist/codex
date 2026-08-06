@@ -183,6 +183,7 @@ mod text_formatting;
 mod theme_picker;
 mod thread_transcript;
 mod tmux_command_log;
+mod tmux_session;
 mod token_usage;
 mod tooltips;
 mod transcript_reflow;

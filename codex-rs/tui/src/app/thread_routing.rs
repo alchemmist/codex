@@ -189,9 +189,11 @@ impl App {
     /// intentionally hidden until there is more than one known thread so single-thread sessions do
     /// not spend footer space restating that the user is already on the main conversation.
     pub(super) fn sync_active_agent_label(&mut self) {
+        let thread_id = self.current_displayed_thread_id();
+        crate::tmux_session::publish_thread_id(thread_id);
         let label = self
             .agent_navigation
-            .active_agent_label(self.current_displayed_thread_id(), self.primary_thread_id);
+            .active_agent_label(thread_id, self.primary_thread_id);
         self.chat_widget.set_active_agent_label(label);
         self.sync_side_thread_ui();
     }
