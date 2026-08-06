@@ -240,7 +240,7 @@ impl ChatWidget {
         // User-message dedupe only suppresses the app-server echo of a prompt
         // this TUI already rendered locally. Once that turn ends, another
         // client can submit the same text and it still needs its own user cell.
-        self.last_rendered_user_message_display = None;
+        let last_rendered_user_message_display = self.last_rendered_user_message_display.take();
         match notification.turn.status {
             TurnStatus::Completed => {
                 let last_agent_message =
@@ -291,7 +291,25 @@ impl ChatWidget {
                 } else {
                     TurnAbortReason::Interrupted
                 };
-                self.on_interrupted_turn(reason);
+                let model_activity = notification.turn.items.iter().any(|item| {
+                    !matches!(
+                        item,
+                        ThreadItem::UserMessage { .. } | ThreadItem::HookPrompt { .. }
+                    )
+                }) || self.transcript.saw_copy_source_this_turn
+                    || self.transcript.had_work_activity
+                    || self.transcript.active_cell.is_some()
+                    || self.stream_controller.is_some()
+                    || self.plan_stream_controller.is_some();
+                self.on_interrupted_turn(
+                    reason,
+                    if model_activity {
+                        InterruptedTurnActivity::Started
+                    } else {
+                        InterruptedTurnActivity::None
+                    },
+                    last_rendered_user_message_display,
+                );
             }
             TurnStatus::Failed => {
                 if let Some(error) = notification.turn.error {

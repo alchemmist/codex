@@ -210,6 +210,12 @@ pub(crate) fn new_info_event(message: String, hint: Option<String>) -> PlainHist
     PlainHistoryCell { lines }
 }
 
+pub(crate) fn new_interrupted_event() -> PlainHistoryCell {
+    PlainHistoryCell {
+        lines: vec![vec!["• ".dim(), "Interrupted.".dark_gray()].into()],
+    }
+}
+
 pub(crate) fn new_error_event(message: String) -> PlainHistoryCell {
     // Use a hair space (U+200A) to create a subtle, near-invisible separation
     // before the text. VS16 is intentionally omitted to keep spacing tighter

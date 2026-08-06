@@ -782,7 +782,11 @@ async fn manual_interrupt_restores_pending_steers_to_composer() {
     }
     assert!(drain_insert_history(&mut rx).is_empty());
 
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     assert!(chat.input_queue.pending_steers.is_empty());
     assert_eq!(chat.bottom_pane.composer_text(), "queued while streaming");
@@ -842,7 +846,11 @@ async fn esc_interrupt_sends_all_pending_steers_immediately_and_keeps_existing_d
     chat.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     next_interrupt_op(&mut op_rx);
 
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     match next_submit_op(&mut op_rx) {
         Op::UserTurn { items, .. } => assert_eq!(
@@ -934,7 +942,11 @@ async fn manual_interrupt_restores_pending_steer_mention_bindings_to_composer() 
         other => panic!("expected Op::UserTurn, got {other:?}"),
     }
 
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     assert_eq!(chat.bottom_pane.composer_text(), "please use $figma");
     assert_eq!(chat.bottom_pane.take_mention_bindings(), mention_bindings);
@@ -972,7 +984,11 @@ async fn manual_interrupt_restores_pending_steers_before_queued_messages() {
     }
     assert!(drain_insert_history(&mut rx).is_empty());
 
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     assert!(chat.input_queue.pending_steers.is_empty());
     assert!(chat.input_queue.queued_user_messages.is_empty());
@@ -1193,22 +1209,18 @@ async fn interrupt_exec_marks_failed_snapshot() {
     assert_chatwidget_snapshot!("interrupt_exec_marks_failed", exec_blob);
 }
 
-// Snapshot test: after an interrupted turn, a gentle error message is inserted
-// suggesting the user to tell the model what to do differently and to use /feedback.
 #[tokio::test]
-async fn interrupted_turn_error_message_snapshot() {
+async fn interrupted_turn_message_snapshot() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
-    // Simulate an in-progress task so the widget is in a running state.
     handle_turn_started(&mut chat, "turn-1");
 
-    // Abort the turn (like pressing Esc) and drain inserted history.
     handle_turn_interrupted(&mut chat, "turn-1");
 
     let cells = drain_insert_history(&mut rx);
     assert!(
         !cells.is_empty(),
-        "expected error message to be inserted after interruption"
+        "expected a message to be inserted after interruption"
     );
     let last = lines_to_single_string(cells.last().unwrap());
     assert_chatwidget_snapshot!("interrupted_turn_error_message", last);

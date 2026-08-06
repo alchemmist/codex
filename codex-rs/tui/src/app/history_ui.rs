@@ -35,6 +35,25 @@ impl App {
         self.chat_widget.request_pending_usage_output_insertion();
     }
 
+    pub(super) fn remove_interrupted_user_prompt(
+        &mut self,
+        tui: &mut tui::Tui,
+        display: &crate::chatwidget::UserMessageDisplay,
+    ) {
+        if !remove_last_matching_user_prompt(&mut self.transcript_cells, display) {
+            return;
+        }
+        if let Some(Overlay::Transcript(overlay)) = &mut self.overlay {
+            overlay.replace_cells(self.transcript_cells.clone());
+        }
+        if let Err(err) =
+            self.rebuild_transcript_after_backtrack(tui, tui.terminal.last_known_screen_size.into())
+        {
+            tracing::warn!(error = %err, "failed to remove interrupted prompt from transcript");
+        }
+        tui.frame_requester().schedule_frame();
+    }
+
     pub(super) fn pending_usage_output_insertion_blocked(&self) -> bool {
         self.chat_widget.usage_history_insertion_blocked()
             || self
@@ -175,6 +194,26 @@ impl App {
         self.backtrack_render_pending = false;
         self.skill_load_warnings.clear();
     }
+}
+
+pub(super) fn remove_last_matching_user_prompt(
+    transcript_cells: &mut Vec<Arc<dyn HistoryCell>>,
+    display: &crate::chatwidget::UserMessageDisplay,
+) -> bool {
+    let Some(index) = transcript_cells.iter().rposition(|cell| {
+        cell.as_any()
+            .downcast_ref::<history_cell::UserHistoryCell>()
+            .is_some_and(|cell| {
+                cell.message == display.message
+                    && cell.text_elements == display.text_elements
+                    && cell.local_image_paths == display.local_images
+                    && cell.remote_image_urls == display.remote_image_urls
+            })
+    }) else {
+        return false;
+    };
+    transcript_cells.remove(index);
+    true
 }
 
 fn desktop_thread_open_error_message(err: &str) -> String {

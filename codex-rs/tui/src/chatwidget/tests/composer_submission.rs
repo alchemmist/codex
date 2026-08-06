@@ -1119,28 +1119,36 @@ async fn empty_enter_during_task_does_not_queue() {
 fn interrupted_history(
     rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEvent>,
     prompt: &str,
-) -> (bool, String) {
+) -> (bool, bool, String) {
     let mut saw_prompt = false;
+    let mut removed_prompt = false;
     let mut history = Vec::new();
     while let Ok(event) = rx.try_recv() {
-        if let AppEvent::InsertHistoryCell(cell) = event {
-            if let Some(cell) = cell.as_any().downcast_ref::<UserHistoryCell>() {
-                assert_eq!(cell.message, prompt);
-                saw_prompt = true;
+        match event {
+            AppEvent::InsertHistoryCell(cell) => {
+                if let Some(cell) = cell.as_any().downcast_ref::<UserHistoryCell>() {
+                    assert_eq!(cell.message, prompt);
+                    saw_prompt = true;
+                }
+                history.push(lines_to_single_string(&cell.display_lines(/*width*/ 80)));
             }
-            history.push(lines_to_single_string(&cell.display_lines(/*width*/ 80)));
+            AppEvent::RemoveInterruptedUserPrompt(display) => {
+                assert_eq!(display.message, prompt);
+                removed_prompt = true;
+            }
+            _ => {}
         }
     }
     let history = history.join("\n");
     assert!(
-        history.contains("Conversation interrupted - tell the model what to do differently."),
-        "expected normal interruption notice, got {history:?}"
+        !history.contains("Conversation interrupted"),
+        "unexpected legacy interruption notice: {history:?}"
     );
-    (saw_prompt, history)
+    (saw_prompt, removed_prompt, history)
 }
 
 #[tokio::test]
-async fn output_free_esc_interrupt_keeps_prompt_and_opens_blank_composer() {
+async fn output_free_esc_interrupt_restores_prompt_to_composer() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let prompt = "revise this prompt";
     chat.thread_id = Some(ThreadId::new());
@@ -1170,13 +1178,14 @@ async fn output_free_esc_interrupt_keeps_prompt_and_opens_blank_composer() {
 
     handle_turn_interrupted(&mut chat, "turn-1");
 
-    let (prompt_after_interrupt, _) = interrupted_history(&mut rx, prompt);
+    let (prompt_after_interrupt, removed_prompt, _) = interrupted_history(&mut rx, prompt);
     assert!(saw_prompt || prompt_after_interrupt);
-    assert!(chat.bottom_pane.composer_is_empty());
+    assert!(removed_prompt);
+    assert_eq!(chat.bottom_pane.composer_text(), prompt);
 }
 
 #[tokio::test]
-async fn output_free_ctrl_c_interrupt_keeps_prompt_and_opens_blank_composer() {
+async fn output_free_ctrl_c_interrupt_restores_prompt_to_composer() {
     let (mut chat, mut rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     let prompt = "revise this prompt";
     chat.thread_id = Some(ThreadId::new());
@@ -1189,13 +1198,14 @@ async fn output_free_ctrl_c_interrupt_keeps_prompt_and_opens_blank_composer() {
     next_interrupt_op(&mut op_rx);
     handle_turn_interrupted(&mut chat, "turn-1");
 
-    let (saw_prompt, interrupted_history) = interrupted_history(&mut rx, prompt);
+    let (saw_prompt, removed_prompt, interrupted_history) = interrupted_history(&mut rx, prompt);
     assert!(saw_prompt);
-    assert!(chat.bottom_pane.composer_is_empty());
+    assert!(removed_prompt);
+    assert_eq!(chat.bottom_pane.composer_text(), prompt);
     insta::assert_snapshot!(
         "output_free_ctrl_c_interrupt_keeps_prompt_and_blank_composer",
         format!(
-            "history:\n{interrupted_history}\ncomposer:\n{}",
+            "prompt removed: {removed_prompt}\nhistory:\n{interrupted_history}\ncomposer:\n{}",
             chat.bottom_pane.composer_text()
         )
     );

@@ -6,6 +6,12 @@ use std::collections::VecDeque;
 use super::user_messages::remap_colliding_paste_placeholders;
 use super::*;
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(super) enum InterruptedTurnActivity {
+    None,
+    Started,
+}
+
 impl ChatWidget {
     pub(crate) fn set_initial_user_message_submit_suppressed(&mut self, suppressed: bool) {
         self.suppress_initial_user_message_submit = suppressed;
@@ -121,8 +127,16 @@ impl ChatWidget {
     /// or review completion.
     /// When there are queued user messages, restore them into the composer
     /// separated by newlines rather than auto-submitting the next one.
-    pub(super) fn on_interrupted_turn(&mut self, reason: TurnAbortReason) {
-        // Finalize, log a gentle prompt, and clear running state.
+    pub(super) fn on_interrupted_turn(
+        &mut self,
+        reason: TurnAbortReason,
+        activity: InterruptedTurnActivity,
+        user_message_display: Option<UserMessageDisplay>,
+    ) {
+        let prompt_to_restore = (reason == TurnAbortReason::Interrupted
+            && activity == InterruptedTurnActivity::None)
+            .then(|| self.safety_buffering_prompt.clone())
+            .flatten();
         self.finalize_turn();
         let send_pending_steers_immediately =
             self.input_queue.submit_pending_steers_after_interrupt;
@@ -133,10 +147,12 @@ impl ChatWidget {
                     "Model interrupted to submit steer instructions.".to_owned(),
                     /*hint*/ None,
                 ));
-            } else {
+            } else if reason == TurnAbortReason::BudgetLimited {
                 self.add_to_history(history_cell::new_error_event(
                     self.interrupted_turn_message(reason),
                 ));
+            } else if prompt_to_restore.is_none() {
+                self.add_to_history(history_cell::new_interrupted_event());
             }
         }
 
@@ -157,8 +173,17 @@ impl ChatWidget {
             } else if let Some(combined) = self.drain_pending_messages_for_restore() {
                 self.restore_composer_state(combined);
             }
-        } else if let Some(combined) = self.drain_pending_messages_for_restore() {
-            self.restore_composer_state(combined);
+        } else {
+            if let Some(combined) = self.drain_pending_messages_for_restore() {
+                self.restore_composer_state(combined);
+            }
+            if let Some(prompt) = prompt_to_restore {
+                if let Some(display) = user_message_display {
+                    self.app_event_tx
+                        .send(AppEvent::RemoveInterruptedUserPrompt(display));
+                }
+                self.restore_user_message_to_composer(prompt);
+            }
         }
         self.refresh_pending_input_preview();
         self.request_redraw();

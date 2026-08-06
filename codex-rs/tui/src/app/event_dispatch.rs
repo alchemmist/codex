@@ -358,6 +358,9 @@ impl App {
             AppEvent::InsertHistoryCell(cell) => {
                 self.insert_history_cell(tui, cell);
             }
+            AppEvent::RemoveInterruptedUserPrompt(display) => {
+                self.remove_interrupted_user_prompt(tui, &display);
+            }
             AppEvent::EndInitialHistoryReplayBuffer => {
                 self.finish_initial_history_replay_buffer(tui);
             }

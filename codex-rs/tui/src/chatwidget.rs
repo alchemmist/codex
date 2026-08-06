@@ -359,6 +359,7 @@ mod ide_context;
 use self::ide_context::IdeContextState;
 mod input_queue;
 use self::input_queue::InputQueueState;
+use self::input_restore::InterruptedTurnActivity;
 mod input_flow;
 mod input_restore;
 mod input_submission;
@@ -447,7 +448,7 @@ use self::user_messages::ThreadComposerState;
 pub(crate) use self::user_messages::ThreadInputState;
 pub(crate) use self::user_messages::ThreadInputStateRestoreMode;
 pub(crate) use self::user_messages::UserMessage;
-use self::user_messages::UserMessageDisplay;
+pub(crate) use self::user_messages::UserMessageDisplay;
 #[cfg(test)]
 use self::user_messages::UserMessageHistoryOverride;
 use self::user_messages::UserMessageHistoryRecord;

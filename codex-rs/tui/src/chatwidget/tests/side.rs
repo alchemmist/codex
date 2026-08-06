@@ -35,13 +35,17 @@ async fn suppressed_interrupted_turn_notice_skips_history_warning() {
     chat.on_task_started();
     chat.on_agent_message_delta("partial output".to_string());
 
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     let inserted = drain_insert_history(&mut rx);
     assert!(
         inserted.iter().all(|cell| {
             let rendered = lines_to_single_string(cell);
-            !rendered.contains("Conversation interrupted - tell the model what to do differently.")
+            !rendered.contains("Interrupted.")
                 && !rendered.contains("Model interrupted to submit steer instructions.")
         }),
         "unexpected interrupted-turn notice in side conversation: {inserted:?}"

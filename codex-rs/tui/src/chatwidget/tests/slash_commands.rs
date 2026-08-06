@@ -936,7 +936,11 @@ async fn interrupt_disambiguates_same_sized_goal_pastes() {
     chat.bottom_pane
         .set_composer_text("/goal ".to_string(), Vec::new(), Vec::new());
     chat.handle_paste(second.clone());
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     chat.handle_key_event(KeyEvent::new(KeyCode::Up, KeyModifiers::NONE));
     chat.handle_key_event(KeyEvent::new(KeyCode::Backspace, KeyModifiers::NONE));
@@ -1166,7 +1170,11 @@ async fn interrupted_merged_message_history_encodes_mentions_once() {
 
     chat.handle_key_event(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE));
     next_interrupt_op(&mut op_rx);
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        /*user_message_display*/ None,
+    );
 
     match next_submit_op(&mut op_rx) {
         Op::UserTurn { items, .. } => {

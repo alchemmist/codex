@@ -7572,6 +7572,38 @@ async fn side_backtrack_rejection_reports_unavailable_message_snapshot() {
         rendered
     );
 }
+
+#[test]
+fn interrupted_prompt_removal_removes_latest_matching_user_cell() {
+    let user_cell = |message: &str| {
+        Arc::new(UserHistoryCell {
+            message: message.to_string(),
+            text_elements: Vec::new(),
+            local_image_paths: Vec::new(),
+            remote_image_urls: Vec::new(),
+        }) as Arc<dyn HistoryCell>
+    };
+    let mut transcript_cells = vec![user_cell("same"), user_cell("other"), user_cell("same")];
+    let display = crate::chatwidget::UserMessageDisplay {
+        message: "same".to_string(),
+        remote_image_urls: Vec::new(),
+        local_images: Vec::new(),
+        text_elements: Vec::new(),
+    };
+
+    assert!(crate::app::history_ui::remove_last_matching_user_prompt(
+        &mut transcript_cells,
+        &display,
+    ));
+
+    let messages = transcript_cells
+        .iter()
+        .filter_map(|cell| cell.as_any().downcast_ref::<UserHistoryCell>())
+        .map(|cell| cell.message.as_str())
+        .collect::<Vec<_>>();
+    assert_eq!(messages, vec!["same", "other"]);
+}
+
 async fn start_config_write_test_app_server(app: &App) -> Result<AppServerSession> {
     Box::pin(crate::start_embedded_app_server_for_picker(&app.config)).await
 }

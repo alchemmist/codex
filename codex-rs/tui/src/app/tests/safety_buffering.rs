@@ -667,7 +667,7 @@ goals = true
         }
     }
     assert_eq!(
-        replayed_history.contains("Conversation interrupted"),
+        replayed_history.contains("Interrupted."),
         scenario == SafetyRetryScenario::InterruptedPrevious
     );
     let forked_history = replayed_history
