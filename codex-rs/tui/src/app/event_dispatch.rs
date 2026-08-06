@@ -73,7 +73,7 @@ impl App {
             AppEvent::RawOutputModeChanged { enabled } => {
                 self.apply_raw_output_mode(tui, enabled, /*notify*/ false);
             }
-            AppEvent::ClearUiAndSubmitUserMessage { text } => {
+            AppEvent::ClearUiAndImplementPlan { text } => {
                 self.clear_terminal_ui(tui, /*redraw_header*/ false)?;
                 self.reset_app_ui_state_after_clear();
 
@@ -89,6 +89,7 @@ impl App {
                     /*new_thread_name*/ None,
                 )
                 .await;
+                self.chat_widget.begin_plan_implementation();
             }
             AppEvent::OpenResumePicker => {
                 let picker_app_server = match crate::start_app_server_for_picker(
@@ -2180,10 +2181,11 @@ impl App {
             AppEvent::OpenReviewCustomPrompt => {
                 self.chat_widget.show_review_custom_prompt();
             }
-            AppEvent::SubmitUserMessageWithMode {
+            AppEvent::SubmitPlanImplementationWithMode {
                 text,
                 collaboration_mode,
             } => {
+                self.chat_widget.begin_plan_implementation();
                 self.chat_widget
                     .submit_user_message_with_mode(text, collaboration_mode);
             }

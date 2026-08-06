@@ -507,8 +507,12 @@ impl ChatWidget {
             })
             .count();
         self.transcript.last_plan_progress = (total > 0).then_some((completed, total));
+        if self.bottom_pane.task_plan_is_active() {
+            self.bottom_pane.set_task_plan(update.plan);
+        } else {
+            self.add_to_history(history_cell::new_plan_update(update));
+        }
         self.refresh_status_surfaces();
-        self.add_to_history(history_cell::new_plan_update(update));
     }
 
     pub(super) fn interrupted_turn_message(&self, reason: TurnAbortReason) -> String {

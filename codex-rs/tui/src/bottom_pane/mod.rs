@@ -23,6 +23,7 @@ use crate::app_event::HistoryLookupResponse;
 use crate::app_event_sender::AppEventSender;
 use crate::bottom_pane::pending_input_preview::PendingInputPreview;
 use crate::bottom_pane::pending_thread_approvals::PendingThreadApprovals;
+use crate::bottom_pane::task_plan::TaskPlan;
 use crate::bottom_pane::unified_exec_footer::UnifiedExecFooter;
 use crate::key_hint;
 use crate::key_hint::KeyBinding;
@@ -44,6 +45,7 @@ use codex_file_search::FileMatch;
 use codex_plugin::PluginCapabilitySummary;
 use codex_protocol::ThreadId;
 use codex_protocol::openai_models::ReasoningEffort;
+use codex_protocol::plan_tool::PlanItemArg;
 use codex_protocol::user_input::TextElement;
 use crossterm::event::KeyCode;
 use crossterm::event::KeyEvent;
@@ -63,6 +65,7 @@ mod request_user_input;
 mod status_line_setup;
 mod status_line_style;
 mod status_surface_preview;
+mod task_plan;
 mod title_setup;
 pub(crate) use action_required_title::ACTION_REQUIRED_PREVIEW_PREFIX;
 pub(crate) use action_required_title::build_action_required_title_text;
@@ -249,6 +252,7 @@ pub(crate) struct BottomPane {
     pending_input_preview: PendingInputPreview,
     /// Inactive threads with pending approval requests.
     pending_thread_approvals: PendingThreadApprovals,
+    task_plan: TaskPlan,
     context_window_percent: Option<i64>,
     context_window_used_tokens: Option<i64>,
     keymap: RuntimeKeymap,
@@ -304,6 +308,7 @@ impl BottomPane {
             unified_exec_footer: UnifiedExecFooter::new(),
             pending_input_preview: PendingInputPreview::new(),
             pending_thread_approvals: PendingThreadApprovals::new(),
+            task_plan: TaskPlan::default(),
             esc_backtrack_hint: false,
             animations_enabled,
             context_window_percent: None,
@@ -1088,6 +1093,24 @@ impl BottomPane {
         }
     }
 
+    pub(crate) fn begin_task_plan(&mut self) {
+        self.task_plan.begin();
+        self.request_redraw();
+    }
+
+    pub(crate) fn set_task_plan(&mut self, plan: Vec<PlanItemArg>) {
+        self.task_plan.set(plan);
+        self.request_redraw();
+    }
+
+    pub(crate) fn task_plan_is_active(&self) -> bool {
+        self.task_plan.is_active()
+    }
+
+    pub(crate) fn set_terminal_height(&self, height: u16) {
+        self.task_plan.set_terminal_height(height);
+    }
+
     pub(crate) fn set_queue_submissions(&mut self, queue_submissions: bool) {
         self.composer.set_queue_submissions(queue_submissions);
     }
@@ -1806,6 +1829,7 @@ impl BottomPane {
             }
             let mut flex2 = FlexRenderable::new();
             flex2.push(/*flex*/ 1, RenderableItem::Owned(flex.into()));
+            flex2.push(/*flex*/ 0, RenderableItem::Borrowed(&self.task_plan));
             let composer: RenderableItem<'_> = if composer_right_reserve == 0 {
                 RenderableItem::Borrowed(&self.composer)
             } else {

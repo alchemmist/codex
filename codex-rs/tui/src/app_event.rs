@@ -297,7 +297,7 @@ pub(crate) enum AppEvent {
     ///
     /// This is the Plan Mode handoff path: the previous thread remains resumable, but the model
     /// sees only the explicit prompt carried in `text` once the new session is configured.
-    ClearUiAndSubmitUserMessage {
+    ClearUiAndImplementPlan {
         text: String,
     },
 
@@ -1048,7 +1048,7 @@ pub(crate) enum AppEvent {
     OpenReviewCustomPrompt,
 
     /// Submit a user message with an explicit collaboration mask.
-    SubmitUserMessageWithMode {
+    SubmitPlanImplementationWithMode {
         text: String,
         collaboration_mode: CollaborationModeMask,
     },

@@ -60,6 +60,10 @@ impl ChatWidget {
     pub(crate) fn note_rendered_width(&self, width: u16) {
         self.last_rendered_width.set(Some(width as usize));
     }
+
+    pub(crate) fn note_terminal_height(&self, height: u16) {
+        self.bottom_pane.set_terminal_height(height);
+    }
 }
 
 struct TranscriptAreaRenderable<'a> {

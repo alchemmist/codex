@@ -171,12 +171,12 @@ async fn plan_implementation_popup_yes_emits_submit_message_event() {
     chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
 
     let event = rx.try_recv().expect("expected AppEvent");
-    let AppEvent::SubmitUserMessageWithMode {
+    let AppEvent::SubmitPlanImplementationWithMode {
         text,
         collaboration_mode,
     } = event
     else {
-        panic!("expected SubmitUserMessageWithMode, got {event:?}");
+        panic!("expected SubmitPlanImplementationWithMode, got {event:?}");
     };
     assert_eq!(
         text,
@@ -197,15 +197,16 @@ async fn plan_implementation_popup_clear_context_emits_clear_submit_event() {
     chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
 
     let event = rx.try_recv().expect("expected AppEvent");
-    let AppEvent::ClearUiAndSubmitUserMessage { text } = event else {
-        panic!("expected ClearUiAndSubmitUserMessage, got {event:?}");
+    let AppEvent::ClearUiAndImplementPlan { text } = event else {
+        panic!("expected ClearUiAndImplementPlan, got {event:?}");
     };
     assert_eq!(
         text,
         "A previous agent produced the plan below to accomplish the user's task. \
         Implement the plan in a fresh context. Treat the plan as the source of \
         user intent, re-read files as needed, and carry the work through \
-        implementation and verification.\n\n- Step 1\n- Step 2\n"
+        implementation and verification. First convert its meaningful steps into \
+        the `update_plan` checklist, then keep that checklist synchronized while you work.\n\n- Step 1\n- Step 2\n"
     );
 }
 
@@ -1739,4 +1740,41 @@ async fn plan_update_renders_history_cell() {
     assert!(blob.contains("Explore codebase"));
     assert!(blob.contains("Implement feature"));
     assert!(blob.contains("Write tests"));
+}
+
+#[tokio::test]
+async fn approved_plan_update_renders_persistent_bottom_panel() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.begin_plan_implementation();
+    chat.on_plan_update(UpdatePlanArgs {
+        explanation: Some("Adapting plan".to_string()),
+        plan: vec![
+            PlanItemArg {
+                step: "Explore codebase".into(),
+                status: StepStatus::Completed,
+            },
+            PlanItemArg {
+                step: "Implement feature".into(),
+                status: StepStatus::InProgress,
+            },
+            PlanItemArg {
+                step: "Write tests".into(),
+                status: StepStatus::Pending,
+            },
+        ],
+    });
+    assert!(
+        drain_insert_history(&mut rx).is_empty(),
+        "approved-plan updates should stay out of scrollback"
+    );
+    chat.note_terminal_height(24);
+    insta::assert_snapshot!(render_bottom_popup(&chat, /*width*/ 60), @r"
+      ✓ Explore codebase
+      ● Implement feature
+      ○ Write tests
+
+    ┃ Ask Codex to do anything
+
+      gpt-5.6-sol default · /tmp/project
+    ");
 }

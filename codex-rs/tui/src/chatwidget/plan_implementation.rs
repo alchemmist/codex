@@ -10,12 +10,16 @@ pub(super) const PLAN_IMPLEMENTATION_TITLE: &str = "Implement this plan?";
 const PLAN_IMPLEMENTATION_YES: &str = "Yes, implement this plan";
 const PLAN_IMPLEMENTATION_CLEAR_CONTEXT: &str = "Yes, clear context and implement";
 const PLAN_IMPLEMENTATION_NO: &str = "No, stay in Plan mode";
-pub(super) const PLAN_IMPLEMENTATION_CODING_MESSAGE: &str = "Implement the plan.";
+pub(super) const PLAN_IMPLEMENTATION_CODING_MESSAGE: &str = concat!(
+    "Implement the plan. First convert its meaningful steps into the `update_plan` checklist, ",
+    "then keep that checklist synchronized while you work."
+);
 pub(super) const PLAN_IMPLEMENTATION_CLEAR_CONTEXT_PREFIX: &str = concat!(
     "A previous agent produced the plan below to accomplish the user's task. ",
     "Implement the plan in a fresh context. Treat the plan as the source of ",
     "user intent, re-read files as needed, and carry the work through ",
-    "implementation and verification."
+    "implementation and verification. First convert its meaningful steps into ",
+    "the `update_plan` checklist, then keep that checklist synchronized while you work."
 );
 pub(super) const PLAN_IMPLEMENTATION_DEFAULT_UNAVAILABLE: &str = "Default mode unavailable";
 pub(super) const PLAN_IMPLEMENTATION_NO_APPROVED_PLAN: &str = "No approved plan available";
@@ -34,7 +38,7 @@ pub(super) fn selection_view_params(
         Some(mask) => {
             let user_text = PLAN_IMPLEMENTATION_CODING_MESSAGE.to_string();
             let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
-                tx.send(AppEvent::SubmitUserMessageWithMode {
+                tx.send(AppEvent::SubmitPlanImplementationWithMode {
                     text: user_text.clone(),
                     collaboration_mode: mask.clone(),
                 });
@@ -57,7 +61,7 @@ pub(super) fn selection_view_params(
             let user_text =
                 format!("{PLAN_IMPLEMENTATION_CLEAR_CONTEXT_PREFIX}\n\n{plan_markdown}");
             let actions: Vec<SelectionAction> = vec![Box::new(move |tx| {
-                tx.send(AppEvent::ClearUiAndSubmitUserMessage {
+                tx.send(AppEvent::ClearUiAndImplementPlan {
                     text: user_text.clone(),
                 });
             })];
@@ -110,5 +114,11 @@ pub(super) fn selection_view_params(
             },
         ],
         ..Default::default()
+    }
+}
+
+impl super::ChatWidget {
+    pub(crate) fn begin_plan_implementation(&mut self) {
+        self.bottom_pane.begin_task_plan();
     }
 }
