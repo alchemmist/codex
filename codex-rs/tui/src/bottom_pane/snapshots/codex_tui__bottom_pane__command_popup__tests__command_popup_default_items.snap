@@ -23,6 +23,7 @@ expression: commands
 /app - continue this session in the Desktop app
 /init - create an AGENTS.md file with instructions for Codex
 /compact - summarize conversation to prevent hitting the context limit
+/todo - show the full task plan and current stage
 /workflow - run, pause, resume, or cancel a Python workflow
 /agent - switch the active agent thread
 /side - start a side conversation in an ephemeral fork

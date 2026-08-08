@@ -205,8 +205,9 @@ async fn plan_implementation_popup_clear_context_emits_clear_submit_event() {
         "A previous agent produced the plan below to accomplish the user's task. \
         Implement the plan in a fresh context. Treat the plan as the source of \
         user intent, re-read files as needed, and carry the work through \
-        implementation and verification. First convert its meaningful steps into \
-        the `update_plan` checklist, then keep that checklist synchronized while you work.\n\n- Step 1\n- Step 2\n"
+        implementation and verification. First create an `update_plan` checklist with exactly one \
+        item for every plan step, preserving all steps in order without combining, omitting, or \
+        truncating them. Then keep that checklist synchronized while you work.\n\n- Step 1\n- Step 2\n"
     );
 }
 
@@ -1777,4 +1778,50 @@ async fn approved_plan_update_renders_persistent_bottom_panel() {
 
       gpt-5.6-sol default · /tmp/project
     ");
+}
+
+#[tokio::test]
+async fn todo_command_renders_full_active_task_plan() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.begin_plan_implementation();
+    chat.on_plan_update(UpdatePlanArgs {
+        explanation: None,
+        plan: vec![
+            PlanItemArg {
+                step: "Inspect architecture".into(),
+                status: StepStatus::Completed,
+            },
+            PlanItemArg {
+                step: "Define behavior".into(),
+                status: StepStatus::Completed,
+            },
+            PlanItemArg {
+                step: "Implement storage".into(),
+                status: StepStatus::Completed,
+            },
+            PlanItemArg {
+                step: "Render current state".into(),
+                status: StepStatus::InProgress,
+            },
+            PlanItemArg {
+                step: "Add command".into(),
+                status: StepStatus::Pending,
+            },
+            PlanItemArg {
+                step: "Test interactions".into(),
+                status: StepStatus::Pending,
+            },
+            PlanItemArg {
+                step: "Verify installation".into(),
+                status: StepStatus::Pending,
+            },
+        ],
+    });
+    assert!(drain_insert_history(&mut rx).is_empty());
+
+    chat.dispatch_command(SlashCommand::Todo);
+
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1);
+    insta::assert_snapshot!("todo_command_full_plan", lines_to_single_string(&cells[0]));
 }

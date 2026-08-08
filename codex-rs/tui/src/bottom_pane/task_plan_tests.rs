@@ -59,20 +59,47 @@ fn five_row_window_centers_on_current_task() {
     let plan = long_plan();
 
     assert_eq!(plan.visible_range(5), 1..6);
-    insta::assert_snapshot!(render(&plan, 40, 5), @r"
+    assert_eq!(plan.desired_height(/*width*/ 40), 7);
+    insta::assert_snapshot!(render(&plan, 40, 7), @r"
+      …
       ✓ Second complete
       ✓ Third complete
       ● Current task
       ○ First upcoming
       ○ Second upcoming
+      …
     ");
 }
 
 #[test]
-fn compact_terminal_shows_only_current_task() {
+fn compact_terminal_shows_current_task_and_continuations() {
     let plan = long_plan();
     plan.set_terminal_height(8);
 
     assert_eq!(plan.visible_range(plan.visible_capacity()), 3..4);
-    insta::assert_snapshot!(render(&plan, 24, 1), @"  ● Current task");
+    insta::assert_snapshot!(render(&plan, 24, 3), @r"
+      …
+      ● Current task
+      …
+    ");
+}
+
+#[test]
+fn constrained_area_prioritizes_current_task() {
+    let plan = long_plan();
+
+    assert_eq!(render(&plan, 24, 1), "  ● Current task");
+}
+
+#[test]
+fn stores_large_plans_without_truncation() {
+    let mut plan = TaskPlan::default();
+    plan.begin();
+    plan.set(
+        (1..=100)
+            .map(|index| item(&format!("Task {index}"), StepStatus::Pending))
+            .collect(),
+    );
+
+    assert_eq!(plan.active_plan().map(<[_]>::len), Some(100));
 }

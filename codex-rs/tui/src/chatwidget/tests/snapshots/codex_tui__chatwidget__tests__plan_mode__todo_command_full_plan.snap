@@ -1,0 +1,13 @@
+---
+source: tui/src/chatwidget/tests/plan_mode.rs
+expression: "lines_to_single_string(&cells[0])"
+---
+• Todos · 3/7 completed
+  └ Current stage: 4/7 — Render current state
+    ✔ Inspect architecture
+    ✔ Define behavior
+    ✔ Implement storage
+    □ Render current state
+    □ Add command
+    □ Test interactions
+    □ Verify installation

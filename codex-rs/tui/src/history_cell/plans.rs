@@ -47,7 +47,42 @@ impl HistoryCell for StreamingPlanTailCell {
 /// Render a user‑friendly plan update styled like a checkbox todo list.
 pub(crate) fn new_plan_update(update: UpdatePlanArgs) -> PlanUpdateCell {
     let UpdatePlanArgs { explanation, plan } = update;
-    PlanUpdateCell { explanation, plan }
+    PlanUpdateCell {
+        title: "Updated Plan".to_string(),
+        explanation,
+        plan,
+    }
+}
+
+pub(crate) fn new_task_plan_status(plan: Vec<PlanItemArg>) -> PlanUpdateCell {
+    let completed = plan
+        .iter()
+        .filter(|item| matches!(item.status, StepStatus::Completed))
+        .count();
+    let total = plan.len();
+    let current = plan
+        .iter()
+        .position(|item| matches!(item.status, StepStatus::InProgress))
+        .map(|index| {
+            format!(
+                "Current stage: {}/{} — {}",
+                index + 1,
+                total,
+                plan[index].step
+            )
+        })
+        .or_else(|| {
+            plan.iter()
+                .position(|item| matches!(item.status, StepStatus::Pending))
+                .map(|index| format!("Next stage: {}/{} — {}", index + 1, total, plan[index].step))
+        });
+    let explanation =
+        current.or_else(|| (total > 0).then(|| format!("All {total} todo items completed.")));
+    PlanUpdateCell {
+        title: format!("Todos · {completed}/{total} completed"),
+        explanation,
+        plan,
+    }
 }
 
 /// Create a proposed-plan cell that snapshots the session cwd for later markdown rendering.
@@ -168,6 +203,7 @@ impl HistoryCell for ProposedPlanStreamCell {
 
 #[derive(Debug)]
 pub(crate) struct PlanUpdateCell {
+    title: String,
     explanation: Option<String>,
     plan: Vec<PlanItemArg>,
 }
@@ -201,7 +237,7 @@ impl HistoryCell for PlanUpdateCell {
         };
 
         let mut lines: Vec<Line<'static>> = vec![];
-        lines.push(vec!["• ".dim(), "Updated Plan".bold()].into());
+        lines.push(vec!["• ".dim(), self.title.clone().bold()].into());
 
         let mut indented_lines = vec![];
         let note = self
@@ -226,7 +262,7 @@ impl HistoryCell for PlanUpdateCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        let mut lines = vec![Line::from("Updated Plan")];
+        let mut lines = vec![Line::from(self.title.clone())];
         if let Some(explanation) = self
             .explanation
             .as_ref()

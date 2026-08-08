@@ -11,15 +11,17 @@ const PLAN_IMPLEMENTATION_YES: &str = "Yes, implement this plan";
 const PLAN_IMPLEMENTATION_CLEAR_CONTEXT: &str = "Yes, clear context and implement";
 const PLAN_IMPLEMENTATION_NO: &str = "No, stay in Plan mode";
 pub(super) const PLAN_IMPLEMENTATION_CODING_MESSAGE: &str = concat!(
-    "Implement the plan. First convert its meaningful steps into the `update_plan` checklist, ",
-    "then keep that checklist synchronized while you work."
+    "Implement the plan. First create an `update_plan` checklist with exactly one item for every ",
+    "plan step, preserving all steps in order without combining, omitting, or truncating them. ",
+    "Then keep that checklist synchronized while you work."
 );
 pub(super) const PLAN_IMPLEMENTATION_CLEAR_CONTEXT_PREFIX: &str = concat!(
     "A previous agent produced the plan below to accomplish the user's task. ",
     "Implement the plan in a fresh context. Treat the plan as the source of ",
     "user intent, re-read files as needed, and carry the work through ",
-    "implementation and verification. First convert its meaningful steps into ",
-    "the `update_plan` checklist, then keep that checklist synchronized while you work."
+    "implementation and verification. First create an `update_plan` checklist with exactly one ",
+    "item for every plan step, preserving all steps in order without combining, omitting, or ",
+    "truncating them. Then keep that checklist synchronized while you work."
 );
 pub(super) const PLAN_IMPLEMENTATION_DEFAULT_UNAVAILABLE: &str = "Default mode unavailable";
 pub(super) const PLAN_IMPLEMENTATION_NO_APPROVED_PLAN: &str = "No approved plan available";

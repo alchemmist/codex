@@ -1107,6 +1107,10 @@ impl BottomPane {
         self.task_plan.is_active()
     }
 
+    pub(crate) fn active_task_plan(&self) -> Option<&[PlanItemArg]> {
+        self.task_plan.active_plan()
+    }
+
     pub(crate) fn set_terminal_height(&self, height: u16) {
         self.task_plan.set_terminal_height(height);
     }

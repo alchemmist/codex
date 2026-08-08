@@ -293,6 +293,17 @@ impl ChatWidget {
             SlashCommand::Plan => {
                 self.apply_plan_slash_command();
             }
+            SlashCommand::Todo => {
+                let plan = self.bottom_pane.active_task_plan().map(<[_]>::to_vec);
+                if let Some(plan) = plan {
+                    self.add_to_history(history_cell::new_task_plan_status(plan));
+                } else {
+                    self.add_info_message(
+                        "No task plan is active.".to_string(),
+                        Some("Approve a plan in Plan mode to create one.".to_string()),
+                    );
+                }
+            }
             SlashCommand::Goal => {
                 if !self.config.features.enabled(Feature::Goals) {
                     return;
@@ -1102,6 +1113,7 @@ impl ChatWidget {
             | SlashCommand::Copy
             | SlashCommand::Raw
             | SlashCommand::TmuxCommandLog
+            | SlashCommand::Todo
             | SlashCommand::Vim
             | SlashCommand::Diff
             | SlashCommand::App

@@ -39,6 +39,7 @@ pub enum SlashCommand {
     Init,
     Compact,
     Plan,
+    Todo,
     Goal,
     Workflow,
     Agent,
@@ -124,6 +125,7 @@ impl SlashCommand {
             }
             SlashCommand::Personality => "choose a communication style for Codex",
             SlashCommand::Plan => "switch to Plan mode",
+            SlashCommand::Todo => "show the full task plan and current stage",
             SlashCommand::Goal => "set or view the goal for a long-running task",
             SlashCommand::Workflow => "run, pause, resume, or cancel a Python workflow",
             SlashCommand::Agent | SlashCommand::MultiAgents => "switch the active agent thread",
@@ -235,6 +237,7 @@ impl SlashCommand {
             | SlashCommand::Ps
             | SlashCommand::Stop
             | SlashCommand::App
+            | SlashCommand::Todo
             | SlashCommand::Goal
             | SlashCommand::Mcp
             | SlashCommand::Apps
