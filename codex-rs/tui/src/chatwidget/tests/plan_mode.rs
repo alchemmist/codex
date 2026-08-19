@@ -1772,12 +1772,12 @@ async fn approved_plan_update_renders_persistent_bottom_panel() {
         "approved-plan updates should stay out of scrollback"
     );
     chat.note_terminal_height(24);
-    insta::assert_snapshot!(render_bottom_popup(&chat, /*width*/ 60), @r"
+    insta::assert_snapshot!(render_bottom_popup(&chat, /*width*/ 60), @"
       ✓ Explore codebase
       ● Implement feature
       ○ Write tests
 
-    ┃ Ask Codex to do anything
+    › Ask Codex to do anything
 
       gpt-5.6-sol default · /tmp/project
     ");

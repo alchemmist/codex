@@ -85,10 +85,10 @@ async fn subagent_mcp_startup_settles_while_cached_servers_remain_deferred() {
         visible_startup_states.push(format!("{name}: {visible_status}"));
     }
 
-    insta::assert_snapshot!(visible_startup_states.join("\n"), @r"
-    eager: • Booting MCP server: eager
+    insta::assert_snapshot!(visible_startup_states.join("\n"), @"
+    eager: Booting MCP server: eager.  
     eager: idle
-    deferred: • Booting MCP server: deferred
+    deferred: Booting MCP server: deferred.  
     deferred: idle
     ");
 }

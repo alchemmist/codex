@@ -1,5 +1,4 @@
 use super::*;
-use super::input_restore::InterruptedTurnActivity;
 
 impl ChatWidget {
     pub(crate) fn handle_server_notification(

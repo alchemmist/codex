@@ -23,11 +23,14 @@ expression: commands
 /app - continue this session in the Desktop app
 /init - create an AGENTS.md file with instructions for Codex
 /compact - summarize conversation to prevent hitting the context limit
+/todo - show the full task plan and current stage
+/workflow - run, pause, resume, or cancel a Python workflow
 /agents - view and switch between all active agent sessions
 /side - start a side conversation in an ephemeral fork
 /copy - copy last response as markdown
 /export - export the conversation as markdown
 /raw - toggle raw scrollback mode for copy-friendly terminal selection
+/tmux-command-log - mirror this session's shell commands in a dedicated tmux window
 /diff - show git diff (including untracked files)
 /mention - mention a file
 /status - show current session configuration and token usage

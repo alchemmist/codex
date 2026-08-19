@@ -3,8 +3,8 @@ source: tui/src/bottom_pane/chat_composer.rs
 expression: terminal.backend()
 ---
 "                                                            "
-"┃ /res                                                      "
-"┃                                                           "
-"┃                                                           "
+"› /res                                                      "
+"                                                            "
+"                                                            "
 "                                                            "
 "  /resume  resume a saved chat                              "

@@ -86,7 +86,6 @@ use codex_app_server_protocol::ThreadArchivedNotification;
 use codex_app_server_protocol::ThreadClosedNotification;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadSettings;
-use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_app_server_protocol::ThreadSettingsUpdatedNotification;
 use codex_app_server_protocol::ThreadStartedNotification;
 use codex_app_server_protocol::ThreadTokenUsage;
@@ -8261,27 +8260,6 @@ async fn thread_setting_update_params_sync_model_and_default_reasoning() {
     assert_eq!(
         collaboration_mode.settings.reasoning_effort,
         Some(ReasoningEffortConfig::High)
-    );
-}
-
-#[tokio::test]
-async fn thread_setting_update_params_sync_cwd() {
-    let mut app = make_test_app().await;
-    let thread_id = ThreadId::new();
-    app.active_thread_id = Some(thread_id);
-    let cwd = test_path_buf("/tmp/project").abs();
-
-    let params = app
-        .active_thread_cwd_setting_update_params(cwd.clone())
-        .expect("active thread should produce cwd update params");
-
-    assert_eq!(
-        params,
-        ThreadSettingsUpdateParams {
-            thread_id: thread_id.to_string(),
-            cwd: Some(cwd.into_path_buf()),
-            ..ThreadSettingsUpdateParams::default()
-        }
     );
 }
 

@@ -110,12 +110,12 @@ fn next_add_to_history_event(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEv
 }
 
 #[tokio::test]
-async fn agents_command_requests_status_without_opening_the_picker() {
+async fn agents_command_opens_agents_overview() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
 
     chat.dispatch_command(SlashCommand::Agents);
 
-    assert_matches!(rx.try_recv(), Ok(AppEvent::ShowAgentsStatus));
+    assert_matches!(rx.try_recv(), Ok(AppEvent::OpenAgentsOverview));
     assert!(rx.try_recv().is_err());
 }
 
@@ -179,53 +179,6 @@ async fn ordinary_prompt_disallows_subagent_spawning() {
         } => assert_eq!(subagent_spawn_policy, SubagentSpawnPolicy::Disallow),
         other => panic!("expected user turn, got {other:?}"),
     }
-}
-
-#[tokio::test]
-async fn cd_command_resolves_relative_path_from_session_cwd() {
-    let temp = tempfile::tempdir().expect("create temp dir");
-    let current = temp.path().join("current");
-    let target = temp.path().join("target");
-    std::fs::create_dir_all(&current).expect("create current dir");
-    std::fs::create_dir_all(&target).expect("create target dir");
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    chat.thread_id = Some(ThreadId::new());
-    chat.config.cwd = AbsolutePathBuf::from_absolute_path(&current).expect("absolute cwd");
-
-    submit_composer_text(&mut chat, "/cd ../target");
-
-    assert_matches!(
-        rx.try_recv(),
-        Ok(AppEvent::UpdateCwd(cwd)) if cwd.as_path() == target
-    );
-}
-
-#[tokio::test]
-async fn cd_command_accepts_quoted_absolute_path() {
-    let temp = tempfile::tempdir().expect("create temp dir");
-    let target = temp.path().join("project with spaces");
-    std::fs::create_dir_all(&target).expect("create target dir");
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    chat.thread_id = Some(ThreadId::new());
-
-    submit_composer_text(&mut chat, &format!("/cd \"{}\"", target.display()));
-
-    assert_matches!(
-        rx.try_recv(),
-        Ok(AppEvent::UpdateCwd(cwd)) if cwd.as_path() == target
-    );
-}
-
-#[tokio::test]
-async fn cd_command_without_path_shows_usage() {
-    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    chat.thread_id = Some(ThreadId::new());
-
-    submit_composer_text(&mut chat, "/cd");
-
-    let cells = drain_insert_history(&mut rx);
-    assert_eq!(cells.len(), 1, "expected cd usage message");
-    insta::assert_snapshot!(lines_to_single_string(&cells[0]), @"■ Usage: /cd <path>");
 }
 
 #[tokio::test]

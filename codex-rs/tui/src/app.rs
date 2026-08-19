@@ -234,6 +234,7 @@ mod session_lifecycle;
 mod side;
 mod startup;
 mod startup_prompts;
+mod theme_watcher;
 mod thread_event_buffer;
 mod thread_events;
 mod thread_goal_actions;
@@ -241,9 +242,8 @@ mod thread_routing;
 mod thread_session_state;
 mod thread_settings;
 mod transcript_export;
-mod theme_watcher;
-mod working_directory;
 mod workflows;
+mod working_directory;
 
 use self::agent_navigation::AgentNavigationDirection;
 use self::agent_navigation::AgentNavigationState;

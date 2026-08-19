@@ -3789,9 +3789,9 @@ mod tests {
         Question 1/1 (1 unanswered)
         Share details.
 
-        ┃ Type your answer (optional)
-        ┃
-        ┃
+        › Type your answer (optional)
+
+
 
         ctrl + x enter to submit answer | esc to interrupt
         ");

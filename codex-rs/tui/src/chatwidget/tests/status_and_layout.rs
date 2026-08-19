@@ -3348,7 +3348,11 @@ async fn interrupted_turn_refreshes_estimated_thread_usage() {
         })),
     ));
 
-    chat.on_interrupted_turn(TurnAbortReason::Interrupted);
+    chat.on_interrupted_turn(
+        TurnAbortReason::Interrupted,
+        InterruptedTurnActivity::Started,
+        None,
+    );
 
     assert!(
         std::iter::from_fn(|| rx.try_recv().ok()).any(|event| {

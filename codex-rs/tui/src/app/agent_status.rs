@@ -73,5 +73,4 @@ impl App {
         self.chat_widget
             .add_to_history(AgentStatusHistoryCell::new(entries));
     }
-
 }
