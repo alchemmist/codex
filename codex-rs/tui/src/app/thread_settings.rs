@@ -10,6 +10,7 @@ use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_protocol::ThreadId;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::models::PermissionProfile;
+use codex_utils_absolute_path::AbsolutePathBuf;
 
 impl App {
     pub(super) async fn sync_active_thread_model_setting(
@@ -21,6 +22,29 @@ impl App {
             return;
         };
         self.send_thread_settings_update(app_server, params).await;
+    }
+
+    pub(super) async fn sync_active_thread_cwd_setting(
+        &mut self,
+        app_server: &mut AppServerSession,
+        cwd: AbsolutePathBuf,
+    ) {
+        let Some(params) = self.active_thread_cwd_setting_update_params(cwd) else {
+            return;
+        };
+        self.send_thread_settings_update(app_server, params).await;
+    }
+
+    pub(super) fn active_thread_cwd_setting_update_params(
+        &self,
+        cwd: AbsolutePathBuf,
+    ) -> Option<ThreadSettingsUpdateParams> {
+        let thread_id = self.active_thread_id?;
+        Some(ThreadSettingsUpdateParams {
+            thread_id: thread_id.to_string(),
+            cwd: Some(cwd.into_path_buf()),
+            ..ThreadSettingsUpdateParams::default()
+        })
     }
 
     pub(super) fn active_thread_model_setting_update_params(

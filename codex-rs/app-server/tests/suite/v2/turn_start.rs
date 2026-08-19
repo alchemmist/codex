@@ -145,6 +145,7 @@ async fn run_local_image_turn(detail: Option<ImageDetail>) -> Result<Vec<Value>>
         .request(|request_id| ClientRequest::TurnStart {
             request_id,
             params: TurnStartParams {
+                subagent_spawn_policy: None,
                 thread_id: thread.id.clone(),
                 client_user_message_id: None,
                 input: vec![V2UserInput::LocalImage {
@@ -228,6 +229,7 @@ async fn turn_start_with_empty_input_runs_model_request() -> Result<()> {
         .request(|request_id| ClientRequest::TurnStart {
             request_id,
             params: TurnStartParams {
+                subagent_spawn_policy: None,
                 thread_id: thread.id.clone(),
                 client_user_message_id: None,
                 input: Vec::new(),
@@ -2371,6 +2373,7 @@ async fn turn_start_explicit_local_environment_updates_legacy_cwd_between_turns(
                 service_tier: None,
                 personality: None,
                 output_schema: None,
+                subagent_spawn_policy: None,
                 collaboration_mode: None,
                 multi_agent_mode: None,
             },
@@ -2414,6 +2417,7 @@ async fn turn_start_explicit_local_environment_updates_legacy_cwd_between_turns(
                 service_tier: None,
                 personality: None,
                 output_schema: None,
+                subagent_spawn_policy: None,
                 collaboration_mode: None,
                 multi_agent_mode: None,
             },

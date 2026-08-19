@@ -749,6 +749,8 @@ impl ChatWidget {
             ),
             StatusLineItem::WorkspaceHeadline => self.status_line_workspace_headline.clone(),
             StatusLineItem::TaskProgress => self.terminal_title_task_progress(),
+            StatusLineItem::ActiveAgents => (self.active_subagent_count > 0)
+                .then(|| format!("Agents {}", self.active_subagent_count)),
         }
     }
 
@@ -769,6 +771,7 @@ impl ChatWidget {
             StatusSurfacePreviewItem::ProjectRoot => StatusLineItem::ProjectRoot,
             StatusSurfacePreviewItem::Status => return Some(self.run_state_status_text()),
             StatusSurfacePreviewItem::TaskProgress => return self.terminal_title_task_progress(),
+            StatusSurfacePreviewItem::ActiveAgents => StatusLineItem::ActiveAgents,
             StatusSurfacePreviewItem::CurrentDir => StatusLineItem::CurrentDir,
             StatusSurfacePreviewItem::ThreadTitle => StatusLineItem::ThreadTitle,
             StatusSurfacePreviewItem::GitBranch => StatusLineItem::GitBranch,

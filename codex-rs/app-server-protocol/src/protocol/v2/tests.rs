@@ -4484,6 +4484,7 @@ fn turn_start_params_preserve_explicit_null_service_tier() {
         effort: None,
         summary: None,
         output_schema: None,
+        subagent_spawn_policy: None,
         collaboration_mode: None,
         multi_agent_mode: None,
         personality: None,
@@ -4513,6 +4514,25 @@ fn turn_start_params_round_trip_multi_agent_mode() {
     assert_eq!(
         serde_json::to_value(params).expect("params should serialize")["multiAgentMode"],
         "proactive"
+    );
+}
+
+#[test]
+fn turn_start_params_round_trip_subagent_spawn_policy() {
+    let params: TurnStartParams = serde_json::from_value(json!({
+        "threadId": "thread_123",
+        "input": [],
+        "subagentSpawnPolicy": "disallow"
+    }))
+    .expect("params should deserialize");
+
+    assert_eq!(
+        params.subagent_spawn_policy,
+        Some(codex_protocol::config_types::SubagentSpawnPolicy::Disallow)
+    );
+    assert_eq!(
+        serde_json::to_value(params).expect("params should serialize")["subagentSpawnPolicy"],
+        json!("disallow")
     );
 }
 

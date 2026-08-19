@@ -329,6 +329,15 @@ pub enum MultiAgentMode {
     Proactive,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone, Copy, PartialEq, Eq, JsonSchema, TS, Default)]
+#[serde(rename_all = "camelCase")]
+#[ts(rename_all = "camelCase")]
+pub enum SubagentSpawnPolicy {
+    Disallow,
+    #[default]
+    Allow,
+}
+
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase")]
 enum MultiAgentModeWire {

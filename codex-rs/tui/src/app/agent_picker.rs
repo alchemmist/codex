@@ -138,6 +138,7 @@ impl App {
                 self.agent_navigation.set_running(thread_id, is_running);
             }
         }
+        self.sync_agent_status_ui();
 
         let params = self.agent_picker_selection_view_params(selected);
         self.chat_widget

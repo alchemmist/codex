@@ -907,6 +907,7 @@ impl AppServerSession {
         collaboration_mode: Option<codex_protocol::config_types::CollaborationMode>,
         personality: Option<codex_protocol::config_types::Personality>,
         output_schema: Option<serde_json::Value>,
+        subagent_spawn_policy: codex_protocol::config_types::SubagentSpawnPolicy,
     ) -> Result<TurnStartResponse> {
         let request_id = self.next_request_id();
         let (sandbox_policy, permissions) =
@@ -933,6 +934,7 @@ impl AppServerSession {
                     summary,
                     personality,
                     output_schema,
+                    subagent_spawn_policy: Some(subagent_spawn_policy),
                     collaboration_mode,
                     multi_agent_mode: None,
                 },

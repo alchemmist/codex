@@ -675,6 +675,7 @@ async fn turn_start_jsonrpc_span_parents_core_turn_spans() -> Result<()> {
                     summary: None,
                     personality: None,
                     output_schema: None,
+                    subagent_spawn_policy: None,
                     collaboration_mode: None,
                     multi_agent_mode: None,
                 },

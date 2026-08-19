@@ -35,6 +35,7 @@ pub(crate) enum StatusSurfacePreviewItem {
     ModelWithReasoning,
     Reasoning,
     TaskProgress,
+    ActiveAgents,
 }
 
 impl StatusSurfacePreviewItem {
@@ -68,6 +69,7 @@ impl StatusSurfacePreviewItem {
             StatusSurfacePreviewItem::ModelWithReasoning => "gpt-5.2-codex medium",
             StatusSurfacePreviewItem::Reasoning => "medium",
             StatusSurfacePreviewItem::TaskProgress => "Tasks 0/0",
+            StatusSurfacePreviewItem::ActiveAgents => "Agents 3",
         }
     }
 
@@ -101,6 +103,7 @@ impl StatusSurfacePreviewItem {
             Self::ModelWithReasoning,
             Self::Reasoning,
             Self::TaskProgress,
+            Self::ActiveAgents,
         ]
         .into_iter()
     }

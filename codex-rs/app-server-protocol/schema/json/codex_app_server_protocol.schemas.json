@@ -18258,6 +18258,13 @@
         ],
         "type": "object"
       },
+      "SubagentSpawnPolicy": {
+        "enum": [
+          "disallow",
+          "allow"
+        ],
+        "type": "string"
+      },
       "TerminalInteractionNotification": {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "properties": {

@@ -211,6 +211,7 @@ pub(crate) enum AppEvent {
 
     /// Open the agent picker for switching active threads.
     OpenAgentPicker,
+    ShowAgentsStatus,
     /// Merge a completed root-scoped agent-picker refresh without blocking terminal input.
     AgentPickerThreadsLoaded {
         primary_thread_id: ThreadId,
@@ -802,6 +803,8 @@ pub(crate) enum AppEvent {
 
     /// Update the current model slug in the running app and widget.
     UpdateModel(String),
+
+    UpdateCwd(AbsolutePathBuf),
 
     /// Update the current personality in the running app and widget.
     UpdatePersonality(Personality),

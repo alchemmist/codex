@@ -30,6 +30,7 @@ pub enum SlashCommand {
     Hooks,
     Review,
     Rename,
+    Cd,
     New,
     Archive,
     Delete,
@@ -43,6 +44,7 @@ pub enum SlashCommand {
     Goal,
     Workflow,
     Agent,
+    Agents,
     Side,
     Btw,
     Copy,
@@ -91,6 +93,7 @@ impl SlashCommand {
             SlashCommand::Compact => "summarize conversation to prevent hitting the context limit",
             SlashCommand::Review => "review my current changes and find issues",
             SlashCommand::Rename => "rename the current thread",
+            SlashCommand::Cd => "change the working directory: /cd <path>",
             SlashCommand::Resume => "resume a saved chat",
             SlashCommand::Archive => "archive this session and exit",
             SlashCommand::Delete => "permanently delete this session and exit",
@@ -128,7 +131,9 @@ impl SlashCommand {
             SlashCommand::Todo => "show the full task plan and current stage",
             SlashCommand::Goal => "set or view the goal for a long-running task",
             SlashCommand::Workflow => "run, pause, resume, or cancel a Python workflow",
-            SlashCommand::Agent | SlashCommand::MultiAgents => "switch the active agent thread",
+            SlashCommand::Agent => "switch the active agent thread",
+            SlashCommand::MultiAgents => "use subagents for one prompt",
+            SlashCommand::Agents => "show what active sub-agents are doing",
             SlashCommand::Side | SlashCommand::Btw => {
                 "start a side conversation in an ephemeral fork"
             }
@@ -163,10 +168,12 @@ impl SlashCommand {
             self,
             SlashCommand::Review
                 | SlashCommand::Rename
+                | SlashCommand::Cd
                 | SlashCommand::New
                 | SlashCommand::Clear
                 | SlashCommand::Fork
                 | SlashCommand::Plan
+                | SlashCommand::MultiAgents
                 | SlashCommand::Goal
                 | SlashCommand::Workflow
                 | SlashCommand::Ide
@@ -228,6 +235,7 @@ impl SlashCommand {
             | SlashCommand::Raw
             | SlashCommand::TmuxCommandLog
             | SlashCommand::Rename
+            | SlashCommand::Cd
             | SlashCommand::Mention
             | SlashCommand::Skills
             | SlashCommand::Hooks
@@ -253,7 +261,7 @@ impl SlashCommand {
             | SlashCommand::Btw => true,
             SlashCommand::Rollout => true,
             SlashCommand::TestApproval => true,
-            SlashCommand::Agent | SlashCommand::MultiAgents => true,
+            SlashCommand::Agent | SlashCommand::Agents | SlashCommand::MultiAgents => true,
             SlashCommand::Theme | SlashCommand::Pets => false,
         }
     }
@@ -311,6 +319,7 @@ mod tests {
         assert!(SlashCommand::Raw.supports_inline_args());
         assert!(SlashCommand::TmuxCommandLog.available_during_task());
         assert!(SlashCommand::App.available_during_task());
+        assert!(SlashCommand::Agents.available_during_task());
     }
 
     #[test]

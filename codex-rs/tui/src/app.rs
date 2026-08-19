@@ -205,6 +205,7 @@ use uuid::Uuid;
 mod agent_message_consolidation;
 mod agent_navigation;
 mod agent_picker;
+mod agent_status;
 mod agent_status_feed;
 mod app_server_event_targets;
 mod app_server_events;

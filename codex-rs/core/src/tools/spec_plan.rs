@@ -899,24 +899,33 @@ fn add_collaboration_tools(context: &CoreToolPlanContext<'_>, registry: &mut Too
                 agent_type_description(turn_context, context.default_agent_type_description);
             let hide_spawn_agent_metadata =
                 turn_context.config.multi_agent_v2.hide_spawn_agent_metadata;
-            registry.register_trusted_with_exposure(
-                multi_agent_v2_handler(
-                    SpawnAgentHandlerV2::new(SpawnAgentToolOptions {
-                        available_models: turn_context.available_models.clone(),
-                        agent_type_description,
-                        expose_agent_type: !turn_context.config.agent_roles.is_empty(),
-                        hide_agent_type_model_reasoning: hide_spawn_agent_metadata,
-                        expose_spawn_agent_model_overrides: turn_context
-                            .config
-                            .multi_agent_v2
-                            .expose_spawn_agent_model_overrides,
-                        multi_agent_version: turn_context.multi_agent_version,
-                        usage_hint_text: turn_context.config.multi_agent_v2.usage_hint_text.clone(),
-                    }),
-                    tool_namespace,
-                ),
-                exposure,
-            );
+            if matches!(
+                turn_context.subagent_spawn_policy,
+                codex_protocol::config_types::SubagentSpawnPolicy::Allow
+            ) {
+                registry.register_trusted_with_exposure(
+                    multi_agent_v2_handler(
+                        SpawnAgentHandlerV2::new(SpawnAgentToolOptions {
+                            available_models: turn_context.available_models.clone(),
+                            agent_type_description,
+                            expose_agent_type: !turn_context.config.agent_roles.is_empty(),
+                            hide_agent_type_model_reasoning: hide_spawn_agent_metadata,
+                            expose_spawn_agent_model_overrides: turn_context
+                                .config
+                                .multi_agent_v2
+                                .expose_spawn_agent_model_overrides,
+                            multi_agent_version: turn_context.multi_agent_version,
+                            usage_hint_text: turn_context
+                                .config
+                                .multi_agent_v2
+                                .usage_hint_text
+                                .clone(),
+                        }),
+                        tool_namespace,
+                    ),
+                    exposure,
+                );
+            }
             registry.register_trusted_with_exposure(
                 multi_agent_v2_handler(SendMessageHandlerV2, tool_namespace),
                 exposure,
@@ -950,18 +959,23 @@ fn add_collaboration_tools(context: &CoreToolPlanContext<'_>, registry: &mut Too
             } else {
                 ToolExposure::Direct
             };
-            registry.add_with_exposure(
-                SpawnAgentHandler::new(SpawnAgentToolOptions {
-                    available_models: turn_context.available_models.clone(),
-                    agent_type_description,
-                    expose_agent_type: !turn_context.config.agent_roles.is_empty(),
-                    hide_agent_type_model_reasoning: false,
-                    expose_spawn_agent_model_overrides: true,
-                    multi_agent_version: turn_context.multi_agent_version,
-                    usage_hint_text: turn_context.config.multi_agent_v2.usage_hint_text.clone(),
-                }),
-                exposure,
-            );
+            if matches!(
+                turn_context.subagent_spawn_policy,
+                codex_protocol::config_types::SubagentSpawnPolicy::Allow
+            ) {
+                registry.add_with_exposure(
+                    SpawnAgentHandler::new(SpawnAgentToolOptions {
+                        available_models: turn_context.available_models.clone(),
+                        agent_type_description,
+                        expose_agent_type: !turn_context.config.agent_roles.is_empty(),
+                        hide_agent_type_model_reasoning: false,
+                        expose_spawn_agent_model_overrides: true,
+                        multi_agent_version: turn_context.multi_agent_version,
+                        usage_hint_text: turn_context.config.multi_agent_v2.usage_hint_text.clone(),
+                    }),
+                    exposure,
+                );
+            }
             registry.add_with_exposure(SendInputHandler, exposure);
             registry.add_with_exposure(ResumeAgentHandler, exposure);
             registry

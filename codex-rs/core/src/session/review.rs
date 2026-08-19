@@ -136,6 +136,7 @@ pub(super) async fn spawn_review_thread(
             .collaboration_mode_developer_instructions
             .clone(),
         multi_agent_version: MultiAgentVersion::Disabled,
+        subagent_spawn_policy: codex_protocol::config_types::SubagentSpawnPolicy::Disallow,
         personality: parent_turn_context.personality,
         approval_policy: parent_turn_context.approval_policy.clone(),
         permission_profile: parent_turn_context.permission_profile(),

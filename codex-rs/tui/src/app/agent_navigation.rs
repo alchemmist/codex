@@ -277,6 +277,13 @@ impl AgentNavigationState {
             .collect()
     }
 
+    pub(crate) fn active_subagent_count(&self, primary_thread_id: Option<ThreadId>) -> usize {
+        self.ordered_path_backed_subagent_threads(primary_thread_id)
+            .into_iter()
+            .filter(|(_, entry)| entry.is_running && !entry.is_closed)
+            .count()
+    }
+
     /// Returns tracked thread ids in the same stable order used by the picker.
     pub(crate) fn tracked_thread_ids(&self) -> Vec<ThreadId> {
         self.ordered_threads()
@@ -452,6 +459,25 @@ mod tests {
         state.mark_parent_owned(second_agent_id);
         state.clear();
         assert!(!state.is_parent_owned(second_agent_id));
+    }
+
+    #[test]
+    fn active_subagent_count_excludes_primary_stopped_and_closed_threads() {
+        let (mut state, main_thread_id, first_agent_id, second_agent_id) = populated_state();
+        state.set_agent_path(main_thread_id, Some("/root".to_string()));
+        state.set_agent_path(first_agent_id, Some("/root/first".to_string()));
+        state.set_agent_path(second_agent_id, Some("/root/second".to_string()));
+        state.mark_running(main_thread_id);
+        state.mark_running(first_agent_id);
+        state.mark_running(second_agent_id);
+
+        assert_eq!(state.active_subagent_count(Some(main_thread_id)), 2);
+
+        state.mark_stopped(first_agent_id);
+        assert_eq!(state.active_subagent_count(Some(main_thread_id)), 1);
+
+        state.mark_closed(second_agent_id);
+        assert_eq!(state.active_subagent_count(Some(main_thread_id)), 0);
     }
 
     #[test]

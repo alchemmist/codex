@@ -1144,6 +1144,9 @@ impl App {
                 self.sync_active_thread_service_tier_to_cached_session()
                     .await;
             }
+            AppEvent::UpdateCwd(cwd) => {
+                self.sync_active_thread_cwd_setting(app_server, cwd).await;
+            }
             AppEvent::UpdatePersonality(personality) => {
                 self.on_update_personality(personality);
                 self.sync_active_thread_personality_setting(app_server, personality)
@@ -2054,6 +2057,9 @@ impl App {
             }
             AppEvent::OpenAgentPicker => {
                 self.open_agent_picker(app_server).await;
+            }
+            AppEvent::ShowAgentsStatus => {
+                self.show_agents_status(app_server).await;
             }
             AppEvent::AgentPickerThreadsLoaded {
                 primary_thread_id,

@@ -7,6 +7,32 @@
 use super::*;
 
 impl ChatWidget {
+    pub(super) fn sync_subagents_armed_indicator(&mut self) {
+        let placeholder = if self.subagents_armed {
+            "Subagents · next prompt"
+        } else if self.active_side_conversation {
+            self.side_placeholder_text.as_str()
+        } else {
+            self.normal_placeholder_text.as_str()
+        };
+        self.bottom_pane
+            .set_placeholder_text(placeholder.to_string());
+        self.request_redraw();
+    }
+
+    fn take_subagent_spawn_policy(&mut self) -> SubagentSpawnPolicy {
+        let policy = if self.subagents_armed {
+            SubagentSpawnPolicy::Allow
+        } else {
+            SubagentSpawnPolicy::Disallow
+        };
+        if self.subagents_armed {
+            self.subagents_armed = false;
+            self.sync_subagents_armed_indicator();
+        }
+        policy
+    }
+
     pub(crate) fn set_parent_owned_thread(&mut self) {
         self.blocks_direct_input = true;
         self.bottom_pane.set_parent_owned_thread();
@@ -47,9 +73,19 @@ impl ChatWidget {
                     self.reasoning_header = None;
                     self.reasoning_summary_parts.clear();
                     self.set_status_header(String::from("Working"));
-                    self.submit_user_message(user_message);
+                    let subagent_spawn_policy = if user_message.text.starts_with('!') {
+                        SubagentSpawnPolicy::Disallow
+                    } else {
+                        self.take_subagent_spawn_policy()
+                    };
+                    self.submit_user_message_with_subagents(user_message, subagent_spawn_policy);
                 } else {
-                    self.queue_user_message(user_message);
+                    let subagent_spawn_policy = if user_message.text.starts_with('!') {
+                        SubagentSpawnPolicy::Disallow
+                    } else {
+                        self.take_subagent_spawn_policy()
+                    };
+                    self.queue_user_message_with_subagents(user_message, subagent_spawn_policy);
                 }
             }
             InputResult::Queued {
@@ -59,7 +95,17 @@ impl ChatWidget {
                 pending_pastes,
             } => {
                 let user_message = self.user_message_from_submission(text, text_elements);
-                self.queue_user_message_with_options(user_message, action, pending_pastes);
+                let subagent_spawn_policy = if action == QueuedInputAction::RunShell {
+                    SubagentSpawnPolicy::Disallow
+                } else {
+                    self.take_subagent_spawn_policy()
+                };
+                self.queue_user_message_with_options_and_subagents(
+                    user_message,
+                    action,
+                    pending_pastes,
+                    subagent_spawn_policy,
+                );
             }
             InputResult::Command(cmd) => {
                 self.handle_slash_command_dispatch(cmd);
@@ -99,6 +145,19 @@ impl ChatWidget {
         self.queue_user_message_with_options(user_message, QueuedInputAction::Plain, Vec::new());
     }
 
+    pub(super) fn queue_user_message_with_subagents(
+        &mut self,
+        user_message: UserMessage,
+        subagent_spawn_policy: SubagentSpawnPolicy,
+    ) {
+        self.queue_user_message_with_options_and_subagents(
+            user_message,
+            QueuedInputAction::Plain,
+            Vec::new(),
+            subagent_spawn_policy,
+        );
+    }
+
     pub(crate) fn set_queue_submissions_until_session_configured(&mut self, queue: bool) {
         self.bottom_pane
             .set_queue_submissions(queue && !self.is_session_configured());
@@ -110,6 +169,21 @@ impl ChatWidget {
         action: QueuedInputAction,
         pending_pastes: Vec<(String, String)>,
     ) {
+        self.queue_user_message_with_options_and_subagents(
+            user_message,
+            action,
+            pending_pastes,
+            SubagentSpawnPolicy::Disallow,
+        );
+    }
+
+    fn queue_user_message_with_options_and_subagents(
+        &mut self,
+        user_message: UserMessage,
+        action: QueuedInputAction,
+        pending_pastes: Vec<(String, String)>,
+        subagent_spawn_policy: SubagentSpawnPolicy,
+    ) {
         let should_run_now = self.is_session_configured()
             && !self.is_user_turn_pending_or_running()
             && !self.input_queue.suppress_queue_autosend;
@@ -120,6 +194,7 @@ impl ChatWidget {
                     user_message,
                     action,
                     pending_pastes,
+                    subagent_spawn_policy,
                 });
             self.input_queue
                 .queued_user_message_history_records
@@ -151,10 +226,15 @@ impl ChatWidget {
             };
             match queued_message.action {
                 QueuedInputAction::Plain => {
-                    submitted_follow_up = self.submit_user_message_with_history_record(
-                        queued_message.into_user_message(),
-                        history_record,
-                    );
+                    let subagent_spawn_policy = queued_message.subagent_spawn_policy;
+                    submitted_follow_up = self
+                        .submit_user_message_with_history_and_shell_escape_policy(
+                            queued_message.into_user_message(),
+                            history_record,
+                            ShellEscapePolicy::Allow,
+                            subagent_spawn_policy,
+                        )
+                        .0;
                     break;
                 }
                 QueuedInputAction::ParseSlash => {

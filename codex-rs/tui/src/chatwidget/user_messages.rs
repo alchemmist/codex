@@ -18,6 +18,7 @@ use codex_app_server_protocol::TextElement as AppServerTextElement;
 use codex_app_server_protocol::UserInput;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::CollaborationModeMask;
+use codex_protocol::config_types::SubagentSpawnPolicy;
 use codex_protocol::models::local_image_label_text;
 use codex_protocol::user_input::ByteRange;
 use codex_protocol::user_input::TextElement;
@@ -63,6 +64,7 @@ pub(super) struct QueuedUserMessage {
     pub(super) user_message: UserMessage,
     pub(super) action: QueuedInputAction,
     pub(super) pending_pastes: Vec<(String, String)>,
+    pub(super) subagent_spawn_policy: SubagentSpawnPolicy,
 }
 
 impl QueuedUserMessage {
@@ -71,6 +73,7 @@ impl QueuedUserMessage {
             user_message,
             action,
             pending_pastes: Vec::new(),
+            subagent_spawn_policy: SubagentSpawnPolicy::Disallow,
         }
     }
 

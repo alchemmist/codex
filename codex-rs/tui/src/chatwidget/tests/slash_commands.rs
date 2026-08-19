@@ -110,6 +110,125 @@ fn next_add_to_history_event(rx: &mut tokio::sync::mpsc::UnboundedReceiver<AppEv
 }
 
 #[tokio::test]
+async fn agents_command_requests_status_without_opening_the_picker() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+
+    chat.dispatch_command(SlashCommand::Agents);
+
+    assert_matches!(rx.try_recv(), Ok(AppEvent::ShowAgentsStatus));
+    assert!(rx.try_recv().is_err());
+}
+
+#[tokio::test]
+async fn subagents_command_arms_exactly_one_prompt() {
+    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+
+    chat.dispatch_command(SlashCommand::MultiAgents);
+    assert!(chat.subagents_armed);
+    assert_chatwidget_snapshot!(
+        "subagents_armed_composer",
+        render_bottom_popup(&chat, /*width*/ 80)
+    );
+
+    submit_composer_text(&mut chat, "delegate this");
+    match next_submit_op(&mut op_rx) {
+        Op::UserTurn {
+            subagent_spawn_policy,
+            ..
+        } => assert_eq!(subagent_spawn_policy, SubagentSpawnPolicy::Allow),
+        other => panic!("expected user turn, got {other:?}"),
+    }
+    assert!(!chat.subagents_armed);
+}
+
+#[tokio::test]
+async fn inline_subagents_authorizes_only_its_clean_prompt() {
+    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+
+    submit_composer_text(&mut chat, "/subagents inspect independently");
+
+    match next_submit_op(&mut op_rx) {
+        Op::UserTurn {
+            items,
+            subagent_spawn_policy,
+            ..
+        } => {
+            assert_eq!(subagent_spawn_policy, SubagentSpawnPolicy::Allow);
+            assert_matches!(
+                items.as_slice(),
+                [UserInput::Text { text, .. }] if text == "inspect independently"
+            );
+        }
+        other => panic!("expected user turn, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn ordinary_prompt_disallows_subagent_spawning() {
+    let (mut chat, _rx, mut op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+
+    submit_composer_text(&mut chat, "do this locally");
+
+    match next_submit_op(&mut op_rx) {
+        Op::UserTurn {
+            subagent_spawn_policy,
+            ..
+        } => assert_eq!(subagent_spawn_policy, SubagentSpawnPolicy::Disallow),
+        other => panic!("expected user turn, got {other:?}"),
+    }
+}
+
+#[tokio::test]
+async fn cd_command_resolves_relative_path_from_session_cwd() {
+    let temp = tempfile::tempdir().expect("create temp dir");
+    let current = temp.path().join("current");
+    let target = temp.path().join("target");
+    std::fs::create_dir_all(&current).expect("create current dir");
+    std::fs::create_dir_all(&target).expect("create target dir");
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+    chat.config.cwd = AbsolutePathBuf::from_absolute_path(&current).expect("absolute cwd");
+
+    submit_composer_text(&mut chat, "/cd ../target");
+
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::UpdateCwd(cwd)) if cwd.as_path() == target
+    );
+}
+
+#[tokio::test]
+async fn cd_command_accepts_quoted_absolute_path() {
+    let temp = tempfile::tempdir().expect("create temp dir");
+    let target = temp.path().join("project with spaces");
+    std::fs::create_dir_all(&target).expect("create target dir");
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+
+    submit_composer_text(&mut chat, &format!("/cd \"{}\"", target.display()));
+
+    assert_matches!(
+        rx.try_recv(),
+        Ok(AppEvent::UpdateCwd(cwd)) if cwd.as_path() == target
+    );
+}
+
+#[tokio::test]
+async fn cd_command_without_path_shows_usage() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.thread_id = Some(ThreadId::new());
+
+    submit_composer_text(&mut chat, "/cd");
+
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1, "expected cd usage message");
+    insta::assert_snapshot!(lines_to_single_string(&cells[0]), @"■ Usage: /cd <path>");
+}
+
+#[tokio::test]
 async fn service_tier_commands_lowercase_catalog_names() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
     let mut preset = get_available_model(&chat, "gpt-5.4");

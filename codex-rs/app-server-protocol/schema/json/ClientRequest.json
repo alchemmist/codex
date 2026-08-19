@@ -3869,6 +3869,13 @@
       ],
       "type": "object"
     },
+    "SubagentSpawnPolicy": {
+      "enum": [
+        "disallow",
+        "allow"
+      ],
+      "type": "string"
+    },
     "TextElement": {
       "properties": {
         "byteRange": {

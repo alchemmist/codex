@@ -9,6 +9,7 @@ use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::MultiAgentMode;
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ReasoningSummary;
+use codex_protocol::config_types::SubagentSpawnPolicy;
 use codex_protocol::models::ImageDetail;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::plan_tool::PlanItemArg as CorePlanItemArg;
@@ -144,6 +145,11 @@ pub struct TurnStartParams {
     /// this turn.
     #[ts(optional = nullable)]
     pub output_schema: Option<JsonValue>,
+
+    /// Controls whether this turn can start new subagents.
+    #[experimental("turn/start.subagentSpawnPolicy")]
+    #[ts(optional = nullable)]
+    pub subagent_spawn_policy: Option<SubagentSpawnPolicy>,
 
     /// EXPERIMENTAL - Set a pre-set collaboration mode.
     /// Takes precedence over model, reasoning_effort, and developer instructions if set.

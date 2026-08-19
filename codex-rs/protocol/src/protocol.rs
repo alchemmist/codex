@@ -458,6 +458,9 @@ pub struct ConversationSpeechParams {
 /// on their own.
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ThreadSettingsOverrides {
+    /// Turn-scoped capability controlling whether new subagents may be started.
+    pub subagent_spawn_policy: crate::config_types::SubagentSpawnPolicy,
+
     /// Updated fallback `cwd` and environments supplied together as a complete pair.
     pub environments: Option<TurnEnvironmentSelections>,
 

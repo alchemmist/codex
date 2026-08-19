@@ -15,6 +15,7 @@ expression: commands
 /hooks - view and manage lifecycle hooks
 /review - review my current changes and find issues
 /rename - rename the current thread
+/cd - change the working directory: /cd <path>
 /new - start a new chat during a conversation
 /archive - archive this session and exit
 /delete - permanently delete this session and exit
@@ -26,6 +27,7 @@ expression: commands
 /todo - show the full task plan and current stage
 /workflow - run, pause, resume, or cancel a Python workflow
 /agent - switch the active agent thread
+/agents - show what active sub-agents are doing
 /side - start a side conversation in an ephemeral fork
 /copy - copy last response as markdown
 /raw - toggle raw scrollback mode for copy-friendly terminal selection
@@ -46,4 +48,4 @@ expression: commands
 /stop - stop all background terminals
 /clear - clear the terminal and start a new chat
 /test-approval - test approval request
-/subagents - switch the active agent thread
+/subagents - use subagents for one prompt

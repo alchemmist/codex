@@ -1,6 +1,7 @@
 use anyhow::Result;
 use codex_core::config::Config;
 use codex_features::Feature;
+use codex_protocol::config_types::SubagentSpawnPolicy;
 use codex_protocol::openai_models::ModelInfo;
 use codex_protocol::openai_models::ReasoningEffort;
 use codex_protocol::openai_models::ReasoningEffortPreset;
@@ -66,6 +67,62 @@ fn developer_texts(input: &[Value]) -> Vec<&str> {
 
 fn count_containing(texts: &[&str], target: &str) -> usize {
     texts.iter().filter(|text| text.contains(target)).count()
+}
+
+fn collaboration_tool_names(body: &Value) -> Vec<&str> {
+    body["tools"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .find(|tool| tool["name"] == "collaboration")
+        .and_then(|tool| tool["tools"].as_array())
+        .into_iter()
+        .flatten()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn turn_policy_hides_spawn_but_keeps_agent_management_tools() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+
+    let server = start_mock_server().await;
+    let response = mount_sse_once(
+        &server,
+        sse(vec![ev_response_created("resp-1"), ev_completed("resp-1")]),
+    )
+    .await;
+    let test = test_codex()
+        .with_config(configure_multi_agent_v2)
+        .build(&server)
+        .await?;
+
+    test.codex
+        .submit(Op::UserInput {
+            items: vec![UserInput::Text {
+                text: "work locally".to_string(),
+                text_elements: Vec::new(),
+            }],
+            final_output_json_schema: None,
+            responsesapi_client_metadata: None,
+            additional_context: Default::default(),
+            thread_settings: ThreadSettingsOverrides {
+                subagent_spawn_policy: SubagentSpawnPolicy::Disallow,
+                ..Default::default()
+            },
+        })
+        .await?;
+    wait_for_event(&test.codex, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+
+    let body = response.single_request().body_json();
+    let names = collaboration_tool_names(&body);
+    assert!(!names.contains(&"spawn_agent"));
+    assert!(names.contains(&"list_agents"));
+    assert!(names.contains(&"send_message"));
+    Ok(())
 }
 
 async fn submit_turn(

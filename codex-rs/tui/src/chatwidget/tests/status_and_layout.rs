@@ -2736,6 +2736,25 @@ async fn status_line_context_remaining_renders_labeled_percent() {
 }
 
 #[tokio::test]
+async fn status_line_active_agents_hides_zero_and_tracks_counts() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.config.tui_status_line = Some(vec!["active-agents".to_string()]);
+
+    chat.refresh_status_line();
+    assert_eq!(status_line_text(&chat), None);
+
+    chat.set_active_subagent_count(1);
+    assert_eq!(status_line_text(&chat), Some("Agents 1".to_string()));
+
+    chat.set_active_subagent_count(2);
+    assert_eq!(status_line_text(&chat), Some("Agents 2".to_string()));
+
+    chat.set_active_subagent_count(0);
+    assert_eq!(status_line_text(&chat), None);
+    assert!(drain_insert_history(&mut rx).is_empty());
+}
+
+#[tokio::test]
 async fn status_line_legacy_context_usage_renders_context_used_percent() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
     chat.thread_id = Some(ThreadId::new());

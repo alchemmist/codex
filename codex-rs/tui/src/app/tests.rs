@@ -77,6 +77,7 @@ use codex_app_server_protocol::Thread;
 use codex_app_server_protocol::ThreadClosedNotification;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::ThreadSettings;
+use codex_app_server_protocol::ThreadSettingsUpdateParams;
 use codex_app_server_protocol::ThreadSettingsUpdatedNotification;
 use codex_app_server_protocol::ThreadStartedNotification;
 use codex_app_server_protocol::ThreadTokenUsage;
@@ -1339,6 +1340,77 @@ async fn token_usage_update_refreshes_status_line_with_runtime_context_window() 
         app.chat_widget.status_line_text(),
         Some("950K window".into())
     );
+}
+
+#[tokio::test]
+async fn subagent_lifecycle_updates_active_agents_status_line_immediately() -> Result<()> {
+    let mut app = make_test_app().await;
+    let root_thread_id = ThreadId::new();
+    let first_thread_id = ThreadId::new();
+    let second_thread_id = ThreadId::new();
+    app.primary_thread_id = Some(root_thread_id);
+    app.chat_widget.setup_status_line(
+        vec![crate::bottom_pane::StatusLineItem::ActiveAgents],
+        /*use_theme_colors*/ true,
+    );
+
+    app.handle_thread_event_now(ThreadBufferedEvent::Notification(Box::new(
+        subagent_activity_notification(
+            root_thread_id,
+            first_thread_id,
+            "/root/first",
+            codex_app_server_protocol::SubAgentActivityKind::Started,
+        ),
+    )));
+    assert_eq!(app.chat_widget.status_line_text(), Some("Agents 1".into()));
+
+    app.handle_thread_event_now(ThreadBufferedEvent::Notification(Box::new(
+        subagent_activity_notification(
+            root_thread_id,
+            second_thread_id,
+            "/root/second",
+            codex_app_server_protocol::SubAgentActivityKind::Started,
+        ),
+    )));
+    assert_eq!(app.chat_widget.status_line_text(), Some("Agents 2".into()));
+
+    app.enqueue_thread_notification(
+        first_thread_id,
+        turn_started_notification(first_thread_id, "turn-1"),
+    )
+    .await?;
+    app.enqueue_thread_notification(
+        first_thread_id,
+        turn_completed_notification(first_thread_id, "turn-1", TurnStatus::Completed),
+    )
+    .await?;
+    assert_eq!(app.chat_widget.status_line_text(), Some("Agents 1".into()));
+
+    app.handle_thread_event_now(ThreadBufferedEvent::Notification(Box::new(
+        subagent_activity_notification(
+            root_thread_id,
+            second_thread_id,
+            "/root/second",
+            codex_app_server_protocol::SubAgentActivityKind::Interrupted,
+        ),
+    )));
+    assert_eq!(app.chat_widget.status_line_text(), None);
+
+    app.handle_thread_event_now(ThreadBufferedEvent::Notification(Box::new(
+        subagent_activity_notification(
+            root_thread_id,
+            second_thread_id,
+            "/root/second",
+            codex_app_server_protocol::SubAgentActivityKind::Started,
+        ),
+    )));
+    app.enqueue_thread_notification(
+        second_thread_id,
+        thread_closed_notification(second_thread_id),
+    )
+    .await?;
+    assert_eq!(app.chat_widget.status_line_text(), None);
+    Ok(())
 }
 
 #[tokio::test]
@@ -5543,6 +5615,25 @@ fn turn_completed_notification(
     })
 }
 
+fn subagent_activity_notification(
+    root_thread_id: ThreadId,
+    agent_thread_id: ThreadId,
+    agent_path: &str,
+    kind: codex_app_server_protocol::SubAgentActivityKind,
+) -> ServerNotification {
+    ServerNotification::ItemCompleted(codex_app_server_protocol::ItemCompletedNotification {
+        thread_id: root_thread_id.to_string(),
+        turn_id: "turn-1".to_string(),
+        item: ThreadItem::SubAgentActivity {
+            id: format!("{agent_thread_id}-{kind:?}"),
+            kind,
+            agent_thread_id: agent_thread_id.to_string(),
+            agent_path: agent_path.to_string(),
+        },
+        completed_at_ms: 0,
+    })
+}
+
 fn thread_closed_notification(thread_id: ThreadId) -> ServerNotification {
     ServerNotification::ThreadClosed(ThreadClosedNotification {
         thread_id: thread_id.to_string(),
@@ -6827,6 +6918,13 @@ async fn replace_chat_widget_reseeds_collab_agent_metadata_for_replay() {
         Some("explorer".to_string()),
         /*is_closed*/ false,
     );
+    app.agent_navigation
+        .record_sub_agent_activity(SubAgentActivityDisplay {
+            thread_id: receiver_thread_id,
+            agent_path: "/root/reviewer".to_string(),
+            is_running_hint: true,
+        });
+    app.config.tui_status_line = Some(vec!["active-agents".to_string()]);
 
     let replacement = ChatWidget::new_with_app_event(ChatWidgetInit {
         config: app.config.clone(),
@@ -6853,6 +6951,7 @@ async fn replace_chat_widget_reseeds_collab_agent_metadata_for_replay() {
         session_telemetry: app.session_telemetry.clone(),
     });
     app.replace_chat_widget(replacement);
+    assert_eq!(app.chat_widget.status_line_text(), Some("Agents 1".into()));
 
     app.replay_thread_snapshot(
         ThreadEventSnapshot {
@@ -7308,6 +7407,27 @@ async fn thread_setting_update_params_sync_model_and_default_reasoning() {
     assert_eq!(
         collaboration_mode.settings.reasoning_effort,
         Some(ReasoningEffortConfig::High)
+    );
+}
+
+#[tokio::test]
+async fn thread_setting_update_params_sync_cwd() {
+    let mut app = make_test_app().await;
+    let thread_id = ThreadId::new();
+    app.active_thread_id = Some(thread_id);
+    let cwd = test_path_buf("/tmp/project").abs();
+
+    let params = app
+        .active_thread_cwd_setting_update_params(cwd.clone())
+        .expect("active thread should produce cwd update params");
+
+    assert_eq!(
+        params,
+        ThreadSettingsUpdateParams {
+            thread_id: thread_id.to_string(),
+            cwd: Some(cwd.into_path_buf()),
+            ..ThreadSettingsUpdateParams::default()
+        }
     );
 }
 

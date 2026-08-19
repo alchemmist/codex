@@ -132,6 +132,7 @@ async fn thread_settings_update(
     thread_settings: ThreadSettingsOverrides,
 ) -> SessionSettingsUpdate {
     let ThreadSettingsOverrides {
+        subagent_spawn_policy: _,
         environments,
         profile_workspace_roots,
         approval_policy,
@@ -198,11 +199,13 @@ pub(super) async fn user_input_or_turn_inner(
         final_output_json_schema,
         responsesapi_client_metadata,
         additional_context,
-        thread_settings,
+        mut thread_settings,
     } = op
     else {
         unreachable!();
     };
+    let subagent_spawn_policy = thread_settings.subagent_spawn_policy;
+    thread_settings.subagent_spawn_policy = Default::default();
     let emit_thread_settings_applied = thread_settings != ThreadSettingsOverrides::default();
     let mut updates = if emit_thread_settings_applied {
         thread_settings_update(sess, thread_settings).await
@@ -210,6 +213,7 @@ pub(super) async fn user_input_or_turn_inner(
         SessionSettingsUpdate::default()
     };
     updates.final_output_json_schema = Some(final_output_json_schema);
+    updates.subagent_spawn_policy = Some(subagent_spawn_policy);
 
     // new_turn_with_sub_id already emits an error event when settings are invalid.
     let current_context = sess.new_turn_with_sub_id(sub_id.clone(), updates).await?;

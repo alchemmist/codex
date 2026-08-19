@@ -13,6 +13,7 @@ use codex_protocol::approvals::GuardianAssessmentEvent;
 use codex_protocol::config_types::CollaborationMode;
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::ReasoningSummary as ReasoningSummaryConfig;
+use codex_protocol::config_types::SubagentSpawnPolicy;
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::models::ActivePermissionProfile;
 use codex_protocol::models::PermissionProfile;
@@ -40,6 +41,7 @@ pub(crate) enum AppCommand {
         summary: Option<ReasoningSummaryConfig>,
         service_tier: Option<Option<String>>,
         final_output_json_schema: Option<Value>,
+        subagent_spawn_policy: SubagentSpawnPolicy,
         collaboration_mode: Option<CollaborationMode>,
         personality: Option<Personality>,
     },
@@ -122,6 +124,7 @@ impl AppCommand {
         summary: Option<ReasoningSummaryConfig>,
         service_tier: Option<Option<String>>,
         final_output_json_schema: Option<Value>,
+        subagent_spawn_policy: SubagentSpawnPolicy,
         collaboration_mode: Option<CollaborationMode>,
         personality: Option<Personality>,
     ) -> Self {
@@ -136,6 +139,7 @@ impl AppCommand {
             summary,
             service_tier,
             final_output_json_schema,
+            subagent_spawn_policy,
             collaboration_mode,
             personality,
         }

@@ -142,6 +142,8 @@ pub(crate) enum StatusLineItem {
 
     /// Latest checklist task progress from `update_plan` (if available).
     TaskProgress,
+
+    ActiveAgents,
 }
 
 impl StatusLineItem {
@@ -194,6 +196,9 @@ impl StatusLineItem {
             StatusLineItem::TaskProgress => {
                 "Latest task progress from update_plan (omitted until available)"
             }
+            StatusLineItem::ActiveAgents => {
+                "Number of active sub-agents (omitted when none are running)"
+            }
         }
     }
 
@@ -225,6 +230,7 @@ impl StatusLineItem {
             StatusLineItem::ThreadTitle => StatusSurfacePreviewItem::ThreadTitle,
             StatusLineItem::WorkspaceHeadline => StatusSurfacePreviewItem::WorkspaceHeadline,
             StatusLineItem::TaskProgress => StatusSurfacePreviewItem::TaskProgress,
+            StatusLineItem::ActiveAgents => StatusSurfacePreviewItem::ActiveAgents,
         }
     }
 }
@@ -513,6 +519,21 @@ mod tests {
     }
 
     #[test]
+    fn active_agents_is_selectable_and_has_a_preview() {
+        assert_eq!(
+            "active-agents".parse::<StatusLineItem>(),
+            Ok(StatusLineItem::ActiveAgents)
+        );
+        assert_eq!(
+            line_text(StatusSurfacePreviewData::default().status_line_for_items(
+                [StatusLineItem::ActiveAgents],
+                /*use_theme_colors*/ true,
+            )),
+            Some("Agents 3".to_string())
+        );
+    }
+
+    #[test]
     fn preview_uses_runtime_values() {
         let preview_data = StatusSurfacePreviewData::from_iter([
             (
@@ -666,6 +687,20 @@ mod tests {
                     "weekly 82% left".to_string(),
                 ),
             ]),
+            AppEventSender::new(tx_raw),
+            crate::keymap::RuntimeKeymap::defaults().list,
+        );
+
+        assert_snapshot!(render_lines(&view, /*width*/ 72));
+    }
+
+    #[test]
+    fn setup_view_snapshot_previews_active_agents() {
+        let (tx_raw, _rx) = unbounded_channel::<AppEvent>();
+        let view = StatusLineSetupView::new(
+            Some(&[StatusLineItem::ActiveAgents.to_string()]),
+            /*use_theme_colors*/ true,
+            StatusSurfacePreviewData::default(),
             AppEventSender::new(tx_raw),
             crate::keymap::RuntimeKeymap::defaults().list,
         );

@@ -912,6 +912,7 @@ async fn run_exec_session(args: ExecRunArgs) -> anyhow::Result<()> {
                         summary: None,
                         personality: None,
                         output_schema,
+                        subagent_spawn_policy: None,
                         collaboration_mode: None,
                         multi_agent_mode: None,
                     },

@@ -188,13 +188,17 @@ impl App {
     /// sessions, that contextual row includes the currently viewed agent label. The label is
     /// intentionally hidden until there is more than one known thread so single-thread sessions do
     /// not spend footer space restating that the user is already on the main conversation.
-    pub(super) fn sync_active_agent_label(&mut self) {
+    pub(super) fn sync_agent_status_ui(&mut self) {
         let thread_id = self.current_displayed_thread_id();
         crate::tmux_session::publish_thread_id(thread_id);
         let label = self
             .agent_navigation
             .active_agent_label(thread_id, self.primary_thread_id);
         self.chat_widget.set_active_agent_label(label);
+        self.chat_widget.set_active_subagent_count(
+            self.agent_navigation
+                .active_subagent_count(self.primary_thread_id),
+        );
         self.sync_side_thread_ui();
     }
 
@@ -659,6 +663,7 @@ impl App {
                 summary,
                 service_tier,
                 final_output_json_schema,
+                subagent_spawn_policy,
                 collaboration_mode,
                 personality,
             } => {
@@ -754,6 +759,7 @@ impl App {
                             collaboration_mode.clone(),
                             *personality,
                             final_output_json_schema.clone(),
+                            *subagent_spawn_policy,
                         )
                         .await?;
                     if self.active_thread_id == Some(thread_id)
@@ -1011,6 +1017,9 @@ impl App {
         } else if turn_stopped {
             self.agent_navigation.mark_stopped(thread_id);
         }
+        if is_turn_started || turn_stopped {
+            self.sync_agent_status_ui();
+        }
 
         if let Some(notification) = notification {
             match sender.try_send(ThreadBufferedEvent::Notification(Box::new(notification))) {
@@ -1050,7 +1059,7 @@ impl App {
             sub_agent_activity_item(notification).and_then(sub_agent_activity_display)
         {
             self.agent_navigation.record_sub_agent_activity(activity);
-            self.sync_active_agent_label();
+            self.sync_agent_status_ui();
             return;
         }
 

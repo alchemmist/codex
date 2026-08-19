@@ -140,6 +140,7 @@ pub struct TurnContext {
     pub(crate) mode: ModeKind,
     pub(crate) collaboration_mode_developer_instructions: Option<String>,
     pub(crate) multi_agent_version: MultiAgentVersion,
+    pub(crate) subagent_spawn_policy: codex_protocol::config_types::SubagentSpawnPolicy,
     pub(crate) personality: Option<Personality>,
     pub(crate) approval_policy: Constrained<AskForApproval>,
     pub(crate) permission_profile: PermissionProfile,
@@ -308,6 +309,7 @@ impl TurnContext {
                 .collaboration_mode_developer_instructions
                 .clone(),
             multi_agent_version: self.multi_agent_version,
+            subagent_spawn_policy: self.subagent_spawn_policy,
             personality: self.personality,
             approval_policy: self.approval_policy.clone(),
             permission_profile: self.permission_profile.clone(),
@@ -578,6 +580,7 @@ impl Session {
                 .developer_instructions
                 .clone(),
             multi_agent_version,
+            subagent_spawn_policy: Default::default(),
             personality: session_configuration.personality,
             approval_policy: session_configuration.approval_policy.clone(),
             permission_profile,
@@ -674,6 +677,7 @@ impl Session {
                 sub_id,
                 session_configuration,
                 updates.final_output_json_schema,
+                updates.subagent_spawn_policy,
             )
             .await)
     }
@@ -683,11 +687,13 @@ impl Session {
         sub_id: String,
         session_configuration: SessionConfiguration,
         final_output_json_schema: Option<Option<Value>>,
+        subagent_spawn_policy: Option<codex_protocol::config_types::SubagentSpawnPolicy>,
     ) -> Arc<TurnContext> {
         self.new_turn_context_from_configuration(
             sub_id,
             session_configuration,
             final_output_json_schema,
+            subagent_spawn_policy,
             TurnMultiAgentRuntime::ResolveAndStore,
             self.git_enrichment_policy,
         )
@@ -703,6 +709,7 @@ impl Session {
             sub_id,
             session_configuration,
             /*final_output_json_schema*/ None,
+            /*subagent_spawn_policy*/ None,
             TurnMultiAgentRuntime::Preview,
             GitEnrichmentPolicy::Skip,
         )
@@ -715,6 +722,7 @@ impl Session {
         sub_id: String,
         session_configuration: SessionConfiguration,
         final_output_json_schema: Option<Option<Value>>,
+        subagent_spawn_policy: Option<codex_protocol::config_types::SubagentSpawnPolicy>,
         multi_agent_runtime: TurnMultiAgentRuntime,
         git_enrichment_policy: GitEnrichmentPolicy,
     ) -> Arc<TurnContext> {
@@ -808,6 +816,9 @@ impl Session {
         if let Some(final_schema) = final_output_json_schema {
             turn_context.final_output_json_schema = final_schema;
         }
+        if let Some(subagent_spawn_policy) = subagent_spawn_policy {
+            turn_context.subagent_spawn_policy = subagent_spawn_policy;
+        }
         let turn_context = Arc::new(turn_context);
         if git_enrichment_policy == GitEnrichmentPolicy::Fresh
             && turn_context
@@ -868,6 +879,7 @@ impl Session {
             sub_id,
             session_configuration,
             /*final_output_json_schema*/ None,
+            /*subagent_spawn_policy*/ None,
         )
         .await
     }

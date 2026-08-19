@@ -78,6 +78,21 @@ impl ChatWidget {
             user_message,
             history_record,
             ShellEscapePolicy::Allow,
+            SubagentSpawnPolicy::Disallow,
+        )
+        .0
+    }
+
+    pub(super) fn submit_user_message_with_subagents(
+        &mut self,
+        user_message: UserMessage,
+        subagent_spawn_policy: SubagentSpawnPolicy,
+    ) -> bool {
+        self.submit_user_message_with_history_and_shell_escape_policy(
+            user_message,
+            UserMessageHistoryRecord::UserMessageText,
+            ShellEscapePolicy::Allow,
+            subagent_spawn_policy,
         )
         .0
     }
@@ -91,21 +106,28 @@ impl ChatWidget {
             user_message,
             UserMessageHistoryRecord::UserMessageText,
             shell_escape_policy,
+            SubagentSpawnPolicy::Disallow,
         )
         .1
     }
 
-    fn submit_user_message_with_history_and_shell_escape_policy(
+    pub(super) fn submit_user_message_with_history_and_shell_escape_policy(
         &mut self,
         user_message: UserMessage,
         history_record: UserMessageHistoryRecord,
         shell_escape_policy: ShellEscapePolicy,
+        subagent_spawn_policy: SubagentSpawnPolicy,
     ) -> (bool, Option<AppCommand>) {
         if !self.is_session_configured() {
             tracing::warn!("cannot submit user message before session is configured; queueing");
             self.input_queue
                 .queued_user_messages
-                .push_front(QueuedUserMessage::from(user_message));
+                .push_front(QueuedUserMessage {
+                    user_message,
+                    action: QueuedInputAction::Plain,
+                    pending_pastes: Vec::new(),
+                    subagent_spawn_policy,
+                });
             self.input_queue
                 .queued_user_message_history_records
                 .push_front(history_record);
@@ -117,6 +139,23 @@ impl ChatWidget {
             && user_message.remote_image_urls.is_empty()
         {
             return (false, None);
+        }
+        if self.turn_lifecycle.agent_turn_running
+            && subagent_spawn_policy != self.active_turn_subagent_spawn_policy
+        {
+            self.input_queue
+                .queued_user_messages
+                .push_back(QueuedUserMessage {
+                    user_message,
+                    action: QueuedInputAction::Plain,
+                    pending_pastes: Vec::new(),
+                    subagent_spawn_policy,
+                });
+            self.input_queue
+                .queued_user_message_history_records
+                .push_back(history_record);
+            self.refresh_pending_input_preview();
+            return (true, None);
         }
         if (!user_message.local_images.is_empty() || !user_message.remote_image_urls.is_empty())
             && !self.current_model_supports_images()
@@ -159,6 +198,9 @@ impl ChatWidget {
                 )),
             };
             return (app_command.is_some(), app_command);
+        }
+        if render_in_history {
+            self.active_turn_subagent_spawn_policy = subagent_spawn_policy;
         }
 
         for image_url in &remote_image_urls {
@@ -345,6 +387,7 @@ impl ChatWidget {
             /*summary*/ None,
             service_tier,
             /*final_output_json_schema*/ None,
+            subagent_spawn_policy,
             collaboration_mode,
             personality,
         );

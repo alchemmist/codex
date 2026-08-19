@@ -8,6 +8,7 @@ use codex_mcp::ToolInfo;
 use codex_model_provider::create_model_provider;
 use codex_model_provider_info::AMAZON_BEDROCK_PROVIDER_ID;
 use codex_model_provider_info::ModelProviderInfo;
+use codex_protocol::config_types::SubagentSpawnPolicy;
 use codex_protocol::config_types::WebSearchMode;
 use codex_protocol::dynamic_tools::DynamicToolSpec;
 use codex_protocol::openai_models::ApplyPatchToolType;
@@ -1785,6 +1786,28 @@ async fn multi_agent_feature_selects_one_agent_tool_family() {
             .exposure(&ToolName::namespaced(MULTI_AGENT_V2_NAMESPACE, "spawn_agent").to_string()),
         ToolExposure::DirectModelOnly
     );
+}
+
+#[tokio::test]
+async fn disallowed_subagent_spawning_keeps_management_tools() {
+    let plan = probe(|turn| {
+        set_feature(turn, Feature::Collab, /*enabled*/ true);
+        set_feature(turn, Feature::MultiAgentV2, /*enabled*/ true);
+        turn.subagent_spawn_policy = SubagentSpawnPolicy::Disallow;
+    })
+    .await;
+
+    assert_eq!(
+        plan.namespace_function_names(MULTI_AGENT_V2_NAMESPACE),
+        &[
+            "followup_task".to_string(),
+            "interrupt_agent".to_string(),
+            "list_agents".to_string(),
+            "send_message".to_string(),
+            "wait_agent".to_string(),
+        ]
+    );
+    plan.assert_registered_lacks(&["collaboration.spawn_agent"]);
 }
 
 #[tokio::test]

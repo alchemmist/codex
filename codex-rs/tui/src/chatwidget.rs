@@ -147,6 +147,7 @@ use codex_protocol::config_types::CollaborationModeMask;
 use codex_protocol::config_types::ModeKind;
 use codex_protocol::config_types::Personality;
 use codex_protocol::config_types::Settings;
+use codex_protocol::config_types::SubagentSpawnPolicy;
 #[cfg(any(target_os = "windows", test))]
 use codex_protocol::config_types::WindowsSandboxLevel;
 use codex_protocol::items::AgentMessageContent;
@@ -360,6 +361,7 @@ use self::ide_context::IdeContextState;
 mod input_queue;
 use self::input_queue::InputQueueState;
 use self::input_restore::InterruptedTurnActivity;
+mod cwd;
 mod input_flow;
 mod input_restore;
 mod input_submission;
@@ -691,6 +693,8 @@ pub(crate) struct ChatWidget {
     // order.
     suppress_initial_user_message_submit: bool,
     stashed_composer: Option<ThreadComposerState>,
+    subagents_armed: bool,
+    active_turn_subagent_spawn_policy: SubagentSpawnPolicy,
     input_queue: InputQueueState,
     safety_buffering_prompt: Option<UserMessage>,
     /// Main chat-surface bindings resolved from `tui.keymap.chat`.
@@ -770,6 +774,7 @@ pub(crate) struct ChatWidget {
     status_line_workspace_headline_last_requested_at: Option<Instant>,
     // Set after the backend reports the workspace-message feature gate is disabled.
     status_line_workspace_messages_disabled: bool,
+    active_subagent_count: usize,
     // Current thread-goal status shown in the status line when plan mode is inactive.
     current_goal_status_indicator: Option<GoalStatusIndicator>,
     current_goal_status: Option<GoalStatusState>,

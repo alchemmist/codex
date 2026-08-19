@@ -539,7 +539,7 @@ impl TurnRequestProcessor {
                 environment_selections,
             )
             .await;
-        let thread_settings = self
+        let mut thread_settings = self
             .build_thread_settings_overrides(
                 thread.as_ref(),
                 ThreadSettingsBuildParams {
@@ -558,6 +558,7 @@ impl TurnRequestProcessor {
                 },
             )
             .await?;
+        thread_settings.subagent_spawn_policy = params.subagent_spawn_policy.unwrap_or_default();
         let parent_permission_profile_override =
             thread_settings.permission_profile.clone().or_else(|| {
                 thread_settings
@@ -807,6 +808,7 @@ impl TurnRequestProcessor {
         }
 
         Ok(codex_protocol::protocol::ThreadSettingsOverrides {
+            subagent_spawn_policy: Default::default(),
             environments,
             profile_workspace_roots,
             approval_policy,

@@ -29,81 +29,15 @@ pub(super) struct LoadedSubagentBackfill {
 
 impl App {
     pub(super) async fn open_agent_picker(&mut self, app_server: &mut AppServerSession) {
-        let backfill = if self.primary_thread_id.is_none() {
-            self.backfill_loaded_subagent_threads(app_server).await
-        } else {
-            LoadedSubagentBackfill::default()
-        };
-        // V2 subagents are identified by canonical paths observed from activity events or loaded
-        // thread metadata. A buffered active turn is positive liveness evidence; a completed
-        // snapshot is terminal evidence. An empty store does not clear a successful spawn hint.
+        let backfill = self.reconcile_active_agent_liveness(app_server).await;
         let path_backed_thread_ids: Vec<_> = self
             .agent_navigation
             .ordered_path_backed_subagent_threads(self.primary_thread_id)
             .into_iter()
             .map(|(thread_id, _)| thread_id)
             .collect();
-        for thread_id in path_backed_thread_ids.iter().copied() {
-            if let Some(channel) = self.thread_event_channels.get(&thread_id)
-                && channel.attachment() == ThreadEventAttachment::Live
-            {
-                let Ok(store) = channel.store.try_lock() else {
-                    continue;
-                };
-                let has_active_turn = store.active_turn_id().is_some();
-                let has_terminal_snapshot = store
-                    .turns
-                    .last()
-                    .is_some_and(|turn| !matches!(turn.status, TurnStatus::InProgress));
-                drop(store);
-                if has_active_turn {
-                    self.agent_navigation.mark_running(thread_id);
-                } else if has_terminal_snapshot {
-                    self.agent_navigation.mark_stopped(thread_id);
-                }
-            } else if self.primary_thread_id.is_none()
-                && !backfill.refreshed_thread_ids.contains(&thread_id)
-            {
-                self.refresh_agent_picker_thread_liveness(app_server, thread_id)
-                    .await;
-            }
-        }
-        let path_backed_threads = self
-            .agent_navigation
-            .ordered_path_backed_subagent_threads(self.primary_thread_id);
-        if !path_backed_threads.is_empty() {
-            let running_threads: Vec<_> = path_backed_threads
-                .into_iter()
-                .filter_map(|(thread_id, entry)| {
-                    if !entry.is_running || entry.is_closed {
-                        return None;
-                    }
-                    Some((thread_id, entry.agent_path.as_deref()?.trim().to_string()))
-                })
-                .collect();
-            let mut entries = Vec::new();
-            for (thread_id, agent_path) in running_threads {
-                let preview = if let Some(channel) = self.thread_event_channels.get(&thread_id) {
-                    match channel.store.try_lock() {
-                        Ok(store) => {
-                            super::agent_status_feed::AgentStatusThreadPreview::from_store(
-                                agent_path, &store,
-                            )
-                        }
-                        Err(_) => {
-                            super::agent_status_feed::AgentStatusThreadPreview::empty(agent_path)
-                        }
-                    }
-                } else {
-                    super::agent_status_feed::AgentStatusThreadPreview::empty(agent_path)
-                };
-                entries.push(preview);
-            }
-
-            self.chat_widget
-                .add_to_history(super::agent_status_feed::AgentStatusHistoryCell::new(
-                    entries,
-                ));
+        if !path_backed_thread_ids.is_empty() {
+            self.append_active_agent_status("/agent");
         }
 
         let mut thread_ids = self.agent_navigation.tracked_thread_ids();
@@ -257,7 +191,7 @@ impl App {
         );
         self.agent_navigation
             .upsert(thread_id, agent_nickname, agent_role, is_closed);
-        self.sync_active_agent_label();
+        self.sync_agent_status_ui();
     }
 
     /// Persists the app-server's authoritative ownership flag and updates the active composer.
@@ -272,7 +206,7 @@ impl App {
     /// transcripts, and the stable next/previous traversal order should not collapse around them.
     pub(super) fn mark_agent_picker_thread_closed(&mut self, thread_id: ThreadId) {
         self.agent_navigation.mark_closed(thread_id);
-        self.sync_active_agent_label();
+        self.sync_agent_status_ui();
     }
 
     pub(super) async fn refresh_agent_picker_thread_liveness(
@@ -321,11 +255,13 @@ impl App {
                     self.agent_navigation
                         .set_running(thread_id, /*is_running*/ false);
                 }
+                self.sync_agent_status_ui();
                 true
             }
             Err(err) => {
                 if Self::is_terminal_thread_read_error(&err) && !has_replay_channel {
                     self.agent_navigation.remove(thread_id);
+                    self.sync_agent_status_ui();
                     return false;
                 }
                 let is_closed = Self::closed_state_for_thread_read_error(
@@ -347,6 +283,7 @@ impl App {
                 }
                 self.agent_navigation
                     .set_running(thread_id, /*is_running*/ false);
+                self.sync_agent_status_ui();
                 true
             }
         }
@@ -446,7 +383,7 @@ impl App {
             );
         }
         self.chat_widget = chat_widget;
-        self.sync_active_agent_label();
+        self.sync_agent_status_ui();
     }
 
     pub(super) async fn select_agent_thread(
@@ -596,7 +533,7 @@ impl App {
         self.pending_app_server_requests.clear();
         self.pending_startup_thread_start = false;
         self.chat_widget.set_pending_thread_approvals(Vec::new());
-        self.sync_active_agent_label();
+        self.sync_agent_status_ui();
     }
 
     pub(super) async fn handle_startup_thread_started(
@@ -851,7 +788,7 @@ impl App {
                 refreshed_thread_ids.insert(thread.thread_id);
             }
         }
-        self.sync_active_agent_label();
+        self.sync_agent_status_ui();
 
         LoadedSubagentBackfill {
             completed: !had_read_error,

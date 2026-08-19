@@ -368,6 +368,7 @@ fn parent_owned_command_is_allowed(command: SlashCommand, args: &str) -> bool {
                 | SlashCommand::Side
                 | SlashCommand::Btw
                 | SlashCommand::Agent
+                | SlashCommand::Agents
                 | SlashCommand::MultiAgents
                 | SlashCommand::Vim
                 | SlashCommand::Keymap
@@ -4957,6 +4958,7 @@ mod tests {
     fn parent_owned_thread_allows_bare_navigation_commands() {
         for (command, expected) in [
             ("/agent", SlashCommand::Agent),
+            ("/agents", SlashCommand::Agents),
             ("/side", SlashCommand::Side),
             ("/btw", SlashCommand::Btw),
             ("/diff ", SlashCommand::Diff),
@@ -9874,7 +9876,7 @@ mod tests {
             /*disable_paste_burst*/ false,
         );
 
-        type_chars_humanlike(&mut composer, &['/', 'c']);
+        type_chars_humanlike(&mut composer, &['/', 'c', 'o']);
 
         let (_result, _needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Tab, KeyModifiers::NONE));
