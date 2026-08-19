@@ -16,6 +16,21 @@ use ctor::ctor;
 #[ctor]
 pub static CODEX_ALIASES_TEMP_DIR: Option<TestBinaryDispatchGuard> = {
     configure_test_binary_dispatch("codex-core-tests", |exe_name, argv1| {
+        #[cfg(windows)]
+        if exe_name.eq_ignore_ascii_case("powershell.exe")
+            || exe_name.eq_ignore_ascii_case("powershell.evil")
+            || exe_name.eq_ignore_ascii_case("pwsh.exe")
+        {
+            let executable = std::env::current_exe().expect("locate fake PowerShell executable");
+            if executable
+                .with_file_name(".codex-executable-identity-fixture")
+                .is_file()
+            {
+                let marker = executable.with_file_name("attacker-executed");
+                std::fs::write(marker, b"ran").expect("record fake PowerShell execution");
+                std::process::exit(0);
+            }
+        }
         if argv1 == Some(CODEX_CORE_APPLY_PATCH_ARG1) {
             return TestBinaryDispatchMode::DispatchArg0Only;
         }
@@ -48,6 +63,7 @@ mod catalog_permission_messages;
 mod cli_stream;
 mod client;
 mod client_websockets;
+mod cloud_config;
 mod code_mode;
 mod code_mode_elicitation;
 mod codex_delegate;
@@ -57,9 +73,11 @@ mod compact_remote;
 mod compact_remote_parity;
 mod compact_resume_fork;
 mod current_time_reminder;
+mod cyber_exec_policy;
 mod deprecation_notice;
 mod exec;
 mod exec_policy;
+mod executable_identity;
 #[cfg(not(target_os = "windows"))]
 mod extension_sandbox;
 mod external_auth;
@@ -72,6 +90,7 @@ mod hooks;
 #[cfg(not(target_os = "windows"))]
 mod hooks_mcp;
 mod image_rollout;
+mod injected_models_cache;
 mod items;
 mod json_result;
 mod live_cli;
@@ -122,6 +141,7 @@ mod responses_lite;
 mod responses_system_proxy;
 mod resume;
 mod resume_warning;
+mod retry_after;
 mod review;
 mod rmcp_client;
 mod rollout_budget;
@@ -129,6 +149,7 @@ mod rollout_list_find;
 mod safety_buffering;
 mod safety_check_downgrade;
 mod search_tool;
+mod send_user_message_async;
 mod shell_command;
 mod shell_serialization;
 mod shell_snapshot;
@@ -142,16 +163,17 @@ mod stream_no_completed;
 mod subagent_notifications;
 mod token_budget;
 mod tool_harness;
+mod tool_lifecycle;
 mod tool_parallelism;
 mod tools;
 mod truncation;
+mod turn_input_submission;
 mod turn_state;
 mod unified_exec;
 mod unified_exec_process_events;
 #[cfg(unix)]
 mod unified_exec_zsh_fork_approvals;
 mod unstable_features_warning;
-mod user_message_admission;
 mod user_notification;
 mod user_shell_cmd;
 mod view_image;

@@ -36,10 +36,8 @@ impl ChatWidget {
         let mut config = config;
         config.model = model.clone();
         let prevent_idle_sleep = config.features.enabled(Feature::PreventIdleSleep);
-        let mut rng = rand::rng();
-        let placeholder = PLACEHOLDERS[rng.random_range(0..PLACEHOLDERS.len())].to_string();
-        let side_placeholder =
-            SIDE_PLACEHOLDERS[rng.random_range(0..SIDE_PLACEHOLDERS.len())].to_string();
+        let placeholder = PLACEHOLDER.to_string();
+        let side_placeholder = SIDE_PLACEHOLDER.to_string();
 
         let model_override = model.as_deref();
         let model_for_header = model
@@ -128,6 +126,7 @@ impl ChatWidget {
             runtime_model_provider_base_url,
             remote_connection: None,
             token_info: None,
+            token_usage_pending: false,
             rate_limit_snapshots_by_limit_id: BTreeMap::new(),
             refreshing_status_outputs: Vec::new(),
             next_status_refresh_request_id: 0,
@@ -205,11 +204,15 @@ impl ChatWidget {
             thread_rename_block_message: None,
             active_side_conversation: false,
             blocks_direct_input: false,
+            misalignment_policy_violation: false,
             normal_placeholder_text: placeholder,
             side_placeholder_text: side_placeholder,
             forked_from: None,
             interrupted_turn_notice_mode: InterruptedTurnNoticeMode::Default,
             input_queue: InputQueueState::default(),
+            stashed_composer: None,
+            subagents_armed: false,
+            active_turn_subagent_spawn_policy: SubagentSpawnPolicy::Disallow,
             safety_buffering_prompt: None,
             chat_keymap,
             queued_message_edit_hint_binding,
@@ -217,9 +220,6 @@ impl ChatWidget {
             startup_tooltip_override,
             suppress_session_configured_redraw: false,
             suppress_initial_user_message_submit: false,
-            stashed_composer: None,
-            subagents_armed: false,
-            active_turn_subagent_spawn_policy: SubagentSpawnPolicy::Disallow,
             pending_notification: None,
             quit_shortcut_expires_at: None,
             quit_shortcut_key: None,
@@ -252,6 +252,7 @@ impl ChatWidget {
             status_line_workspace_headline_last_requested_at: None,
             status_line_workspace_messages_disabled: false,
             active_subagent_count: 0,
+            thread_usage: thread_usage::ThreadUsageState::default(),
             current_goal_status_indicator: None,
             current_goal_status: None,
             external_editor_state: ExternalEditorState::Closed,

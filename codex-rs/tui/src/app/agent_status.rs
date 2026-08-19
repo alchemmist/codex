@@ -48,7 +48,7 @@ impl App {
         backfill
     }
 
-    pub(super) fn append_active_agent_status(&mut self, command: &'static str) {
+    pub(super) fn append_active_agent_status(&mut self, _command: &'static str) {
         let entries = self
             .agent_navigation
             .ordered_path_backed_subagent_threads(self.primary_thread_id)
@@ -71,11 +71,7 @@ impl App {
             })
             .collect();
         self.chat_widget
-            .add_to_history(AgentStatusHistoryCell::new(command, entries));
+            .add_to_history(AgentStatusHistoryCell::new(entries));
     }
 
-    pub(super) async fn show_agents_status(&mut self, app_server: &mut AppServerSession) {
-        self.reconcile_active_agent_liveness(app_server).await;
-        self.append_active_agent_status("/agents");
-    }
 }

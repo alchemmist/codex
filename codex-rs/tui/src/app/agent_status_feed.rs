@@ -1,4 +1,4 @@
-//! Bounded, best-effort previews for the v2 `/agent` status output.
+//! Bounded, best-effort previews for the v2 `/subagents` status output.
 
 use super::ThreadBufferedEvent;
 use super::ThreadEventStore;
@@ -20,20 +20,19 @@ const AGENT_STATUS_PREVIEW_INDENT: u16 = 4;
 
 #[derive(Debug)]
 pub(super) struct AgentStatusHistoryCell {
-    command: &'static str,
     entries: Vec<AgentStatusThreadPreview>,
 }
 
 impl AgentStatusHistoryCell {
-    pub(super) fn new(command: &'static str, entries: Vec<AgentStatusThreadPreview>) -> Self {
-        Self { command, entries }
+    pub(super) fn new(entries: Vec<AgentStatusThreadPreview>) -> Self {
+        Self { entries }
     }
 }
 
 impl HistoryCell for AgentStatusHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
         let mut lines: Vec<Line<'static>> = vec![
-            self.command.magenta().into(),
+            "/subagents".magenta().into(),
             "Sub-agents running".bold().into(),
             "".into(),
         ];

@@ -15,7 +15,6 @@ expression: commands
 /hooks - view and manage lifecycle hooks
 /review - review my current changes and find issues
 /rename - rename the current thread
-/cd - change the working directory: /cd <path>
 /new - start a new chat during a conversation
 /archive - archive this session and exit
 /delete - permanently delete this session and exit
@@ -24,17 +23,16 @@ expression: commands
 /app - continue this session in the Desktop app
 /init - create an AGENTS.md file with instructions for Codex
 /compact - summarize conversation to prevent hitting the context limit
-/todo - show the full task plan and current stage
-/workflow - run, pause, resume, or cancel a Python workflow
-/agent - switch the active agent thread
-/agents - show what active sub-agents are doing
+/agents - view and switch between all active agent sessions
 /side - start a side conversation in an ephemeral fork
 /copy - copy last response as markdown
+/export - export the conversation as markdown
 /raw - toggle raw scrollback mode for copy-friendly terminal selection
-/tmux-command-log - mirror this session's shell commands in a dedicated tmux window
 /diff - show git diff (including untracked files)
 /mention - mention a file
 /status - show current session configuration and token usage
+/cd - change the current working directory
+/pwd - show the current working directory
 /title - configure which items appear in the terminal title
 /statusline - configure which items appear in the status line
 /theme - choose a syntax highlighting theme
@@ -48,4 +46,4 @@ expression: commands
 /stop - stop all background terminals
 /clear - clear the terminal and start a new chat
 /test-approval - test approval request
-/subagents - use subagents for one prompt
+/subagents - switch between this session's subagents

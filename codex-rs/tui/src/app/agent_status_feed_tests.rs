@@ -37,6 +37,7 @@ fn agent_status_uses_bounded_buffered_activity() {
                 text: "Finished checking the focused TUI tests.".to_string(),
                 phase: None,
                 memory_citation: None,
+                delivery: None,
             },
             thread_id: "thread-child".to_string(),
             turn_id: "turn-1".to_string(),
@@ -45,7 +46,7 @@ fn agent_status_uses_bounded_buffered_activity() {
     ));
 
     let preview = AgentStatusThreadPreview::from_store("/root/reviewer".to_string(), &store);
-    let cell = AgentStatusHistoryCell::new("/agents", vec![preview]);
+    let cell = AgentStatusHistoryCell::new(vec![preview]);
     let rendered = cell
         .display_lines(/*width*/ 80)
         .iter()
@@ -54,7 +55,7 @@ fn agent_status_uses_bounded_buffered_activity() {
         .join("\n");
 
     insta::assert_snapshot!(rendered, @r###"
-    /agents
+    /subagents
     Sub-agents running
 
       • `/root/reviewer`
@@ -93,7 +94,7 @@ fn agent_status_uses_reasoning_summaries_only() {
     ));
 
     let preview = AgentStatusThreadPreview::from_store("/root/reviewer".to_string(), &store);
-    let cell = AgentStatusHistoryCell::new("/agents", vec![preview]);
+    let cell = AgentStatusHistoryCell::new(vec![preview]);
     let rendered = cell
         .display_lines(/*width*/ 80)
         .iter()
@@ -102,7 +103,7 @@ fn agent_status_uses_reasoning_summaries_only() {
         .join("\n");
 
     insta::assert_snapshot!(rendered, @r###"
-    /agents
+    /subagents
     Sub-agents running
 
       • `/root/reviewer`
@@ -110,52 +111,4 @@ fn agent_status_uses_reasoning_summaries_only() {
     "###);
     assert!(!rendered.contains("hidden raw reasoning"));
     assert!(!rendered.contains("raw-only reasoning"));
-}
-
-#[test]
-fn agents_status_lists_multiple_agents_in_order() {
-    let cell = AgentStatusHistoryCell::new(
-        "/agents",
-        vec![
-            AgentStatusThreadPreview::empty("/root/first".to_string()),
-            AgentStatusThreadPreview::empty("/root/second".to_string()),
-        ],
-    );
-
-    insta::assert_snapshot!(
-        cell.display_lines(/*width*/ 80)
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n"),
-        @r###"
-    /agents
-    Sub-agents running
-
-      • `/root/first`
-        No recent activity yet.
-
-      • `/root/second`
-        No recent activity yet.
-    "###
-    );
-}
-
-#[test]
-fn agents_status_has_an_empty_state() {
-    let cell = AgentStatusHistoryCell::new("/agents", Vec::new());
-
-    insta::assert_snapshot!(
-        cell.display_lines(/*width*/ 80)
-            .iter()
-            .map(ToString::to_string)
-            .collect::<Vec<_>>()
-            .join("\n"),
-        @r###"
-    /agents
-    Sub-agents running
-
-      • No sub-agents running.
-    "###
-    );
 }

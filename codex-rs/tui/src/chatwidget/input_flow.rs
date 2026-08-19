@@ -184,6 +184,9 @@ impl ChatWidget {
         pending_pastes: Vec<(String, String)>,
         subagent_spawn_policy: SubagentSpawnPolicy,
     ) {
+        if self.misalignment_policy_violation {
+            return;
+        }
         let should_run_now = self.is_session_configured()
             && !self.is_user_turn_pending_or_running()
             && !self.input_queue.suppress_queue_autosend;
@@ -191,10 +194,10 @@ impl ChatWidget {
             self.input_queue
                 .queued_user_messages
                 .push_back(QueuedUserMessage {
+                    subagent_spawn_policy,
                     user_message,
                     action,
                     pending_pastes,
-                    subagent_spawn_policy,
                 });
             self.input_queue
                 .queued_user_message_history_records
@@ -204,13 +207,13 @@ impl ChatWidget {
                 self.maybe_send_next_queued_input();
             }
         } else {
-            self.submit_user_message(user_message);
+            self.submit_user_message_with_subagents(user_message, subagent_spawn_policy);
         }
     }
 
     /// If idle and there are queued inputs, submit exactly one to start the next turn.
     pub(crate) fn maybe_send_next_queued_input(&mut self) -> bool {
-        if self.input_queue.suppress_queue_autosend {
+        if self.misalignment_policy_violation || self.input_queue.suppress_queue_autosend {
             return false;
         }
         if self.blocks_direct_input {
@@ -258,7 +261,7 @@ impl ChatWidget {
         submitted_follow_up
     }
 
-    pub(super) fn is_user_turn_pending_or_running(&self) -> bool {
+    pub(crate) fn is_user_turn_pending_or_running(&self) -> bool {
         self.input_queue.user_turn_pending_start
             || self.turn_lifecycle.agent_turn_running
             || self.review.is_review_mode

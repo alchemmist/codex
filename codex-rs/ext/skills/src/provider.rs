@@ -6,7 +6,7 @@ mod executor;
 mod host;
 mod orchestrator;
 
-use codex_core_skills::HostSkillsSnapshot;
+use crate::HostSkillsSnapshot;
 use codex_exec_server::ExecutorCapabilityDiscoverySnapshot;
 use codex_exec_server::FileSystemSandboxContext;
 use codex_exec_server::ResolvedSelectedCapabilityRoot;
@@ -22,6 +22,7 @@ use crate::catalog::SkillResourceId;
 use crate::catalog::SkillSearchResult;
 
 pub use executor::ExecutorSkillProvider;
+pub(crate) use executor::attribute_executor_plugins;
 pub use host::HostSkillProvider;
 pub use orchestrator::OrchestratorSkillProvider;
 

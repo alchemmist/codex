@@ -138,12 +138,14 @@ impl ChatWidget {
                 || (self.bottom_pane.is_task_running()
                     && (self.mcp_startup_status.is_none()
                         || self.input_queue.user_turn_pending_start))))
-            || (cmd == SlashCommand::Resume
+            || (matches!(cmd, SlashCommand::Resume | SlashCommand::Cd)
                 && (self.input_queue.user_turn_pending_start
                     || self.turn_lifecycle.agent_turn_running))
+            || (cmd == SlashCommand::Export && self.input_queue.suppress_queue_autosend)
     }
 
     pub(super) fn dispatch_command(&mut self, cmd: SlashCommand) {
+        self.flush_completed_command_activity();
         if !self.ensure_slash_command_allowed_in_side_conversation(cmd) {
             return;
         }
@@ -326,8 +328,8 @@ impl ChatWidget {
             SlashCommand::Side | SlashCommand::Btw => {
                 self.request_empty_side_conversation(cmd);
             }
-            SlashCommand::Agent => {
-                self.app_event_tx.send(AppEvent::OpenAgentPicker);
+            SlashCommand::Agents => {
+                self.app_event_tx.send(AppEvent::OpenAgentsOverview);
             }
             SlashCommand::MultiAgents => {
                 self.subagents_armed = !self.subagents_armed;
@@ -338,12 +340,6 @@ impl ChatWidget {
                     "Subagents disabled for the next prompt."
                 };
                 self.add_info_message(message.to_string(), /*hint*/ None);
-            }
-            SlashCommand::Agents => {
-                self.app_event_tx.send(AppEvent::ShowAgentsStatus);
-            }
-            SlashCommand::Cd => {
-                self.change_working_directory("");
             }
             SlashCommand::Permissions => {
                 self.open_permissions_popup();
@@ -430,6 +426,9 @@ impl ChatWidget {
             SlashCommand::Copy => {
                 self.copy_last_agent_markdown();
             }
+            SlashCommand::Export => {
+                self.show_transcript_export_popup();
+            }
             SlashCommand::Raw => {
                 let enabled = self.toggle_raw_output_mode_and_notify();
                 self.emit_raw_output_mode_changed(enabled);
@@ -460,7 +459,7 @@ impl ChatWidget {
                         None => "Failed to compute diff: workspace command runner unavailable"
                             .to_string(),
                     };
-                    tx.send(AppEvent::DiffResult(text));
+                    tx.send(AppEvent::DiffResult(cwd, text));
                 });
             }
             SlashCommand::Mention => {
@@ -490,6 +489,15 @@ impl ChatWidget {
                         /*refreshing_rate_limits*/ false, /*request_id*/ None,
                     );
                 }
+            }
+            SlashCommand::Cd => {
+                self.dispatch_command_with_args(SlashCommand::Cd, "~".to_string(), Vec::new());
+            }
+            SlashCommand::Pwd => {
+                self.add_info_message(
+                    format!("Current working directory: {}", self.config.cwd.display()),
+                    /*hint*/ None,
+                );
             }
             SlashCommand::Usage => {
                 if self.ensure_usage_command_available() {
@@ -715,6 +723,42 @@ impl ChatWidget {
         } = prepared;
         let trimmed = args.trim();
         match cmd {
+            SlashCommand::Export if trimmed.is_empty() => self.show_transcript_export_popup(),
+            SlashCommand::Export => {
+                self.set_queue_autosend_suppressed(/*suppressed*/ true);
+                self.app_event_tx.send(AppEvent::ExportTranscript {
+                    destination: crate::app_event::TranscriptExportDestination::File(
+                        PathBuf::from(trimmed),
+                    ),
+                });
+            }
+            SlashCommand::MultiAgents if !trimmed.is_empty() => {
+                let user_message = self.prepared_inline_user_message(
+                    args,
+                    text_elements,
+                    local_images,
+                    remote_image_urls,
+                    mention_bindings,
+                    source,
+                );
+                if self.is_user_turn_pending_or_running() || !self.is_session_configured() {
+                    self.queue_user_message_with_subagents(
+                        user_message,
+                        SubagentSpawnPolicy::Allow,
+                    );
+                } else {
+                    self.submit_user_message_with_history_and_shell_escape_policy(
+                        user_message,
+                        UserMessageHistoryRecord::UserMessageText,
+                        ShellEscapePolicy::Disallow,
+                        SubagentSpawnPolicy::Allow,
+                    );
+                }
+            }
+            SlashCommand::Cd => self.request_working_directory_change(trimmed),
+            SlashCommand::Pwd => {
+                self.add_error_message("Usage: /pwd".to_string());
+            }
             SlashCommand::Usage => {
                 if self.ensure_usage_command_available() {
                     match tokens::TokenActivityView::parse(trimmed) {
@@ -805,32 +849,6 @@ impl ChatWidget {
                 } else {
                     self.queue_user_message(user_message);
                 }
-            }
-            SlashCommand::MultiAgents if !trimmed.is_empty() => {
-                let user_message = self.prepared_inline_user_message(
-                    args,
-                    text_elements,
-                    local_images,
-                    remote_image_urls,
-                    mention_bindings,
-                    source,
-                );
-                if self.is_user_turn_pending_or_running() || !self.is_session_configured() {
-                    self.queue_user_message_with_subagents(
-                        user_message,
-                        SubagentSpawnPolicy::Allow,
-                    );
-                } else {
-                    self.submit_user_message_with_history_and_shell_escape_policy(
-                        user_message,
-                        UserMessageHistoryRecord::UserMessageText,
-                        ShellEscapePolicy::Disallow,
-                        SubagentSpawnPolicy::Allow,
-                    );
-                }
-            }
-            SlashCommand::Cd if !trimmed.is_empty() => {
-                self.change_working_directory(&args);
             }
             SlashCommand::Goal if !trimmed.is_empty() => {
                 if !self.config.features.enabled(Feature::Goals) {
@@ -1142,7 +1160,7 @@ impl ChatWidget {
         match cmd {
             SlashCommand::Ide
             | SlashCommand::Status
-            | SlashCommand::Agents
+            | SlashCommand::Pwd
             | SlashCommand::Usage
             | SlashCommand::DebugConfig
             | SlashCommand::Ps
@@ -1161,9 +1179,13 @@ impl ChatWidget {
             | SlashCommand::Diff
             | SlashCommand::App
             | SlashCommand::Rename
-            | SlashCommand::Cd
             | SlashCommand::TestApproval => QueueDrain::Continue,
+            SlashCommand::Cd => match self.thread_id {
+                Some(thread_id) if self.can_change_working_directory(thread_id) => QueueDrain::Stop,
+                _ => QueueDrain::Continue,
+            },
             SlashCommand::Feedback
+            | SlashCommand::Export
             | SlashCommand::New
             | SlashCommand::Archive
             | SlashCommand::Delete
@@ -1181,7 +1203,7 @@ impl ChatWidget {
             | SlashCommand::Side
             | SlashCommand::Btw
             | SlashCommand::Keymap
-            | SlashCommand::Agent
+            | SlashCommand::Agents
             | SlashCommand::MultiAgents
             | SlashCommand::Permissions
             | SlashCommand::ElevateSandbox

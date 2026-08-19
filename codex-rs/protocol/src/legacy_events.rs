@@ -105,6 +105,7 @@ impl AgentMessageItem {
                     message: text.clone(),
                     phase: self.phase.clone(),
                     memory_citation: self.memory_citation.clone(),
+                    delivery: self.delivery,
                 }),
             })
             .collect()
@@ -429,6 +430,8 @@ impl ImageGenerationItem {
             status: self.status.clone(),
             revised_prompt: self.revised_prompt.clone(),
             result: self.result.clone(),
+            transparent_background: None,
+            failure: None,
             saved_path: self.saved_path.clone(),
         })
     }

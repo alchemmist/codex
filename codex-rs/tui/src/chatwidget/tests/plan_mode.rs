@@ -871,6 +871,7 @@ async fn plan_implementation_popup_skips_replayed_turn_complete() {
                 text: "Plan details".to_string(),
                 phase: Some(MessagePhase::FinalAnswer),
                 memory_citation: None,
+                delivery: None,
             }],
             status: AppServerTurnStatus::Completed,
             error: None,
@@ -909,6 +910,7 @@ async fn plan_implementation_popup_shows_once_when_replay_precedes_live_turn_com
                 text: "Plan details".to_string(),
                 phase: Some(MessagePhase::FinalAnswer),
                 memory_citation: None,
+                delivery: None,
             }],
             status: AppServerTurnStatus::Completed,
             error: None,
@@ -1312,6 +1314,7 @@ async fn submit_user_message_emits_structured_plugin_mentions_from_bindings() {
         .set_plugin_mentions(Some(vec![codex_plugin::PluginCapabilitySummary {
             config_name: "sample@test".to_string(),
             display_name: "Sample Plugin".to_string(),
+            plugin_namespace: None,
             description: None,
             has_skills: true,
             mcp_server_names: Vec::new(),
