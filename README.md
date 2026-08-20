@@ -1,25 +1,25 @@
 # Codex fork
 
-Персональный форк [OpenAI Codex](https://github.com/openai/codex), синхронизированный с upstream.
+Personal fork of [OpenAI Codex](https://github.com/openai/codex), kept in sync with upstream.
 
-## Что добавлено
+## What's included
 
-- TUI использует палитру терминала и мгновенно обновляет текущий ввод, историю, планы и diff при смене темы.
-- `Ctrl+S` временно убирает черновик промпта в stash и возвращает его следующим нажатием.
-- `/subagents <prompt>` явно разрешает сабагентов для одного запроса; `/subagents` включает их для следующего промпта.
-- В `/statusline` можно включить счётчик активных сабагентов, а `/agents` открывает обзор их работы.
-- `/cd <path>` меняет рабочую директорию текущей сессии без перезапуска Codex.
-- `/todo` показывает полный план; компактный адаптивный список текущих пунктов остаётся внизу TUI.
-- `/workflow` запускает настраиваемые Python-workflow с сохранением состояния и поддержкой параллельных агентов.
-- `/tmux-command-log` создаёт отдельное tmux-окно с командами Codex и их выводом.
-- Прерванный до начала работы промпт возвращается в редактор; позднее прерывание отображается без шумного сообщения об ошибке.
-- Исправлены перерисовка после изменения размеров tmux-pane, мерцание при потере фокуса и скачущая анимация `Working`.
-- Корневой `Makefile` собирает и устанавливает локальный бинарь одной командой.
+- The TUI uses the terminal palette and updates the composer, conversation history, plans, and diffs immediately when the terminal theme changes.
+- `Ctrl+S` stashes the current prompt draft and restores it on the next press.
+- `/subagents <prompt>` explicitly enables subagents for one request; `/subagents` arms them for the next prompt.
+- `/statusline` can show the number of active subagents, while `/agents` opens an overview of their work.
+- `/cd <path>` changes the current session's working directory without restarting Codex.
+- `/todo` shows the complete plan, while a compact adaptive list of active items remains visible at the bottom of the TUI.
+- `/workflow` runs configurable Python workflows with persistent state and parallel-agent support.
+- `/tmux-command-log` creates a separate tmux window containing Codex commands and their output.
+- Prompts interrupted before work begins return to the editor; later interruptions are shown without a noisy error message.
+- Fixes include tmux pane resize redraws, focus-related flickering, and a stable `Working` animation.
+- The root `Makefile` builds and installs the local binary with one command.
 
-## Сборка и установка
+## Build and install
 
 ```shell
 make install
 ```
 
-Оригинальная документация: [developers.openai.com/codex](https://developers.openai.com/codex).
+Upstream documentation: [developers.openai.com/codex](https://developers.openai.com/codex).
