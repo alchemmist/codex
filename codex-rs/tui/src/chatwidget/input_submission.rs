@@ -141,6 +141,7 @@ impl ChatWidget {
         {
             return (false, None);
         }
+        self.maybe_begin_explicit_plan_implementation(&user_message);
         if self.turn_lifecycle.agent_turn_running
             && subagent_spawn_policy != self.active_turn_subagent_spawn_policy
         {

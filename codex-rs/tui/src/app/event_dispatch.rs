@@ -198,24 +198,6 @@ impl App {
                 )
                 .await;
             }
-            AppEvent::ClearUiAndImplementPlan { text } => {
-                self.clear_terminal_ui(tui, /*redraw_header*/ false)?;
-                self.reset_app_ui_state_after_clear();
-
-                self.start_fresh_session_with_summary_hint(
-                    tui,
-                    app_server,
-                    Some(ThreadStartSource::Clear),
-                    crate::chatwidget::create_initial_user_message(
-                        Some(text),
-                        Vec::new(),
-                        Vec::new(),
-                    ),
-                    /*new_thread_name*/ None,
-                )
-                .await;
-                self.chat_widget.begin_plan_implementation();
-            }
             AppEvent::OpenResumePicker => {
                 let picker_app_server = match crate::start_app_server_for_picker(
                     &self.config,
@@ -2592,14 +2574,6 @@ impl App {
                 text,
                 collaboration_mode,
             } => {
-                self.chat_widget
-                    .submit_user_message_with_mode(text, collaboration_mode);
-            }
-            AppEvent::SubmitPlanImplementationWithMode {
-                text,
-                collaboration_mode,
-            } => {
-                self.chat_widget.begin_plan_implementation();
                 self.chat_widget
                     .submit_user_message_with_mode(text, collaboration_mode);
             }

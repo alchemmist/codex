@@ -363,10 +363,6 @@ pub(crate) enum AppEvent {
         text: String,
     },
 
-    ClearUiAndImplementPlan {
-        text: String,
-    },
-
     /// Open the resume picker inside the running TUI session.
     OpenResumePicker,
 
@@ -1159,11 +1155,6 @@ pub(crate) enum AppEvent {
 
     /// Submit a user message with an explicit collaboration mask.
     SubmitUserMessageWithMode {
-        text: String,
-        collaboration_mode: CollaborationModeMask,
-    },
-
-    SubmitPlanImplementationWithMode {
         text: String,
         collaboration_mode: CollaborationModeMask,
     },
