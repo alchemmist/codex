@@ -241,6 +241,7 @@ mod thread_goal_actions;
 mod thread_routing;
 mod thread_session_state;
 mod thread_settings;
+mod transcript_dump;
 mod transcript_export;
 mod workflows;
 mod working_directory;

@@ -45,6 +45,33 @@ impl App {
         }
 
         match event {
+            AppEvent::RequestContextInspection { thread_id, purpose } => {
+                let result = app_server
+                    .thread_context_read(thread_id)
+                    .await
+                    .map(|response| {
+                        let token_info = response.used_tokens.map(|used_tokens| {
+                            codex_protocol::protocol::TokenUsageInfo {
+                                total_token_usage: codex_protocol::protocol::TokenUsage {
+                                    total_tokens: used_tokens,
+                                    ..Default::default()
+                                },
+                                last_token_usage: Default::default(),
+                                model_context_window: response.context_window,
+                            }
+                        });
+                        codex_protocol::protocol::ContextInspection {
+                            base_instructions: codex_protocol::models::BaseInstructions {
+                                text: response.base_instructions,
+                                provenance: None,
+                            },
+                            items: response.items,
+                            token_info,
+                        }
+                    })
+                    .map_err(|error| error.to_string());
+                self.chat_widget.handle_context_inspection(purpose, result);
+            }
             AppEvent::OpenWorkflowPicker { workflow_id } => {
                 self.open_workflow_picker(workflow_id).await;
             }
@@ -163,6 +190,12 @@ impl App {
                     self.chat_widget
                         .set_queue_autosend_suppressed(/*suppressed*/ false);
                     self.chat_widget.maybe_send_next_queued_input();
+                }
+            }
+            AppEvent::DumpTranscript => {
+                if let Err(error) = self.dump_transcript_html(app_server).await {
+                    self.chat_widget
+                        .add_error_message(format!("Dump failed: {error}"));
                 }
             }
             AppEvent::ClearUi { name } => {

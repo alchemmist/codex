@@ -306,10 +306,13 @@ mod tests {
                 SlashCommand::Agents,
                 SlashCommand::Copy,
                 SlashCommand::Export,
+                SlashCommand::Dump,
                 SlashCommand::Raw,
                 SlashCommand::Diff,
                 SlashCommand::Mention,
                 SlashCommand::Status,
+                SlashCommand::Context,
+                SlashCommand::SystemPrompt,
                 SlashCommand::Pwd,
                 SlashCommand::Usage,
             ]

@@ -9,6 +9,7 @@ use codex_app_server_client::TypedRequestError;
 use codex_app_server_protocol::ThreadItem;
 use codex_app_server_protocol::Turn;
 use codex_protocol::ThreadId;
+use codex_protocol::models::MessagePhase;
 use codex_protocol::models::local_image_label_text;
 
 use super::App;
@@ -132,6 +133,11 @@ pub(super) async fn load_export_transcript(
 
 fn export_activity_cell(item: &ThreadItem) -> Option<PlainHistoryCell> {
     let lines = match item {
+        ThreadItem::AgentMessage {
+            text,
+            phase: Some(MessagePhase::Commentary),
+            ..
+        } => raw_lines_from_source(text),
         ThreadItem::FileChange {
             changes, status, ..
         } => {
@@ -218,74 +224,127 @@ fn visible_export_items(turns: Vec<Turn>) -> Vec<ThreadItem> {
     visible
 }
 
-fn render_markdown_transcript(cells: &[Arc<dyn HistoryCell>]) -> Result<String, String> {
-    let mut markdown = String::from("# Codex conversation\n");
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(super) enum TranscriptBlockKind {
+    User,
+    Assistant,
+    Plan,
+    Reasoning,
+    Activity,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(super) struct TranscriptBlock {
+    pub kind: TranscriptBlockKind,
+    pub markdown: String,
+}
+
+pub(super) fn transcript_blocks(
+    cells: &[Arc<dyn HistoryCell>],
+) -> Result<Vec<TranscriptBlock>, String> {
+    let mut blocks = Vec::new();
     for cell in cells {
-        let lines = if let Some(user) = cell.as_any().downcast_ref::<UserHistoryCell>() {
-            let (message, _) =
-                crate::ide_context::extract_prompt_request_with_offset(&user.message);
-            let message = crate::history_cell::sanitize_user_text(message.into());
-            let mut lines = raw_lines_from_source(&message);
-            let image_count = user.local_image_paths.len() + user.remote_image_urls.len();
-            let image_labels = (0..image_count)
-                .map(|index| local_image_label_text(index + 1))
-                .filter(|label| !message.contains(label))
-                .collect::<Vec<_>>();
-            if !image_labels.is_empty() && !lines.is_empty() {
-                lines.push("".into());
-            }
-            lines.extend(image_labels.into_iter().map(Into::into));
-            lines
-        } else {
-            cell.raw_lines()
-        };
-        if lines.is_empty()
-            || cell.as_any().is::<SessionInfoCell>()
-            || cell.as_any().is::<PlainHistoryCell>()
-                && lines.first().is_some_and(|line| {
-                    let text = line.to_string();
-                    [
-                        "• Saved conversation to ",
-                        "• Copied conversation to clipboard",
-                        "■ Export failed: ",
-                        "■ Copy failed: ",
-                    ]
-                    .iter()
-                    .any(|prefix| text.starts_with(prefix))
-                })
-        {
+        let lines = export_cell_lines(cell);
+        if lines.is_empty() || excluded_export_cell(cell, &lines) {
             continue;
         }
-        let (heading, indent) = if cell.as_any().is::<UserHistoryCell>() {
-            ("User", false)
+        let kind = if cell.as_any().is::<UserHistoryCell>() {
+            TranscriptBlockKind::User
         } else if cell.as_any().is::<AgentMarkdownCell>() {
-            ("Assistant", false)
+            TranscriptBlockKind::Assistant
         } else if cell.as_any().is::<ProposedPlanCell>() {
-            ("Plan", false)
+            TranscriptBlockKind::Plan
         } else if cell.as_any().is::<ReasoningSummaryCell>() {
-            ("Reasoning", false)
+            TranscriptBlockKind::Reasoning
         } else {
-            ("Activity", true)
+            TranscriptBlockKind::Activity
         };
-        markdown.push_str(&format!("\n## {heading}\n\n"));
-        for line in lines {
-            if indent {
-                markdown.push_str("    ");
-            }
-            for span in line.spans {
-                markdown.push_str(&crate::history_cell::sanitize_user_text(span.content));
-            }
-            markdown.push('\n');
-        }
+        let markdown = lines
+            .into_iter()
+            .map(|line| {
+                line.spans
+                    .into_iter()
+                    .map(|span| crate::history_cell::sanitize_user_text(span.content))
+                    .collect::<String>()
+            })
+            .collect::<Vec<_>>()
+            .join("\n");
+        blocks.push(TranscriptBlock { kind, markdown });
     }
-    if markdown != "# Codex conversation\n" {
-        Ok(markdown)
-    } else {
+    if blocks.is_empty() {
         Err("No conversation content to export.".to_string())
+    } else {
+        Ok(blocks)
     }
 }
 
-fn write_transcript(cwd: &Path, requested_path: &Path, markdown: &str) -> Result<PathBuf, String> {
+fn export_cell_lines(cell: &Arc<dyn HistoryCell>) -> Vec<ratatui::text::Line<'static>> {
+    if let Some(user) = cell.as_any().downcast_ref::<UserHistoryCell>() {
+        let (message, _) = crate::ide_context::extract_prompt_request_with_offset(&user.message);
+        let message = crate::history_cell::sanitize_user_text(message.into());
+        let mut lines = raw_lines_from_source(&message);
+        let image_count = user.local_image_paths.len() + user.remote_image_urls.len();
+        let image_labels = (0..image_count)
+            .map(|index| local_image_label_text(index + 1))
+            .filter(|label| !message.contains(label))
+            .collect::<Vec<_>>();
+        if !image_labels.is_empty() && !lines.is_empty() {
+            lines.push("".into());
+        }
+        lines.extend(image_labels.into_iter().map(Into::into));
+        lines
+    } else {
+        cell.raw_lines()
+    }
+}
+
+fn excluded_export_cell(
+    cell: &Arc<dyn HistoryCell>,
+    lines: &[ratatui::text::Line<'static>],
+) -> bool {
+    cell.as_any().is::<SessionInfoCell>()
+        || cell.as_any().is::<PlainHistoryCell>()
+            && lines.first().is_some_and(|line| {
+                let text = line.to_string();
+                [
+                    "• Saved conversation to ",
+                    "• Saved HTML conversation to ",
+                    "• Copied conversation to clipboard",
+                    "■ Export failed: ",
+                    "■ Copy failed: ",
+                ]
+                .iter()
+                .any(|prefix| text.starts_with(prefix))
+            })
+}
+
+fn render_markdown_transcript(cells: &[Arc<dyn HistoryCell>]) -> Result<String, String> {
+    let mut markdown = String::from("# Codex conversation\n");
+    for block in transcript_blocks(cells)? {
+        let (heading, indent) = match block.kind {
+            TranscriptBlockKind::User => ("User", false),
+            TranscriptBlockKind::Assistant => ("Assistant", false),
+            TranscriptBlockKind::Plan => ("Plan", false),
+            TranscriptBlockKind::Reasoning => ("Reasoning", false),
+            TranscriptBlockKind::Activity => ("Activity", true),
+        };
+        markdown.push_str(&format!("\n## {heading}\n\n"));
+        for line in block.markdown.lines() {
+            if indent {
+                markdown.push_str("    ");
+            }
+            markdown.push_str(line);
+            markdown.push('\n');
+        }
+    }
+    Ok(markdown)
+}
+
+pub(super) fn write_transcript(
+    cwd: &Path,
+    requested_path: &Path,
+    markdown: &str,
+) -> Result<PathBuf, String> {
     let path = if let Ok(relative) = requested_path.strip_prefix("~") {
         dirs::home_dir()
             .ok_or_else(|| "could not determine the home directory".to_string())?

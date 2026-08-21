@@ -663,6 +663,10 @@ pub enum Op {
     /// enable/disable state) without restarting the thread.
     ReloadUserConfig,
 
+    InspectContext {
+        reply: oneshot::Sender<ContextInspection>,
+    },
+
     /// Request the agent to summarize the current conversation context.
     /// The agent will use its existing context (either conversation history or previous response id)
     /// to generate a summary which will be returned as an AgentMessage event.
@@ -698,6 +702,13 @@ pub enum Op {
         /// The raw command string after '!'
         command: String,
     },
+}
+
+#[derive(Debug, Clone)]
+pub struct ContextInspection {
+    pub base_instructions: BaseInstructions,
+    pub items: Vec<ResponseItem>,
+    pub token_info: Option<TokenUsageInfo>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema)]
@@ -887,6 +898,7 @@ impl Op {
             Self::DynamicToolResponse { .. } => "dynamic_tool_response",
             Self::RefreshMcpServers => "refresh_mcp_servers",
             Self::ReloadUserConfig => "reload_user_config",
+            Self::InspectContext { .. } => "inspect_context",
             Self::Compact => "compact",
             Self::SetThreadMemoryMode { .. } => "set_thread_memory_mode",
             Self::ThreadRollback { .. } => "thread_rollback",

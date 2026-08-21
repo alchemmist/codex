@@ -47,11 +47,15 @@ pub enum SlashCommand {
     Btw,
     Copy,
     Export,
+    Dump,
     Raw,
     TmuxCommandLog,
     Diff,
     Mention,
     Status,
+    Context,
+    #[strum(to_string = "system-prompt", serialize = "styste-prompt")]
+    SystemPrompt,
     Cd,
     #[strum(to_string = "pwd", serialize = "cwd")]
     Pwd,
@@ -104,6 +108,7 @@ impl SlashCommand {
             SlashCommand::Quit | SlashCommand::Exit => "exit Codex",
             SlashCommand::Copy => "copy last response as markdown",
             SlashCommand::Export => "export the conversation as markdown",
+            SlashCommand::Dump => "save the conversation as a shareable HTML page",
             SlashCommand::Raw => "toggle raw scrollback mode for copy-friendly terminal selection",
             SlashCommand::TmuxCommandLog => {
                 "mirror this session's shell commands in a dedicated tmux window"
@@ -114,6 +119,10 @@ impl SlashCommand {
             SlashCommand::Import => "import setup, this project, and recent chats from Claude Code",
             SlashCommand::Hooks => "view and manage lifecycle hooks",
             SlashCommand::Status => "show current session configuration and token usage",
+            SlashCommand::Context => "summarize what is currently in the model context",
+            SlashCommand::SystemPrompt => {
+                "open the current system prompt in nvim inside a tmux window"
+            }
             SlashCommand::Cd => "change the current working directory",
             SlashCommand::Pwd => "show the current working directory",
             SlashCommand::Usage => "view account usage or use a usage limit reset",
@@ -201,10 +210,13 @@ impl SlashCommand {
             SlashCommand::Copy
                 | SlashCommand::Agents
                 | SlashCommand::Export
+                | SlashCommand::Dump
                 | SlashCommand::Raw
                 | SlashCommand::Diff
                 | SlashCommand::Mention
                 | SlashCommand::Status
+                | SlashCommand::Context
+                | SlashCommand::SystemPrompt
                 | SlashCommand::Pwd
                 | SlashCommand::Usage
                 | SlashCommand::Ide
@@ -221,6 +233,7 @@ impl SlashCommand {
             | SlashCommand::Init
             | SlashCommand::Compact
             | SlashCommand::Export
+            | SlashCommand::Dump
             | SlashCommand::Keymap
             | SlashCommand::Vim
             | SlashCommand::ElevateSandbox
@@ -249,6 +262,8 @@ impl SlashCommand {
             | SlashCommand::Skills
             | SlashCommand::Hooks
             | SlashCommand::Status
+            | SlashCommand::Context
+            | SlashCommand::SystemPrompt
             | SlashCommand::Pwd
             | SlashCommand::Usage
             | SlashCommand::DebugConfig
@@ -305,6 +320,15 @@ mod tests {
     #[test]
     fn stop_command_is_canonical_name() {
         assert_eq!(SlashCommand::Stop.command(), "stop");
+    }
+
+    #[test]
+    fn styste_prompt_is_an_alias_for_system_prompt() {
+        assert_eq!(
+            "styste-prompt".parse::<SlashCommand>(),
+            Ok(SlashCommand::SystemPrompt)
+        );
+        assert_eq!(SlashCommand::SystemPrompt.command(), "system-prompt");
     }
 
     #[test]

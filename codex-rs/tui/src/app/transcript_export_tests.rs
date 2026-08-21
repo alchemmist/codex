@@ -15,6 +15,7 @@ use codex_app_server_protocol::Turn;
 use codex_app_server_protocol::TurnItemsView;
 use codex_app_server_protocol::TurnStatus;
 use codex_app_server_protocol::UserInput;
+use codex_protocol::models::MessagePhase;
 
 #[test]
 fn markdown_transcript_preserves_messages_and_formats_activity() {
@@ -169,6 +170,27 @@ fn persisted_transcript_includes_file_and_mcp_details() {
     }
     assert!(!markdown.contains("c2VjcmV0"));
     assert!(!markdown.contains('\u{1b}'));
+}
+
+#[test]
+fn commentary_is_exported_as_collapsible_activity() {
+    let commentary = ThreadItem::AgentMessage {
+        id: "commentary".to_string(),
+        text: "Checking the repository".to_string(),
+        phase: Some(MessagePhase::Commentary),
+        memory_citation: None,
+        delivery: None,
+    };
+    let final_answer = ThreadItem::AgentMessage {
+        id: "final".to_string(),
+        text: "Done".to_string(),
+        phase: Some(MessagePhase::FinalAnswer),
+        memory_citation: None,
+        delivery: None,
+    };
+
+    assert!(super::export_activity_cell(&commentary).is_some());
+    assert!(super::export_activity_cell(&final_answer).is_none());
 }
 
 #[test]

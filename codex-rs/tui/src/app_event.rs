@@ -196,9 +196,19 @@ pub(crate) enum TranscriptExportDestination {
     File(PathBuf),
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum ContextInspectionPurpose {
+    Summary,
+    SystemPrompt,
+}
+
 #[allow(clippy::large_enum_variant)]
 #[derive(Debug)]
 pub(crate) enum AppEvent {
+    RequestContextInspection {
+        thread_id: ThreadId,
+        purpose: ContextInspectionPurpose,
+    },
     OpenWorkflowPicker {
         workflow_id: Option<String>,
     },
@@ -300,6 +310,8 @@ pub(crate) enum AppEvent {
     ExportTranscript {
         destination: TranscriptExportDestination,
     },
+
+    DumpTranscript,
 
     /// Persist a submitted prompt in the cross-session message history.
     AppendMessageHistoryEntry {

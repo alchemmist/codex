@@ -632,6 +632,17 @@ pub(super) async fn submission_loop(
                     reload_user_config(&sess).await;
                     false
                 }
+                Op::InspectContext { reply } => {
+                    let base_instructions = sess.get_base_instructions().await;
+                    let items = sess.clone_history().await.into_raw_items();
+                    let token_info = sess.token_usage_info().await;
+                    let _ = reply.send(codex_protocol::protocol::ContextInspection {
+                        base_instructions,
+                        items,
+                        token_info,
+                    });
+                    false
+                }
                 Op::Compact => {
                     compact(&sess, sub.id.clone()).await;
                     false

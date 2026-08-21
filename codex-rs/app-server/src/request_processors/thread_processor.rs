@@ -851,6 +851,36 @@ impl ThreadRequestProcessor {
             .map(|response| Some(response.into()))
     }
 
+    pub(crate) async fn thread_context_read(
+        &self,
+        params: ThreadContextReadParams,
+    ) -> Result<Option<ClientResponsePayload>, JSONRPCErrorError> {
+        let (_, thread) = self.load_thread(&params.thread_id).await?;
+        let (reply, response) = tokio::sync::oneshot::channel();
+        thread
+            .submit(Op::InspectContext { reply })
+            .await
+            .map_err(|error| internal_error(format!("failed to inspect context: {error}")))?;
+        let inspection = response
+            .await
+            .map_err(|_| internal_error("context inspection request was cancelled"))?;
+        let (used_tokens, context_window) = inspection.token_info.map_or((None, None), |info| {
+            (
+                Some(info.total_token_usage.total_tokens),
+                info.model_context_window,
+            )
+        });
+        Ok(Some(
+            ThreadContextReadResponse {
+                base_instructions: inspection.base_instructions.text,
+                items: inspection.items,
+                used_tokens,
+                context_window,
+            }
+            .into(),
+        ))
+    }
+
     pub(crate) async fn thread_turns_list(
         &self,
         params: ThreadTurnsListParams,

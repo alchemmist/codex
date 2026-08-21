@@ -29,11 +29,14 @@ expression: commands
 /side - start a side conversation in an ephemeral fork
 /copy - copy last response as markdown
 /export - export the conversation as markdown
+/dump - save the conversation as a shareable HTML page
 /raw - toggle raw scrollback mode for copy-friendly terminal selection
 /tmux-command-log - mirror this session's shell commands in a dedicated tmux window
 /diff - show git diff (including untracked files)
 /mention - mention a file
 /status - show current session configuration and token usage
+/context - summarize what is currently in the model context
+/system-prompt - open the current system prompt in nvim inside a tmux window
 /cd - change the current working directory
 /pwd - show the current working directory
 /title - configure which items appear in the terminal title

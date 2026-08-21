@@ -429,6 +429,9 @@ impl ChatWidget {
             SlashCommand::Export => {
                 self.show_transcript_export_popup();
             }
+            SlashCommand::Dump => {
+                self.app_event_tx.send(AppEvent::DumpTranscript);
+            }
             SlashCommand::Raw => {
                 let enabled = self.toggle_raw_output_mode_and_notify();
                 self.emit_raw_output_mode_changed(enabled);
@@ -489,6 +492,16 @@ impl ChatWidget {
                         /*refreshing_rate_limits*/ false, /*request_id*/ None,
                     );
                 }
+            }
+            SlashCommand::Context => {
+                self.request_context_inspection(
+                    crate::app_event::ContextInspectionPurpose::Summary,
+                );
+            }
+            SlashCommand::SystemPrompt => {
+                self.request_context_inspection(
+                    crate::app_event::ContextInspectionPurpose::SystemPrompt,
+                );
             }
             SlashCommand::Cd => {
                 self.dispatch_command_with_args(SlashCommand::Cd, "~".to_string(), Vec::new());
@@ -1160,6 +1173,8 @@ impl ChatWidget {
         match cmd {
             SlashCommand::Ide
             | SlashCommand::Status
+            | SlashCommand::Context
+            | SlashCommand::SystemPrompt
             | SlashCommand::Pwd
             | SlashCommand::Usage
             | SlashCommand::DebugConfig
@@ -1186,6 +1201,7 @@ impl ChatWidget {
             },
             SlashCommand::Feedback
             | SlashCommand::Export
+            | SlashCommand::Dump
             | SlashCommand::New
             | SlashCommand::Archive
             | SlashCommand::Delete

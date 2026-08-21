@@ -1,0 +1,58 @@
+---
+source: tui/src/app/transcript_dump_tests.rs
+expression: html
+---
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="color-scheme" content="light dark">
+<title>Codex conversation</title>
+<style>
+:root { --paper:#f8f7f3; --ink:#171717; --muted:#686868; --line:#c8c6bf; --soft:#eeece6; }
+@media (prefers-color-scheme:dark) { :root { --paper:#111; --ink:#e8e6df; --muted:#aaa69c; --line:#3b3934; --soft:#1b1a18; } }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--paper); color:var(--ink); font:19px/1.62 Georgia,"Times New Roman",serif; }
+main { width:min(760px,calc(100% - 36px)); margin:0 auto; padding:72px 0 120px; }
+header.page { padding-bottom:28px; border-bottom:1px solid var(--ink); }
+h1 { margin:0 0 8px; font-size:clamp(2rem,7vw,3.4rem); font-weight:400; letter-spacing:-.04em; line-height:1; }
+.meta,.role,summary { font:12px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; letter-spacing:.08em; text-transform:uppercase; }
+.meta { color:var(--muted); overflow-wrap:anywhere; }
+.message { padding:34px 0 38px; border-bottom:1px solid var(--line); }
+.message.you { border-left:3px solid var(--ink); padding-left:22px; }
+.role { margin-bottom:13px; color:var(--muted); }
+.content > :first-child { margin-top:0; } .content > :last-child { margin-bottom:0; }
+p,ul,ol,pre,blockquote,table { margin:0 0 1em; }
+h2,h3,h4 { margin:1.5em 0 .5em; line-height:1.2; }
+pre { padding:16px 18px; overflow:auto; background:var(--soft); border:1px solid var(--line); font:13px/1.55 ui-monospace,SFMono-Regular,Menlo,monospace; }
+code { font: .82em ui-monospace,SFMono-Regular,Menlo,monospace; }
+:not(pre)>code { padding:.12em .3em; background:var(--soft); }
+blockquote { margin-left:0; padding-left:18px; border-left:1px solid var(--ink); color:var(--muted); }
+table { width:100%; border-collapse:collapse; font-size:.9em; } th,td { padding:8px; border-bottom:1px solid var(--line); text-align:left; }
+.actions { padding:14px 0; border-bottom:1px solid var(--line); }
+summary { cursor:pointer; color:var(--muted); list-style:none; } summary::-webkit-details-marker { display:none; }
+summary::before { content:"+ "; } details[open] summary::before { content:"− "; }
+.action { margin-top:12px; padding:14px 16px; background:var(--soft); border-left:1px solid var(--line); }
+.action-label { margin-bottom:8px; color:var(--muted); font:11px/1.4 ui-monospace,SFMono-Regular,Menlo,monospace; text-transform:uppercase; }
+.action pre { margin:0; padding:0; border:0; background:transparent; white-space:pre-wrap; overflow-wrap:anywhere; }
+@media (max-width:600px) { main { padding-top:38px; } body { font-size:17px; } .message.you { padding-left:15px; } }
+</style>
+</head>
+<body>
+<main>
+<header class="page"><h1>Codex conversation</h1><div class="meta">01a02451-3063-7290 · 2026-08-21 12:34 UTC</div></header>
+<section class="message you"><div class="role">You</div><div class="content"><p>How do I run <strong>tests</strong>?</p>
+</div></section>
+<details class="actions"><summary>2 actions</summary>
+<div class="action"><div class="action-label">Action</div><pre>$ just test</pre></div>
+<div class="action"><div class="action-label">Action</div><pre>all tests passed</pre></div>
+</details>
+<section class="message codex"><div class="role">Codex</div><div class="content"><p>Done. &lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt; unsafe</p>
+</div></section>
+<section class="message codex"><div class="role">Codex · plan</div><div class="content"><ol start="1"><li>Keep going</li>
+</ol>
+</div></section>
+</main>
+</body>
+</html>
