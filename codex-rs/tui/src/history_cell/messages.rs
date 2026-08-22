@@ -8,7 +8,7 @@ use crate::wrapping::url_preserving_wrap_options;
 use crate::wrapping::word_wrap_line;
 use std::borrow::Cow;
 
-const USER_MESSAGE_PREFIX_COLS: u16 = 4;
+const USER_MESSAGE_PREFIX_COLS: u16 = 3;
 
 #[derive(Debug)]
 pub(crate) struct UserHistoryCell {
@@ -253,19 +253,19 @@ impl HistoryCell for UserHistoryCell {
         if let Some(wrapped_remote_images) = wrapped_remote_images {
             lines.extend(prefix_hyperlink_lines(
                 wrapped_remote_images,
-                "  ┃ ".cyan().bold(),
-                "  ┃ ".cyan().bold(),
+                " ┃ ".cyan().bold(),
+                " ┃ ".cyan().bold(),
             ));
             if wrapped_message.is_some() {
-                lines.push(HyperlinkLine::new(Line::from("  ┃ ").cyan().bold()));
+                lines.push(HyperlinkLine::new(Line::from(" ┃ ").cyan().bold()));
             }
         }
 
         if let Some(wrapped_message) = wrapped_message {
             lines.extend(prefix_hyperlink_lines(
                 wrapped_message,
-                "  ┃ ".cyan().bold(),
-                "  ┃ ".cyan().bold(),
+                " ┃ ".cyan().bold(),
+                " ┃ ".cyan().bold(),
             ));
         }
 

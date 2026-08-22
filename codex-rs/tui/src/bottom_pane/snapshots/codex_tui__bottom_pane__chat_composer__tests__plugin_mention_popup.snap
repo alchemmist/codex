@@ -3,10 +3,10 @@ source: tui/src/bottom_pane/chat_composer.rs
 expression: terminal.backend()
 ---
 "                                                                                                    "
-"› $sa                                                                                               "
-"                                                                                                    "
-"                                                                                                    "
-"                                                                                                    "
+" ┃ $sa                                                                                              "
+" ┃                                                                                                  "
+" ┃                                                                                                  "
+" ┃                                                                                                  "
 "                                                                                                    "
 "  Sample Plugin  [Plugin] Plugin that includes the Figma MCP server and Skills for common workflows "
 "                                                                                                    "

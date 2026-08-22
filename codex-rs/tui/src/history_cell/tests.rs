@@ -2262,7 +2262,7 @@ fn user_history_cell_wraps_long_urls_inside_the_message_gutter() {
             line.line
                 .spans
                 .first()
-                .is_some_and(|span| span.content == "  ┃ ")
+                .is_some_and(|span| span.content == " ┃ ")
         }),
         "wrapped URL rows must retain the user-message gutter: {linked_rows:?}"
     );
@@ -2434,7 +2434,7 @@ fn render_uses_wrapping_for_long_url_like_line() {
     let rendered_url = rendered
         .iter()
         .filter(|row| !row.trim().is_empty())
-        .map(|row| row.strip_prefix("  ┃ ").unwrap().trim())
+        .map(|row| row.strip_prefix(" ┃ ").unwrap().trim())
         .collect::<String>();
 
     assert_eq!(

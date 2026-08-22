@@ -1643,13 +1643,13 @@ async fn approved_plan_update_renders_persistent_bottom_panel() {
     );
     chat.note_terminal_height(24);
     insta::assert_snapshot!(render_bottom_popup(&chat, /*width*/ 60), @"
-      ✓ Explore codebase
-      ● Implement feature
-      ○ Write tests
+     ✓ Explore codebase
+     ● Implement feature
+     ○ Write tests
 
-    › Ask Codex to do anything
+    ┃ Ask Codex to do anything
 
-      gpt-5.6-sol default · /tmp/project
+     gpt-5.6-sol default · /tmp/project
     ");
 }
 

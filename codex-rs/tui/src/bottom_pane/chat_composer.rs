@@ -318,6 +318,8 @@ use codex_plugin::AppConnectorId;
 use codex_plugin::PluginCapabilitySummary;
 use std::cell::OnceCell;
 use std::collections::HashMap;
+
+const COMPOSER_LEFT_INSET_COLS: u16 = LIVE_PREFIX_COLS + 1;
 use std::collections::HashSet;
 use std::collections::VecDeque;
 use std::ops::Range;
@@ -986,7 +988,7 @@ impl ChatComposer {
             Layout::vertical([Constraint::Min(3), popup_constraint]).areas(area);
         let mut textarea_rect = composer_rect.inset(Insets::tlbr(
             /*top*/ 1,
-            LIVE_PREFIX_COLS,
+            COMPOSER_LEFT_INSET_COLS,
             /*bottom*/ 1,
             /*right*/ 1u16.saturating_add(textarea_right_reserve),
         ));
@@ -4498,7 +4500,7 @@ impl ChatComposer {
             .unwrap_or_else(|| footer_height(&footer_props));
         let footer_spacing = Self::footer_spacing(footer_hint_height);
         let footer_total_height = footer_hint_height + footer_spacing;
-        const COLS_WITH_MARGIN: u16 = LIVE_PREFIX_COLS + 1;
+        const COLS_WITH_MARGIN: u16 = COMPOSER_LEFT_INSET_COLS + 1;
         let inner_width =
             width.saturating_sub(COLS_WITH_MARGIN.saturating_add(textarea_right_reserve));
         let remote_images_height: u16 = self
@@ -4816,10 +4818,10 @@ impl ChatComposer {
                 .render(remote_images_rect, buf);
         }
         if !textarea_rect.is_empty() {
-            let prompt = if self.draft.input_enabled {
-                if self.draft.is_bash_mode {
-                    Span::from("!").light_red().bold()
-                } else if let Some(tier) = self.effort_tier {
+            let rail = if self.draft.input_enabled {
+                if !self.draft.is_bash_mode
+                    && let Some(tier) = self.effort_tier
+                {
                     let charge = self
                         .effort_ignition
                         .as_ref()
@@ -4827,17 +4829,23 @@ impl ChatComposer {
                         .unwrap_or(1.0);
                     tier.prompt(charge)
                 } else {
-                    "›".bold()
+                    "┃".cyan().bold()
                 }
             } else {
-                "›".dim()
+                "┃".cyan().dim()
             };
-            buf.set_span(
-                textarea_rect.x - LIVE_PREFIX_COLS,
-                textarea_rect.y,
-                &prompt,
-                textarea_rect.width,
-            );
+            let rail_x = textarea_rect.x.saturating_sub(LIVE_PREFIX_COLS);
+            for y in textarea_rect.y..textarea_rect.bottom() {
+                buf.set_span(rail_x, y, &rail, /*width*/ 1);
+            }
+            if self.draft.input_enabled && self.draft.is_bash_mode {
+                buf.set_span(
+                    rail_x.saturating_add(1),
+                    textarea_rect.y,
+                    &Span::from("!").light_red().bold(),
+                    /*width*/ 1,
+                );
+            }
         }
 
         let mut state = self.draft.textarea_state.borrow_mut();
@@ -5385,11 +5393,11 @@ mod tests {
 
         composer.set_text_content("!git".to_string(), Vec::new(), Vec::new());
         composer.move_cursor_to_end();
-        assert_eq!(composer.cursor_pos(area), Some((5, 1)));
+        assert_eq!(composer.cursor_pos(area), Some((6, 1)));
 
         composer.set_text_content("! git".to_string(), Vec::new(), Vec::new());
         composer.move_cursor_to_end();
-        assert_eq!(composer.cursor_pos(area), Some((6, 1)));
+        assert_eq!(composer.cursor_pos(area), Some((7, 1)));
     }
 
     #[test]
@@ -5413,7 +5421,11 @@ mod tests {
         let mut buf = Buffer::empty(area);
         composer.render(area, &mut buf);
 
-        let prompt_cell = &buf[(0, 1)];
+        let rail_cell = &buf[(1, 1)];
+        assert_eq!(rail_cell.symbol(), "┃");
+        assert_eq!(rail_cell.style().fg, Some(Color::Cyan));
+
+        let prompt_cell = &buf[(2, 1)];
         assert_eq!(prompt_cell.symbol(), "!");
         assert_eq!(prompt_cell.style().fg, Some(Color::LightRed));
 

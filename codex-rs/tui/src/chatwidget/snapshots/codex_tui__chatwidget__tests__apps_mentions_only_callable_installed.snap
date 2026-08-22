@@ -2,7 +2,7 @@
 source: tui/src/chatwidget/tests/popups_and_settings.rs
 expression: snapshot
 ---
-› $
+ ┃ $
 
   Google Drive  [App] Connected files
 

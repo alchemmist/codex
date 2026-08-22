@@ -5,7 +5,7 @@ expression: "format!(\"prompt removed: {removed_prompt}\\nhistory:\\n{interrupte
 prompt removed: true
 history:
 
-  ┃ revise this prompt
+ ┃ revise this prompt
 
 
 composer:

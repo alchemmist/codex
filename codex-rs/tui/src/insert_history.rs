@@ -876,13 +876,13 @@ mod tests {
 
         assert!(message_rows.len() > 1, "expected wrapped URL: {rows:?}");
         assert!(
-            message_rows.iter().all(|(_, row)| row.starts_with("  ┃ ")),
+            message_rows.iter().all(|(_, row)| row.starts_with(" ┃ ")),
             "all wrapped URL rows must preserve the message rail: {rows:?}"
         );
         assert_eq!(
             message_rows
                 .iter()
-                .map(|(_, row)| row.strip_prefix("  ┃ ").unwrap().trim())
+                .map(|(_, row)| row.strip_prefix(" ┃ ").unwrap().trim())
                 .collect::<String>(),
             url
         );
