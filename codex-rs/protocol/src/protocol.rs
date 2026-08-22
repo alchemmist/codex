@@ -709,6 +709,7 @@ pub struct ContextInspection {
     pub base_instructions: BaseInstructions,
     pub items: Vec<ResponseItem>,
     pub token_info: Option<TokenUsageInfo>,
+    pub latest_model_request: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Clone, Copy, Debug, PartialEq, Eq, JsonSchema)]

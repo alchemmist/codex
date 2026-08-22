@@ -63,5 +63,6 @@ async fn reads_exact_system_prompt_and_model_visible_history() -> Result<()> {
     }));
     assert_eq!(response.used_tokens, None);
     assert_eq!(response.context_window, None);
+    assert_eq!(response.latest_model_request, None);
     Ok(())
 }

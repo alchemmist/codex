@@ -67,6 +67,7 @@ impl App {
                             },
                             items: response.items,
                             token_info,
+                            latest_model_request: response.latest_model_request,
                         }
                     })
                     .map_err(|error| error.to_string());

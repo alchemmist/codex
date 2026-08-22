@@ -640,6 +640,7 @@ pub(super) async fn submission_loop(
                         base_instructions,
                         items,
                         token_info,
+                        latest_model_request: sess.services.model_client.latest_model_request(),
                     });
                     false
                 }

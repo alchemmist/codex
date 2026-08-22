@@ -216,6 +216,7 @@ struct ModelClientState {
     disable_websockets: AtomicBool,
     agent_identity_session_fallback: AgentIdentitySessionFallback,
     cached_websocket_session: StdMutex<WebsocketSession>,
+    latest_model_request: StdMutex<Option<String>>,
 }
 
 /// Resolved API client setup for a single request attempt.
@@ -467,6 +468,7 @@ impl ModelClient {
                 disable_websockets: AtomicBool::new(false),
                 agent_identity_session_fallback: AgentIdentitySessionFallback::default(),
                 cached_websocket_session: StdMutex::new(WebsocketSession::default()),
+                latest_model_request: StdMutex::new(None),
             }),
             agent_identity_policy,
             prompt_cache_key_override: None,
@@ -480,6 +482,24 @@ impl ModelClient {
     ) -> Self {
         self.prompt_cache_key_override = prompt_cache_key_override;
         self
+    }
+
+    pub(crate) fn latest_model_request(&self) -> Option<String> {
+        self.state
+            .latest_model_request
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .clone()
+    }
+
+    fn record_latest_model_request(&self, request: &ResponsesApiRequest) {
+        if let Ok(request) = serde_json::to_string(request) {
+            *self
+                .state
+                .latest_model_request
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner) = Some(request);
+        }
     }
 
     fn prompt_cache_key(&self, responses_metadata: &CodexResponsesMetadata) -> String {
@@ -1499,6 +1519,7 @@ impl ModelClientSession {
             }
             self.client
                 .prepare_response_items_for_request(&mut request.input);
+            self.client.record_latest_model_request(&request);
             let request_session_telemetry =
                 session_telemetry_for_request(session_telemetry, &request);
             let inference_trace_attempt = inference_trace.start_attempt();
@@ -1615,6 +1636,12 @@ impl ModelClientSession {
                 service_tier.clone(),
                 responses_metadata,
             )?;
+            if !warmup {
+                let mut logical_request = request.clone();
+                self.client
+                    .prepare_response_items_for_request(&mut logical_request.input);
+                self.client.record_latest_model_request(&logical_request);
+            }
             let mut websocket_metadata = responses_metadata.clone();
             websocket_metadata.routing_hint = self.client.build_routing_hint_header(
                 client_setup.auth.as_ref(),

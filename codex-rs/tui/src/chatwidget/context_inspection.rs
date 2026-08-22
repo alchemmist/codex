@@ -46,7 +46,7 @@ impl ChatWidget {
         match purpose {
             ContextInspectionPurpose::Summary => self.add_context_summary(inspection),
             ContextInspectionPurpose::SystemPrompt => {
-                self.open_system_prompt(inspection.base_instructions.text)
+                self.open_system_prompt(inspection.latest_model_request)
             }
         }
     }
@@ -57,12 +57,25 @@ impl ChatWidget {
         )));
     }
 
-    fn open_system_prompt(&mut self, prompt: String) {
+    fn open_system_prompt(&mut self, request: Option<String>) {
         let Some(thread_id) = self.thread_id else {
             self.add_error_message(
                 "System prompt is unavailable before the session starts.".into(),
             );
             return;
+        };
+        let Some(request) = request else {
+            self.add_error_message(
+                "No model request has been sent yet. Submit a prompt first.".into(),
+            );
+            return;
+        };
+        let document = match model_request_document(&request) {
+            Ok(document) => document,
+            Err(error) => {
+                self.add_error_message(format!("Failed to format model request: {error}"));
+                return;
+            }
         };
         let short_id = thread_id.to_string().chars().take(8).collect::<String>();
         let path = self
@@ -70,16 +83,24 @@ impl ChatWidget {
             .codex_home
             .join("system-prompts")
             .join(format!("system-prompt-{short_id}.md"));
-        match write_system_prompt(&path, &prompt)
+        match write_system_prompt(&path, &document)
             .and_then(|()| open_in_tmux_nvim(&path, &format!("sp-{short_id}")))
         {
             Ok(()) => self.add_info_message(
-                format!("Opened system prompt in tmux: {}", path.display()),
+                format!("Opened latest model request in tmux: {}", path.display()),
                 /*hint*/ None,
             ),
             Err(error) => self.add_error_message(format!("Failed to open system prompt: {error}")),
         }
     }
+}
+
+fn model_request_document(request: &str) -> Result<String, serde_json::Error> {
+    let request: serde_json::Value = serde_json::from_str(request)?;
+    let request = serde_json::to_string_pretty(&request)?;
+    Ok(format!(
+        "# Latest model request\n\nThis is the complete logical Responses API request from the latest model call. WebSocket transport may send it incrementally using `previous_response_id`.\n\n```json\n{request}\n```\n"
+    ))
 }
 
 fn context_summary_lines(inspection: &ContextInspection) -> Vec<Line<'static>> {
@@ -230,18 +251,38 @@ fn open_in_tmux_nvim(path: &Path, window_name: &str) -> std::io::Result<()> {
     if std::env::var_os("TMUX").is_none() {
         return Err(std::io::Error::other("Codex is not running inside tmux"));
     }
+    let window = tmux_stdout(&["display-message", "-p", "-t", &pane, "#{window_id}"])?;
     let command = shlex::try_join(["nvim", &path.to_string_lossy()])
         .map_err(|error| std::io::Error::other(error.to_string()))?;
-    let status = Command::new("tmux")
-        .args(["new-window", "-a", "-t", &pane, "-n", window_name, &command])
-        .status()?;
-    if status.success() {
+    let output = Command::new("tmux")
+        .args(new_window_args(window.trim(), window_name, &command))
+        .output()?;
+    if output.status.success() {
         Ok(())
     } else {
-        Err(std::io::Error::other(format!(
-            "tmux exited with status {status}"
-        )))
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        let detail = stderr.trim();
+        Err(std::io::Error::other(if detail.is_empty() {
+            format!("tmux exited with status {}", output.status)
+        } else {
+            detail.to_string()
+        }))
     }
+}
+
+fn tmux_stdout(args: &[&str]) -> std::io::Result<String> {
+    let output = Command::new("tmux").args(args).output()?;
+    if output.status.success() {
+        Ok(String::from_utf8_lossy(&output.stdout).to_string())
+    } else {
+        Err(std::io::Error::other(
+            String::from_utf8_lossy(&output.stderr).trim().to_string(),
+        ))
+    }
+}
+
+fn new_window_args<'a>(window: &'a str, window_name: &'a str, command: &'a str) -> [&'a str; 7] {
+    ["new-window", "-a", "-t", window, "-n", window_name, command]
 }
 
 #[cfg(test)]

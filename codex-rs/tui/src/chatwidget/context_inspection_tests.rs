@@ -42,14 +42,58 @@ fn summarizes_context_items_and_limits_developer_labels() {
 }
 
 #[test]
-fn writes_the_exact_system_prompt() {
+fn writes_the_complete_model_request() {
     let directory = tempfile::tempdir().expect("tempdir");
     let path = directory.path().join("system prompt.md");
-    let prompt = "You are Codex.\n\nFollow the instructions exactly.";
+    let request = r#"{"instructions":"You are Codex.","input":[{"role":"user","content":[{"type":"input_text","text":"hello"}]}],"tools":[{"type":"function","name":"shell"}]}"#;
+    let document = model_request_document(request).expect("model request document");
 
-    write_system_prompt(&path, prompt).expect("write prompt");
+    write_system_prompt(&path, &document).expect("write prompt");
 
-    assert_eq!(std::fs::read_to_string(path).expect("read prompt"), prompt);
+    insta::assert_snapshot!(std::fs::read_to_string(path).expect("read prompt"), @r#"
+# Latest model request
+
+This is the complete logical Responses API request from the latest model call. WebSocket transport may send it incrementally using `previous_response_id`.
+
+```json
+{
+  "instructions": "You are Codex.",
+  "input": [
+    {
+      "role": "user",
+      "content": [
+        {
+          "type": "input_text",
+          "text": "hello"
+        }
+      ]
+    }
+  ],
+  "tools": [
+    {
+      "type": "function",
+      "name": "shell"
+    }
+  ]
+}
+```
+"#);
+}
+
+#[test]
+fn system_prompt_window_targets_the_resolved_window_not_the_pane() {
+    assert_eq!(
+        new_window_args("@4", "sp-01a02451", "nvim /tmp/prompt.md"),
+        [
+            "new-window",
+            "-a",
+            "-t",
+            "@4",
+            "-n",
+            "sp-01a02451",
+            "nvim /tmp/prompt.md",
+        ]
+    );
 }
 
 #[test]
@@ -72,6 +116,7 @@ fn context_summary_snapshot() {
             last_token_usage: TokenUsage::default(),
             model_context_window: Some(100_000),
         }),
+        latest_model_request: None,
     };
 
     let rendered = context_summary_lines(&inspection)

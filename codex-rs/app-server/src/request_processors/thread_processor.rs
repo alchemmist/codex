@@ -876,6 +876,7 @@ impl ThreadRequestProcessor {
                 items: inspection.items,
                 used_tokens,
                 context_window,
+                latest_model_request: inspection.latest_model_request,
             }
             .into(),
         ))

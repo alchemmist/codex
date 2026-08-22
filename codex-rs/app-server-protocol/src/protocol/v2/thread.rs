@@ -1673,6 +1673,7 @@ pub struct ThreadContextReadResponse {
     pub items: Vec<ResponseItem>,
     pub used_tokens: Option<i64>,
     pub context_window: Option<i64>,
+    pub latest_model_request: Option<String>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, JsonSchema, TS)]
