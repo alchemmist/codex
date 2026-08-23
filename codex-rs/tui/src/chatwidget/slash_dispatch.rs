@@ -296,7 +296,11 @@ impl ChatWidget {
                 self.apply_plan_slash_command();
             }
             SlashCommand::Todo => {
-                let plan = self.bottom_pane.active_task_plan().map(<[_]>::to_vec);
+                let plan = self
+                    .bottom_pane
+                    .active_task_plan()
+                    .map(<[_]>::to_vec)
+                    .or_else(|| self.transcript.latest_task_plan.clone());
                 if let Some(plan) = plan {
                     self.add_to_history(history_cell::new_task_plan_status(plan));
                 } else {

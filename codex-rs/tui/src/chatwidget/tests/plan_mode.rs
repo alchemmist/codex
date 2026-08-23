@@ -1698,3 +1698,35 @@ async fn todo_command_renders_full_active_task_plan() {
     assert_eq!(cells.len(), 1);
     insta::assert_snapshot!("todo_command_full_plan", lines_to_single_string(&cells[0]));
 }
+
+#[tokio::test]
+async fn todo_command_renders_latest_unapproved_task_plan() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.on_plan_update(UpdatePlanArgs {
+        explanation: None,
+        plan: vec![
+            PlanItemArg {
+                step: "Bootstrap package".into(),
+                status: StepStatus::Completed,
+            },
+            PlanItemArg {
+                step: "Implement compiler".into(),
+                status: StepStatus::InProgress,
+            },
+            PlanItemArg {
+                step: "Add documentation".into(),
+                status: StepStatus::Pending,
+            },
+        ],
+    });
+    let _ = drain_insert_history(&mut rx);
+
+    chat.dispatch_command(SlashCommand::Todo);
+
+    let cells = drain_insert_history(&mut rx);
+    assert_eq!(cells.len(), 1);
+    insta::assert_snapshot!(
+        "todo_command_latest_unapproved_plan",
+        lines_to_single_string(&cells[0])
+    );
+}

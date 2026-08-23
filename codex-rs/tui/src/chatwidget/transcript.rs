@@ -2,6 +2,7 @@
 
 use super::HistoryCell;
 use super::HistoryRenderMode;
+use codex_protocol::plan_tool::PlanItemArg;
 use std::cell::Cell;
 
 /// Identifies the render state that determines an active cell's viewport height.
@@ -50,6 +51,7 @@ pub(super) struct TranscriptState {
     pub(super) saw_plan_item_this_turn: bool,
     /// Latest `update_plan` checklist task counts for terminal-title rendering.
     pub(super) last_plan_progress: Option<(usize, usize)>,
+    pub(super) latest_task_plan: Option<Vec<PlanItemArg>>,
     /// Incremental buffer for streamed plan content.
     pub(super) plan_delta_buffer: String,
     /// True while a plan item is streaming.

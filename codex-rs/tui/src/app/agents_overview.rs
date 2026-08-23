@@ -708,8 +708,9 @@ impl App {
                 } else {
                     current_executable
                 };
-                let output = tokio::process::Command::new(executable)
-                    .args(["app-server", "daemon", "start"])
+                let output = tokio::process::Command::new(&executable)
+                    .args(["app-server", "daemon", "start", "--codex-bin"])
+                    .arg(&executable)
                     .output()
                     .await
                     .map_err(|error| error.to_string())?;

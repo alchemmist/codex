@@ -1,0 +1,9 @@
+---
+source: tui/src/chatwidget/tests/plan_mode.rs
+expression: "lines_to_single_string(&cells[0])"
+---
+• Todos · 1/3 completed
+  └ Current stage: 2/3 — Implement compiler
+    ✔ Bootstrap package
+    □ Implement compiler
+    □ Add documentation

@@ -193,6 +193,13 @@ pub async fn run(command: LifecycleCommand) -> Result<LifecycleOutput> {
     Daemon::from_environment()?.run(command).await
 }
 
+pub async fn start_with_codex_bin(codex_bin: &Path) -> Result<LifecycleOutput> {
+    ensure_supported_platform()?;
+    let mut daemon = Daemon::from_environment()?;
+    daemon.managed_codex_bin = codex_bin.to_path_buf();
+    daemon.run(LifecycleCommand::Start).await
+}
+
 pub async fn bootstrap(options: BootstrapOptions) -> Result<BootstrapOutput> {
     ensure_supported_platform()?;
     Daemon::from_environment()?.bootstrap(options).await

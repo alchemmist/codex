@@ -703,7 +703,7 @@ enum AppServerDaemonSubcommand {
     Bootstrap(AppServerBootstrapCommand),
 
     /// Start the local app server daemon if it is not already running.
-    Start,
+    Start(AppServerDaemonStartCommand),
 
     /// Restart the local app server daemon.
     Restart,
@@ -723,6 +723,13 @@ enum AppServerDaemonSubcommand {
     /// [internal] Run the detached pid-backed standalone updater loop.
     #[clap(hide = true)]
     PidUpdateLoop,
+}
+
+#[derive(Debug, Args)]
+struct AppServerDaemonStartCommand {
+    /// Codex executable used to launch app-server instead of the managed standalone install.
+    #[arg(long, value_name = "PATH", value_parser = parse_socket_path)]
+    codex_bin: Option<AbsolutePathBuf>,
 }
 
 #[derive(Debug, Args)]
@@ -1295,8 +1302,16 @@ async fn cli_main(
                     .await?;
                 }
                 Some(AppServerSubcommand::Daemon(daemon_cli)) => match daemon_cli.subcommand {
-                    AppServerDaemonSubcommand::Start => {
-                        print_app_server_daemon_output(AppServerLifecycleCommand::Start).await?;
+                    AppServerDaemonSubcommand::Start(start_cli) => {
+                        if let Some(codex_bin) = start_cli.codex_bin {
+                            let output =
+                                codex_app_server_daemon::start_with_codex_bin(codex_bin.as_path())
+                                    .await?;
+                            println!("{}", serde_json::to_string(&output)?);
+                        } else {
+                            print_app_server_daemon_output(AppServerLifecycleCommand::Start)
+                                .await?;
+                        }
                     }
                     AppServerDaemonSubcommand::Bootstrap(bootstrap_cli) => {
                         let output =
@@ -2482,7 +2497,7 @@ fn app_server_subcommand_name(subcommand: Option<&AppServerSubcommand>) -> &'sta
         None => "app-server",
         Some(AppServerSubcommand::Daemon(daemon)) => match daemon.subcommand {
             AppServerDaemonSubcommand::Bootstrap(_) => "app-server daemon bootstrap",
-            AppServerDaemonSubcommand::Start => "app-server daemon start",
+            AppServerDaemonSubcommand::Start(_) => "app-server daemon start",
             AppServerDaemonSubcommand::Restart => "app-server daemon restart",
             AppServerDaemonSubcommand::EnableRemoteControl => {
                 "app-server daemon enable-remote-control"
@@ -4528,8 +4543,30 @@ mod tests {
         assert!(matches!(
             app_server_from_args(["codex", "app-server", "daemon", "start"].as_ref()).subcommand,
             Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
-                subcommand: AppServerDaemonSubcommand::Start
+                subcommand: AppServerDaemonSubcommand::Start(AppServerDaemonStartCommand {
+                    codex_bin: None
+                })
             }))
+        ));
+        let local_codex = AbsolutePathBuf::from_absolute_path("/tmp/local-codex").unwrap();
+        assert!(matches!(
+            app_server_from_args(
+                [
+                    "codex",
+                    "app-server",
+                    "daemon",
+                    "start",
+                    "--codex-bin",
+                    "/tmp/local-codex"
+                ]
+                .as_ref()
+            )
+            .subcommand,
+            Some(AppServerSubcommand::Daemon(AppServerDaemonCommand {
+                subcommand: AppServerDaemonSubcommand::Start(AppServerDaemonStartCommand {
+                    codex_bin: Some(path)
+                })
+            })) if path == local_codex
         ));
         assert!(matches!(
             app_server_from_args(["codex", "app-server", "daemon", "restart"].as_ref()).subcommand,

@@ -1074,12 +1074,21 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
     )
     .await;
     let (spawn_args, expected_model, expected_reasoning_effort) = match selection {
-        FullHistoryV2ModelSelection::ConfiguredDefault
-        | FullHistoryV2ModelSelection::WorldStateIdentity
+        FullHistoryV2ModelSelection::ConfiguredDefault => (
+            json!({
+                "message": CHILD_PROMPT,
+                "task_name": "worker",
+            }),
+            INHERITED_MODEL,
+            ReasoningEffort::Medium,
+        ),
+        FullHistoryV2ModelSelection::WorldStateIdentity
         | FullHistoryV2ModelSelection::CurrentTimeReminders => (
             json!({
                 "message": CHILD_PROMPT,
                 "task_name": "worker",
+                "model": V2_DEFAULT_MODEL,
+                "reasoning_effort": V2_DEFAULT_REASONING_EFFORT,
             }),
             V2_DEFAULT_MODEL,
             V2_DEFAULT_REASONING_EFFORT,
@@ -1205,17 +1214,33 @@ async fn spawned_full_history_v2_child_uses_model_precedence_without_dropping_co
     let child_request = wait_for_request_with_model(&child_request_log, expected_model).await?;
     assert!(child_request.body_contains_text(TURN_0_FORK_PROMPT));
     let child_developer_messages = child_request.message_input_texts("developer");
-    assert_eq!(
-        child_developer_messages
-            .iter()
-            .filter(|message| message.contains(&format!("{expected_model} subagent role.")))
-            .count(),
-        1
-    );
-    assert!(!child_developer_messages.iter().any(|message| {
-        message.contains(&format!("{INHERITED_MODEL} root role."))
-            || message.contains(&format!("{INHERITED_MODEL} subagent role."))
-    }));
+    if expected_model == INHERITED_MODEL {
+        assert_eq!(
+            child_developer_messages
+                .iter()
+                .filter(|message| message.contains(&format!("{INHERITED_MODEL} root role.")))
+                .count(),
+            1
+        );
+    } else {
+        assert_eq!(
+            child_developer_messages
+                .iter()
+                .filter(|message| message.contains(&format!("{expected_model} subagent role.")))
+                .count(),
+            1
+        );
+        assert!(
+            !child_developer_messages
+                .iter()
+                .any(|message| message.contains(&format!("{INHERITED_MODEL} root role.")))
+        );
+        assert!(
+            !child_developer_messages
+                .iter()
+                .any(|message| message.contains(&format!("{INHERITED_MODEL} subagent role.")))
+        );
+    }
     if matches!(selection, FullHistoryV2ModelSelection::CurrentTimeReminders) {
         let reminder_count = |request: &ResponsesRequest| {
             request
