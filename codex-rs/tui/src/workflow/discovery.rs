@@ -4,11 +4,21 @@ use std::path::PathBuf;
 
 use tokio::fs;
 
+use super::BUILTIN_GITHUB_BOT_PR_WORKFLOW_ID;
 use super::BUILTIN_RUFF_WORKFLOW_ID;
 use super::WorkflowDefinition;
 use super::python_host::describe_workflow;
 
 const BUILTIN_RUFF_WORKFLOW: &str = include_str!("builtin_ruff.py");
+const BUILTIN_GITHUB_BOT_PR_WORKFLOW: &str = include_str!("builtin_github_bot_pr_maintenance.py");
+const BUILTIN_WORKFLOWS: [(&str, u32, &str); 2] = [
+    (BUILTIN_RUFF_WORKFLOW_ID, 1, BUILTIN_RUFF_WORKFLOW),
+    (
+        BUILTIN_GITHUB_BOT_PR_WORKFLOW_ID,
+        1,
+        BUILTIN_GITHUB_BOT_PR_WORKFLOW,
+    ),
+];
 
 pub(crate) async fn discover_workflows(
     codex_home: &Path,
@@ -17,9 +27,11 @@ pub(crate) async fn discover_workflows(
     let mut candidates = Vec::new();
     let mut diagnostics = Vec::new();
 
-    match materialize_builtin_workflow(codex_home).await {
-        Ok(path) => candidates.push((path, "built-in".to_string(), 0u8)),
-        Err(err) => diagnostics.push(err),
+    for (id, version, source) in BUILTIN_WORKFLOWS {
+        match materialize_builtin_workflow(codex_home, id, version, source).await {
+            Ok(path) => candidates.push((path, "built-in".to_string(), 0u8)),
+            Err(err) => diagnostics.push(err),
+        }
     }
     collect_python_files(
         &codex_home.join("workflows"),
@@ -66,17 +78,22 @@ pub(crate) async fn discover_workflows(
     (definitions, diagnostics)
 }
 
-async fn materialize_builtin_workflow(codex_home: &Path) -> Result<PathBuf, String> {
+async fn materialize_builtin_workflow(
+    codex_home: &Path,
+    id: &str,
+    version: u32,
+    source: &str,
+) -> Result<PathBuf, String> {
     let cache_dir = codex_home.join("workflow-cache");
     fs::create_dir_all(&cache_dir)
         .await
         .map_err(|err| format!("failed to create workflow cache: {err}"))?;
-    let path = cache_dir.join(format!("{BUILTIN_RUFF_WORKFLOW_ID}-v1.py"));
+    let path = cache_dir.join(format!("{id}-v{version}.py"));
     let current = fs::read_to_string(&path).await.ok();
-    if current.as_deref() != Some(BUILTIN_RUFF_WORKFLOW) {
-        fs::write(&path, BUILTIN_RUFF_WORKFLOW)
+    if current.as_deref() != Some(source) {
+        fs::write(&path, source)
             .await
-            .map_err(|err| format!("failed to materialize built-in Ruff workflow: {err}"))?;
+            .map_err(|err| format!("failed to materialize built-in workflow `{id}`: {err}"))?;
     }
     Ok(path)
 }

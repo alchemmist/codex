@@ -2,12 +2,18 @@
 
 Python workflows — это добавленная в этом форке система перезапускаемых программ оркестрации для больших повторяющихся задач, которые неудобно решать в одном контексте модели.
 
-Сейчас вместе с Codex поставляется один готовый workflow — `Ruff cleanup`. Его исходный код находится в `codex-rs/tui/src/workflow/builtin_ruff.py`.
+Сейчас вместе с Codex поставляются два готовых workflow:
+
+- `Ruff cleanup` — исправляет большие очереди Ruff-нарушений;
+- `GitHub bot PR maintenance` — обходит все репозитории выбранного владельца и по умолчанию исправляет и мержит безопасные bot PR.
+
+Их исходный код находится в `codex-rs/tui/src/workflow/builtin_ruff.py` и `codex-rs/tui/src/workflow/builtin_github_bot_pr_maintenance.py`.
 
 При запуске Codex материализует встроенный workflow во внутренний кэш:
 
 ```text
 ~/.codex/workflow-cache/ruff-cleanup-v1.py
+~/.codex/workflow-cache/github-bot-pr-maintenance-v1.py
 ```
 
 ## Где хранить свои workflows

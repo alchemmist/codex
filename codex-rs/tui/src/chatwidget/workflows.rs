@@ -8,6 +8,7 @@ use crate::bottom_pane::SelectionItem;
 use crate::bottom_pane::SelectionViewParams;
 use crate::bottom_pane::custom_prompt_view::CustomPromptView;
 use crate::bottom_pane::popup_consts::standard_popup_hint_line;
+use crate::status_indicator_widget::StatusDetailsCapitalization;
 use crate::workflow::StoredWorkflowRun;
 use crate::workflow::WorkflowDefinition;
 use crate::workflow::WorkflowField;
@@ -218,27 +219,52 @@ impl ChatWidget {
                 total,
                 ..
             } => {
-                let progress = match (current, total) {
-                    (Some(current), Some(total)) => format!(" [{current}/{total}]"),
-                    _ => String::new(),
-                };
-                self.set_status_header(format!("Workflow{progress}: {message}"));
+                self.set_status(
+                    "Workflow".to_string(),
+                    Some(format_workflow_phase(Some(message), *current, *total)),
+                    StatusDetailsCapitalization::Preserve,
+                    /*details_max_lines*/ 2,
+                );
             }
             WorkflowUpdate::AgentBatchStarted {
-                count, parallelism, ..
+                count,
+                parallelism,
+                phase,
+                phase_current,
+                phase_total,
+                ..
             } => {
-                self.set_status_header(format!(
-                    "Workflow: starting {count} agents ({parallelism} parallel)"
-                ));
+                self.set_status(
+                    format!("Workflow: starting {count} agents ({parallelism} parallel)"),
+                    Some(format_workflow_phase(
+                        phase.as_deref(),
+                        *phase_current,
+                        *phase_total,
+                    )),
+                    StatusDetailsCapitalization::Preserve,
+                    /*details_max_lines*/ 2,
+                );
             }
             WorkflowUpdate::AgentFinished {
                 completed,
                 total,
                 success,
+                phase,
+                phase_current,
+                phase_total,
                 ..
             } => {
                 let outcome = if *success { "done" } else { "failed" };
-                self.set_status_header(format!("Workflow: agents {completed}/{total} · {outcome}"));
+                self.set_status(
+                    format!("Workflow: agents {completed}/{total} · {outcome}"),
+                    Some(format_workflow_phase(
+                        phase.as_deref(),
+                        *phase_current,
+                        *phase_total,
+                    )),
+                    StatusDetailsCapitalization::Preserve,
+                    /*details_max_lines*/ 2,
+                );
             }
             WorkflowUpdate::Checkpointed { .. } => {}
             WorkflowUpdate::Completed {
@@ -296,6 +322,18 @@ impl ChatWidget {
 
 fn nonempty(value: String) -> Option<String> {
     (!value.is_empty()).then_some(value)
+}
+
+fn format_workflow_phase(
+    message: Option<&str>,
+    current: Option<u64>,
+    total: Option<u64>,
+) -> String {
+    match (message, current, total) {
+        (Some(message), Some(current), Some(total)) => format!("{message} [{current}/{total}]"),
+        (Some(message), _, _) => message.to_string(),
+        (None, _, _) => "working".to_string(),
+    }
 }
 
 fn format_workflow_result(result: &Value) -> String {

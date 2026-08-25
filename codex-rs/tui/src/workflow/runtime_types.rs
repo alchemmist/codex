@@ -34,12 +34,18 @@ pub(crate) enum WorkflowUpdate {
         run_id: String,
         count: usize,
         parallelism: usize,
+        phase: Option<String>,
+        phase_current: Option<u64>,
+        phase_total: Option<u64>,
     },
     AgentFinished {
         run_id: String,
         completed: usize,
         total: usize,
         success: bool,
+        phase: Option<String>,
+        phase_current: Option<u64>,
+        phase_total: Option<u64>,
     },
     Checkpointed {
         run_id: String,

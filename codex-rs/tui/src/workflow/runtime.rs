@@ -69,6 +69,7 @@ struct Runtime {
     updates: mpsc::UnboundedSender<WorkflowUpdate>,
     agent_calls: u32,
     shell_calls: u32,
+    progress: Option<(String, Option<u64>, Option<u64>)>,
 }
 
 impl Runtime {
@@ -87,6 +88,7 @@ impl Runtime {
             updates,
             agent_calls,
             shell_calls,
+            progress: None,
         }
     }
 
@@ -179,6 +181,7 @@ impl Runtime {
                 total,
                 ..
             } => {
+                self.progress = Some((message.clone(), current, total));
                 self.send(WorkflowUpdate::Progress {
                     run_id: self.run.run_id.clone(),
                     message,
@@ -311,6 +314,12 @@ impl Runtime {
             run_id: self.run.run_id.clone(),
             count: requests.len(),
             parallelism,
+            phase: self
+                .progress
+                .as_ref()
+                .map(|(message, _, _)| message.clone()),
+            phase_current: self.progress.as_ref().and_then(|(_, current, _)| *current),
+            phase_total: self.progress.as_ref().and_then(|(_, _, total)| *total),
         });
 
         let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
@@ -362,6 +371,12 @@ impl Runtime {
                 completed,
                 total,
                 success: result.success,
+                phase: self
+                    .progress
+                    .as_ref()
+                    .map(|(message, _, _)| message.clone()),
+                phase_current: self.progress.as_ref().and_then(|(_, current, _)| *current),
+                phase_total: self.progress.as_ref().and_then(|(_, _, total)| *total),
             });
             results[index] = Some(result);
         }

@@ -5,16 +5,32 @@ use crate::workflow::WorkflowUpdate;
 #[tokio::test]
 async fn workflow_picker_snapshot() {
     let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
-    let definitions = vec![WorkflowDefinition {
+    let definitions = [
+        (
+            "github-bot-pr-maintenance",
+            "GitHub bot PR maintenance",
+            "Review or safely merge bot pull requests across owned GitHub repositories.",
+            "/tmp/github.py",
+        ),
+        (
+            "ruff-cleanup",
+            "Ruff cleanup",
+            "Fix a large Ruff backlog in small agent batches.",
+            "/tmp/ruff.py",
+        ),
+    ]
+    .into_iter()
+    .map(|(id, title, description, script_path)| WorkflowDefinition {
         manifest: serde_json::from_value(json!({
-            "id": "ruff-cleanup",
-            "title": "Ruff cleanup",
-            "description": "Fix a large Ruff backlog in small agent batches."
+            "id": id,
+            "title": title,
+            "description": description,
         }))
         .expect("manifest"),
-        script_path: PathBuf::from("/tmp/ruff.py"),
+        script_path: PathBuf::from(script_path),
         source: "built-in".to_string(),
-    }];
+    })
+    .collect();
     chat.show_workflow_picker(definitions);
 
     assert_chatwidget_snapshot!(
@@ -65,4 +81,34 @@ async fn workflow_lifecycle_history_snapshot() {
         .collect::<Vec<_>>()
         .join("\n");
     assert_chatwidget_snapshot!("workflow_lifecycle_history", rendered);
+}
+
+#[tokio::test]
+async fn workflow_agent_status_retains_current_phase_snapshot() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    let run_id = "20260825-161943-f2b3fe76".to_string();
+    chat.handle_workflow_update(&WorkflowUpdate::Started {
+        run_id: run_id.clone(),
+        title: "GitHub bot PR maintenance".to_string(),
+    });
+    chat.handle_workflow_update(&WorkflowUpdate::Progress {
+        run_id: run_id.clone(),
+        message: "Repositories 6-10: alpha, beta, gamma, delta, epsilon".to_string(),
+        current: Some(5),
+        total: Some(42),
+    });
+    chat.handle_workflow_update(&WorkflowUpdate::AgentFinished {
+        run_id,
+        completed: 3,
+        total: 5,
+        success: true,
+        phase: Some("Repositories 6-10: alpha, beta, gamma, delta, epsilon".to_string()),
+        phase_current: Some(5),
+        phase_total: Some(42),
+    });
+
+    assert_chatwidget_snapshot!(
+        "workflow_agent_status_with_phase",
+        render_bottom_popup(&chat, /*width*/ 96)
+    );
 }
