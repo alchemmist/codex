@@ -266,6 +266,10 @@ impl App {
             self.config.cwd.to_path_buf(),
             version,
         )
+        .with_startup_panel(
+            self.config.tui_startup_panel.clone(),
+            self.config.model_context_window,
+        )
         .with_yolo_mode(history_cell::is_yolo_mode(&self.config))
         .display_lines(width)
     }

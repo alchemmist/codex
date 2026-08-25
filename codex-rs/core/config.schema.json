@@ -3302,6 +3302,65 @@
       },
       "type": "object"
     },
+    "StartupPanelConfig": {
+      "additionalProperties": false,
+      "properties": {
+        "feature_tips": {
+          "default": null,
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "show_commit": {
+          "default": true,
+          "type": "boolean"
+        },
+        "show_context": {
+          "default": true,
+          "type": "boolean"
+        },
+        "show_directory": {
+          "default": true,
+          "type": "boolean"
+        },
+        "show_feature_tip": {
+          "default": true,
+          "type": "boolean"
+        },
+        "show_model": {
+          "default": true,
+          "type": "boolean"
+        },
+        "show_permissions": {
+          "default": true,
+          "type": "boolean"
+        },
+        "style": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/StartupPanelStyle"
+            }
+          ],
+          "default": "cockpit"
+        },
+        "title": {
+          "default": "alchemmist codex",
+          "type": "string"
+        }
+      },
+      "type": "object"
+    },
+    "StartupPanelStyle": {
+      "enum": [
+        "cockpit",
+        "hacker",
+        "minimal",
+        "classic",
+        "hidden"
+      ],
+      "type": "string"
+    },
     "ThreadStoreToml": {
       "oneOf": [
         {
@@ -3730,6 +3789,24 @@
           "default": true,
           "description": "Show startup tooltips in the TUI welcome screen. Defaults to `true`.",
           "type": "boolean"
+        },
+        "startup_panel": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/StartupPanelConfig"
+            }
+          ],
+          "default": {
+            "feature_tips": null,
+            "show_commit": true,
+            "show_context": true,
+            "show_directory": true,
+            "show_feature_tip": true,
+            "show_model": true,
+            "show_permissions": true,
+            "style": "cockpit",
+            "title": "alchemmist codex"
+          }
         },
         "status_line": {
           "default": null,

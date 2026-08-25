@@ -459,6 +459,12 @@ fn startup_session_header(config: Option<&Config>) -> Box<dyn HistoryCell> {
             directory,
             CODEX_CLI_VERSION,
         )
+        .with_startup_panel(
+            config
+                .map(|config| config.tui_startup_panel.clone())
+                .unwrap_or_default(),
+            config.and_then(|config| config.model_context_window),
+        )
         .with_yolo_mode(config.is_some_and(history_cell::is_yolo_mode)),
     )
 }

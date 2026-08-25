@@ -13,6 +13,8 @@ use crate::wrapping::word_wrap_lines;
 use codex_app_server_protocol::AskForApproval;
 use codex_app_server_protocol::McpAuthStatus;
 use codex_config::types::McpServerConfig;
+use codex_config::types::StartupPanelConfig;
+use codex_config::types::StartupPanelStyle;
 use codex_otel::RuntimeMetricTotals;
 use codex_otel::RuntimeMetricsSummary;
 use codex_protocol::ThreadId;
@@ -661,7 +663,12 @@ fn ps_output_empty_snapshot() {
 
 #[tokio::test]
 async fn session_info_uses_availability_nux_tooltip_override() {
-    let config = test_config().await;
+    let mut config = test_config().await;
+    config.tui_startup_panel = StartupPanelConfig {
+        style: StartupPanelStyle::Classic,
+        show_feature_tip: false,
+        ..StartupPanelConfig::default()
+    };
     let cell = new_session_info(
         &config,
         "gpt-5",
@@ -684,6 +691,11 @@ async fn session_info_uses_availability_nux_tooltip_override() {
 async fn session_info_availability_nux_tooltip_snapshot() {
     let mut config = test_config().await;
     config.cwd = test_path_buf("/tmp/project").abs();
+    config.tui_startup_panel = StartupPanelConfig {
+        style: StartupPanelStyle::Classic,
+        show_feature_tip: false,
+        ..StartupPanelConfig::default()
+    };
     let cell = new_session_info(
         &config,
         "gpt-5",
@@ -695,6 +707,70 @@ async fn session_info_availability_nux_tooltip_snapshot() {
     );
 
     let rendered = render_transcript(&cell).join("\n");
+    insta::assert_snapshot!(rendered);
+}
+
+#[tokio::test]
+#[cfg_attr(
+    target_os = "windows",
+    ignore = "snapshot path rendering differs on Windows"
+)]
+async fn alchemmist_startup_panel_snapshot() {
+    let mut config = test_config().await;
+    config.cwd = test_path_buf("/tmp/project").abs();
+    config.model_context_window = Some(1_000_000);
+    config.tui_startup_panel.feature_tips = Some(vec![
+        "Ctrl-S stashes your current prompt and restores it on the next press.".to_string(),
+    ]);
+    let mut session = session_configured_event("gpt-5.6-sol");
+    session.reasoning_effort = Some(ReasoningEffortConfig::Low);
+    session.permission_profile = PermissionProfile::Disabled;
+    let cell = new_session_info(
+        &config,
+        "gpt-5.6-sol",
+        &session,
+        /*is_first_event*/ false,
+        /*tooltip_override*/ None,
+        Some(PlanType::Plus),
+        /*show_fast_status*/ false,
+    );
+
+    insta::assert_snapshot!(render_transcript(&cell).join("\n"));
+}
+
+#[test]
+fn startup_panel_styles_snapshot() {
+    let rendered = [
+        StartupPanelStyle::Cockpit,
+        StartupPanelStyle::Hacker,
+        StartupPanelStyle::Minimal,
+        StartupPanelStyle::Classic,
+        StartupPanelStyle::Hidden,
+    ]
+    .into_iter()
+    .map(|style| {
+        let config = StartupPanelConfig {
+            style,
+            show_feature_tip: false,
+            ..StartupPanelConfig::default()
+        };
+        let cell = SessionHeaderHistoryCell::new(
+            "gpt-5.6-sol".to_string(),
+            Some(ReasoningEffortConfig::Low),
+            /*show_fast_status*/ false,
+            test_path_buf("/tmp/project"),
+            "test",
+        )
+        .with_startup_panel(config, Some(1_000_000))
+        .with_yolo_mode(true);
+        format!(
+            "{style:?}:\n{}",
+            render_lines(&cell.display_lines(/*width*/ 60)).join("\n")
+        )
+    })
+    .collect::<Vec<_>>()
+    .join("\n---\n");
+
     insta::assert_snapshot!(rendered);
 }
 

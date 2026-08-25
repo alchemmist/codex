@@ -1,6 +1,7 @@
 //! Central approval policy-stage execution and reviewer routing.
 
 use crate::command_canonicalization::canonicalize_command_for_approval;
+use crate::exec_policy::command_contains_force_push;
 use crate::guardian::GuardianNetworkAccessTrigger;
 use crate::guardian::GuardianReviewContext;
 use crate::guardian::GuardianReviewOptions;
@@ -158,6 +159,20 @@ pub(crate) enum ApprovalCacheKey {
 }
 
 impl ApprovalAction {
+    fn requires_force_push_confirmation(&self) -> bool {
+        match self {
+            Self::Shell { command, .. } | Self::ExecCommand { command, .. } => {
+                command_contains_force_push(command)
+            }
+            #[cfg(unix)]
+            Self::Execve { command, .. } => command_contains_force_push(command),
+            Self::ApplyPatch { .. }
+            | Self::McpToolCall { .. }
+            | Self::NetworkAccess { .. }
+            | Self::RequestPermissions { .. } => false,
+        }
+    }
+
     pub(crate) fn permission_request_payload(&self) -> PermissionRequestPayload {
         match self {
             Self::Shell {
@@ -497,17 +512,19 @@ impl Session {
             _ => ctx.call_id.clone(),
         };
 
-        // Approval precedence is:
-        // 1. Hooks
-        // 2. If StrictAutoReview || Guardian enabled, then Guardian. Else, user.
-        let resolution = match run_permission_request_hooks(
-            self,
-            ctx.review_context.turn(),
-            &permission_request_run_id,
-            action.permission_request_payload(),
-        )
-        .await
-        {
+        let force_push_confirmation = action.requires_force_push_confirmation();
+        let hook_decision = if force_push_confirmation {
+            None
+        } else {
+            run_permission_request_hooks(
+                self,
+                ctx.review_context.turn(),
+                &permission_request_run_id,
+                action.permission_request_payload(),
+            )
+            .await
+        };
+        let resolution = match hook_decision {
             Some(PermissionRequestDecision::Allow) => ApprovalResolution {
                 decision: ReviewDecision::Approved,
                 source: ApprovalResolutionSource::Hook,
@@ -551,7 +568,9 @@ impl Session {
         action: ApprovalAction,
         ctx: &ApprovalContext,
     ) -> ApprovalResolution {
-        let reviewer = if ctx.strict_auto_review {
+        let reviewer = if action.requires_force_push_confirmation() {
+            ApprovalReviewer::User
+        } else if ctx.strict_auto_review {
             ApprovalReviewer::Guardian
         } else if let ApprovalAction::McpToolCall {
             approval_policy,
@@ -716,6 +735,27 @@ impl Session {
                     .into_iter()
                     .map(|key| (key, &policy_fingerprint))
                     .collect();
+                if action.requires_force_push_confirmation() {
+                    return self
+                        .request_command_approval(
+                            ctx.review_context.turn(),
+                            ctx.call_id.clone(),
+                            /*approval_id*/ None,
+                            Some(environment_id.clone()),
+                            command.clone(),
+                            cwd,
+                            reason,
+                            ctx.network_approval_context.clone(),
+                            /*proposed_execpolicy_amendment*/ None,
+                            additional_permissions.clone(),
+                            Some(vec![
+                                ReviewDecision::Approved,
+                                ReviewDecision::denied("force push declined by user"),
+                            ]),
+                            /*plugin_attribution_override*/ None,
+                        )
+                        .await;
+                }
                 with_cached_approval(&self.services, tool_name, cache_keys, || async {
                     self.request_command_approval(
                         ctx.review_context.turn(),
@@ -744,6 +784,14 @@ impl Session {
                 additional_permissions,
                 ..
             } => {
+                let available_decisions = if action.requires_force_push_confirmation() {
+                    vec![
+                        ReviewDecision::Approved,
+                        ReviewDecision::denied("force push declined by user"),
+                    ]
+                } else {
+                    vec![ReviewDecision::Approved, ReviewDecision::Abort]
+                };
                 self.request_command_approval(
                     ctx.review_context.turn(),
                     ctx.call_id.clone(),
@@ -755,7 +803,7 @@ impl Session {
                     /*network_approval_context*/ None,
                     /*proposed_execpolicy_amendment*/ None,
                     additional_permissions.clone(),
-                    Some(vec![ReviewDecision::Approved, ReviewDecision::Abort]),
+                    Some(available_decisions),
                     /*plugin_attribution_override*/ None,
                 )
                 .await

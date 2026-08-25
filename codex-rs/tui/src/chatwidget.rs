@@ -1518,6 +1518,10 @@ impl ChatWidget {
                 config.cwd.to_path_buf(),
                 CODEX_CLI_VERSION,
             )
+            .with_startup_panel(
+                config.tui_startup_panel.clone(),
+                config.model_context_window,
+            )
             .with_yolo_mode(history_cell::is_yolo_mode(config)),
         )
     }

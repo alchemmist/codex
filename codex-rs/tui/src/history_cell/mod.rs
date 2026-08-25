@@ -116,6 +116,7 @@ mod request_user_input;
 mod search;
 mod separators;
 mod session;
+mod startup_panel;
 
 pub(crate) use approvals::*;
 pub(crate) use base::*;

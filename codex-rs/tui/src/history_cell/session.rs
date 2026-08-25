@@ -4,6 +4,8 @@ use super::*;
 use crate::line_truncation::line_width;
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::width::display_width;
+use codex_config::types::StartupPanelConfig;
+use codex_config::types::StartupPanelStyle;
 
 pub(crate) const SESSION_HEADER_MAX_INNER_WIDTH: usize = 56; // Just an eyeballed value
 
@@ -102,6 +104,26 @@ impl HistoryCell for TooltipHistoryCell {
 }
 
 #[derive(Debug)]
+struct FeatureTipHistoryCell {
+    tip: String,
+}
+
+impl HistoryCell for FeatureTipHistoryCell {
+    fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
+        let text = format!("✦ alchemmist feature: {}", self.tip);
+        let wrap_width = usize::from(width.max(1)).saturating_sub(2).max(1);
+        textwrap::wrap(&text, wrap_width)
+            .into_iter()
+            .map(|line| Line::from(vec!["  ".into(), line.into_owned().dim()]))
+            .collect()
+    }
+
+    fn raw_lines(&self) -> Vec<Line<'static>> {
+        vec![Line::from(format!("alchemmist feature: {}", self.tip))]
+    }
+}
+
+#[derive(Debug)]
 pub struct SessionInfoCell(CompositeHistoryCell);
 
 impl HistoryCell for SessionInfoCell {
@@ -139,11 +161,19 @@ pub(crate) fn new_session_info(
         config.cwd.to_path_buf(),
         CODEX_CLI_VERSION,
     )
+    .with_startup_panel(
+        config.tui_startup_panel.clone(),
+        config.model_context_window,
+    )
     .with_yolo_mode(has_yolo_permissions(
         session.approval_policy,
         &session.permission_profile,
     ));
     let mut parts: Vec<Box<dyn HistoryCell>> = vec![Box::new(header)];
+
+    if let Some(tip) = super::startup_panel::random_feature_tip(&config.tui_startup_panel) {
+        parts.push(Box::new(FeatureTipHistoryCell { tip }));
+    }
 
     if is_first_event {
         // Help lines below the header (new copy and list)
@@ -181,7 +211,8 @@ pub(crate) fn new_session_info(
 
         parts.push(Box::new(PlainHistoryCell { lines: help_lines }));
     } else {
-        if config.show_tooltips
+        if !config.tui_startup_panel.show_feature_tip
+            && config.show_tooltips
             && let Some(tooltips) = tooltip_override
                 .or_else(|| tooltips::get_tooltip(auth_plan, show_fast_status))
                 .map(|tip| TooltipHistoryCell::new(tip, &config.cwd))
@@ -231,6 +262,8 @@ pub(crate) struct SessionHeaderHistoryCell {
     show_fast_status: bool,
     directory: PathBuf,
     yolo_mode: bool,
+    startup_panel: Option<StartupPanelConfig>,
+    context_window: Option<i64>,
 }
 
 impl SessionHeaderHistoryCell {
@@ -267,7 +300,19 @@ impl SessionHeaderHistoryCell {
             show_fast_status,
             directory,
             yolo_mode: false,
+            startup_panel: None,
+            context_window: None,
         }
+    }
+
+    pub(crate) fn with_startup_panel(
+        mut self,
+        startup_panel: StartupPanelConfig,
+        context_window: Option<i64>,
+    ) -> Self {
+        self.startup_panel = Some(startup_panel);
+        self.context_window = context_window;
+        self
     }
 
     pub(crate) fn with_yolo_mode(mut self, yolo_mode: bool) -> Self {
@@ -311,6 +356,21 @@ impl SessionHeaderHistoryCell {
 
 impl HistoryCell for SessionHeaderHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
+        if let Some(startup_panel) = self.startup_panel.as_ref()
+            && startup_panel.style != StartupPanelStyle::Classic
+        {
+            return super::startup_panel::StartupPanelView {
+                config: startup_panel,
+                model: &self.model,
+                model_style: self.model_style,
+                reasoning_effort: self.reasoning_effort.as_ref(),
+                show_fast_status: self.show_fast_status,
+                directory: &self.directory,
+                yolo_mode: self.yolo_mode,
+                context_window: self.context_window,
+            }
+            .display_lines(width);
+        }
         let Some(inner_width) = card_inner_width(width, SESSION_HEADER_MAX_INNER_WIDTH) else {
             return Vec::new();
         };
@@ -390,6 +450,21 @@ impl HistoryCell for SessionHeaderHistoryCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
+        if let Some(startup_panel) = self.startup_panel.as_ref()
+            && startup_panel.style != StartupPanelStyle::Classic
+        {
+            return super::startup_panel::StartupPanelView {
+                config: startup_panel,
+                model: &self.model,
+                model_style: self.model_style,
+                reasoning_effort: self.reasoning_effort.as_ref(),
+                show_fast_status: self.show_fast_status,
+                directory: &self.directory,
+                yolo_mode: self.yolo_mode,
+                context_window: self.context_window,
+            }
+            .raw_lines();
+        }
         let mut lines = vec![
             Line::from(format!("OpenAI Codex (v{})", self.version)),
             Line::from(format!(

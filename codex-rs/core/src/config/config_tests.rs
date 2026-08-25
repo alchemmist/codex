@@ -62,6 +62,7 @@ use codex_config::types::ResumeCwdMode;
 use codex_config::types::SandboxWorkspaceWrite;
 use codex_config::types::SessionPickerViewMode;
 use codex_config::types::SkillsConfig;
+use codex_config::types::StartupPanelConfig;
 use codex_config::types::ToolSuggestDisabledTool;
 use codex_config::types::ToolSuggestDiscoverableType;
 use codex_config::types::Tui;
@@ -1108,6 +1109,7 @@ tmux_command_log = true
             notification_settings: TuiNotificationSettings::default(),
             animations: true,
             show_tooltips: true,
+            startup_panel: StartupPanelConfig::default(),
             vim_mode_default: false,
             raw_output_mode: false,
             tmux_command_log: true,
@@ -4188,6 +4190,7 @@ fn tui_config_missing_notifications_field_defaults_to_enabled() {
             notification_settings: TuiNotificationSettings::default(),
             animations: true,
             show_tooltips: true,
+            startup_panel: StartupPanelConfig::default(),
             vim_mode_default: false,
             raw_output_mode: false,
             tmux_command_log: false,
@@ -12430,6 +12433,40 @@ fn test_tui_notification_condition_always() {
     assert_eq!(
         parsed.tui.notifications.condition,
         NotificationCondition::Always
+    );
+}
+
+#[test]
+fn test_tui_startup_panel_config() {
+    let config: ConfigToml = toml::from_str(
+        r#"
+            [tui.startup_panel]
+            style = "hacker"
+            title = "my codex"
+            show_commit = false
+            show_model = false
+            show_directory = false
+            show_permissions = false
+            show_context = false
+            show_feature_tip = true
+            feature_tips = ["One", "Two"]
+        "#,
+    )
+    .expect("deserialize startup panel");
+    let panel = config.tui.expect("tui config").startup_panel;
+    assert_eq!(
+        panel,
+        codex_config::types::StartupPanelConfig {
+            style: codex_config::types::StartupPanelStyle::Hacker,
+            title: "my codex".to_string(),
+            show_commit: false,
+            show_model: false,
+            show_directory: false,
+            show_permissions: false,
+            show_context: false,
+            show_feature_tip: true,
+            feature_tips: Some(vec!["One".to_string(), "Two".to_string()]),
+        }
     );
 }
 

@@ -696,6 +696,8 @@ pub struct Config {
     /// Show startup tooltips in the TUI welcome screen.
     pub show_tooltips: bool,
 
+    pub tui_startup_panel: codex_config::types::StartupPanelConfig,
+
     /// Persisted startup availability NUX state for model tooltips.
     pub model_availability_nux: ModelAvailabilityNuxConfig,
 
@@ -4183,6 +4185,11 @@ impl Config {
                 .unwrap_or_default(),
             animations: cfg.tui.as_ref().map(|t| t.animations).unwrap_or(true),
             show_tooltips: cfg.tui.as_ref().map(|t| t.show_tooltips).unwrap_or(true),
+            tui_startup_panel: cfg
+                .tui
+                .as_ref()
+                .map(|t| t.startup_panel.clone())
+                .unwrap_or_default(),
             model_availability_nux: cfg
                 .tui
                 .as_ref()

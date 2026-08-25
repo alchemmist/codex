@@ -687,6 +687,60 @@ pub struct ModelAvailabilityNuxConfig {
 /// Fallback resize-reflow row cap when Codex cannot identify a terminal-specific scrollback size.
 pub const DEFAULT_TERMINAL_RESIZE_REFLOW_FALLBACK_MAX_ROWS: usize = 1_000;
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum StartupPanelStyle {
+    #[default]
+    Cockpit,
+    Hacker,
+    Minimal,
+    Classic,
+    Hidden,
+}
+
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
+#[schemars(deny_unknown_fields)]
+pub struct StartupPanelConfig {
+    #[serde(default)]
+    pub style: StartupPanelStyle,
+    #[serde(default = "default_startup_panel_title")]
+    pub title: String,
+    #[serde(default = "default_true")]
+    pub show_commit: bool,
+    #[serde(default = "default_true")]
+    pub show_model: bool,
+    #[serde(default = "default_true")]
+    pub show_directory: bool,
+    #[serde(default = "default_true")]
+    pub show_permissions: bool,
+    #[serde(default = "default_true")]
+    pub show_context: bool,
+    #[serde(default = "default_true")]
+    pub show_feature_tip: bool,
+    #[serde(default)]
+    pub feature_tips: Option<Vec<String>>,
+}
+
+impl Default for StartupPanelConfig {
+    fn default() -> Self {
+        Self {
+            style: StartupPanelStyle::Cockpit,
+            title: default_startup_panel_title(),
+            show_commit: true,
+            show_model: true,
+            show_directory: true,
+            show_permissions: true,
+            show_context: true,
+            show_feature_tip: true,
+            feature_tips: None,
+        }
+    }
+}
+
+fn default_startup_panel_title() -> String {
+    "alchemmist codex".to_string()
+}
+
 /// Collection of settings that are specific to the TUI.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]
@@ -703,6 +757,9 @@ pub struct Tui {
     /// Defaults to `true`.
     #[serde(default = "default_true")]
     pub show_tooltips: bool,
+
+    #[serde(default)]
+    pub startup_panel: StartupPanelConfig,
 
     /// Start the composer in Vim mode (`Normal`) by default.
     /// Defaults to `false`.

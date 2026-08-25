@@ -1,4 +1,5 @@
 use super::*;
+use codex_app_server_protocol::CommandExecutionApprovalDecision;
 use pretty_assertions::assert_eq;
 
 #[tokio::test]
@@ -474,6 +475,44 @@ async fn exec_approval_emits_proposed_command_and_decision_history() {
         "exec_approval_history_decision_approved_short",
         lines_to_single_string(&decision)
     );
+}
+
+#[tokio::test]
+async fn force_push_approval_shows_yes_no_selector() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    handle_exec_approval_request(
+        &mut chat,
+        "force-push",
+        ExecApprovalRequestEvent {
+            call_id: "force-push".into(),
+            approval_id: Some("force-push".into()),
+            turn_id: "turn-force-push".into(),
+            environment_id: None,
+            command: vec![
+                "git".into(),
+                "push".into(),
+                "--force-with-lease".into(),
+                "origin".into(),
+                "topic".into(),
+            ],
+            cwd: AbsolutePathBuf::current_dir().expect("current dir"),
+            reason: Some("Force push requires explicit confirmation.".into()),
+            network_approval_context: None,
+            proposed_execpolicy_amendment: None,
+            proposed_network_policy_amendments: None,
+            additional_permissions: None,
+            available_decisions: Some(vec![
+                CommandExecutionApprovalDecision::Accept,
+                CommandExecutionApprovalDecision::Decline,
+            ]),
+        },
+    );
+    assert!(drain_insert_history(&mut rx).is_empty());
+
+    let area = Rect::new(0, 0, 80, chat.desired_height(/*width*/ 80));
+    let mut buf = ratatui::buffer::Buffer::empty(area);
+    chat.render(area, &mut buf);
+    assert_chatwidget_snapshot!("force_push_approval_yes_no", format!("{buf:?}"));
 }
 
 #[test]

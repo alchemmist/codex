@@ -368,6 +368,15 @@ impl ExecPolicyManager {
             &match_options,
         );
 
+        if evaluation.decision != Decision::Forbidden
+            && commands.iter().any(|command| is_force_push(command))
+        {
+            return ExecApprovalRequirement::NeedsApproval {
+                reason: Some("Force push requires explicit confirmation.".to_string()),
+                proposed_execpolicy_amendment: None,
+            };
+        }
+
         let requested_amendment = if auto_amendment_allowed {
             derive_requested_execpolicy_amendment_from_prefix_rule(
                 prefix_rule.as_ref(),
@@ -892,6 +901,41 @@ fn commands_for_exec_policy(command: &[String]) -> ExecPolicyCommands {
         used_complex_parsing: false,
         command_origin: ExecPolicyCommandOrigin::Generic,
     }
+}
+
+pub(crate) fn command_contains_force_push(command: &[String]) -> bool {
+    commands_for_exec_policy(command)
+        .commands
+        .iter()
+        .any(|command| is_force_push(command))
+}
+
+fn is_force_push(command: &[String]) -> bool {
+    let Some(program) = command.first() else {
+        return false;
+    };
+    if Path::new(program)
+        .file_name()
+        .is_none_or(|program| program != "git")
+    {
+        return false;
+    }
+    let Some(push_index) = command[1..]
+        .iter()
+        .position(|arg| arg == "push")
+        .map(|index| index + 1)
+    else {
+        return false;
+    };
+
+    command[push_index + 1..].iter().any(|arg| {
+        arg == "--force"
+            || arg.starts_with("--force=")
+            || arg == "--force-with-lease"
+            || arg.starts_with("--force-with-lease=")
+            || arg.starts_with('+') && arg.len() > 1
+            || arg.starts_with('-') && !arg.starts_with("--") && arg[1..].contains('f')
+    })
 }
 
 /// Derive a proposed execpolicy amendment when a command requires user approval

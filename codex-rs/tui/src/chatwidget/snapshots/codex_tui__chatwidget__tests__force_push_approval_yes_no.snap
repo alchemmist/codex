@@ -1,0 +1,39 @@
+---
+source: tui/src/chatwidget/tests/exec_flow.rs
+expression: "format!(\"{buf:?}\")"
+---
+Buffer {
+    area: Rect { x: 0, y: 0, width: 80, height: 12 },
+    content: [
+        "                                                                                ",
+        "                                                                                ",
+        "  Would you like to run the following command?                                  ",
+        "                                                                                ",
+        "  Reason: Force push requires explicit confirmation.                            ",
+        "                                                                                ",
+        "  $ git push --force-with-lease origin topic                                    ",
+        "                                                                                ",
+        "› 1. Yes, proceed (y)                                                           ",
+        "  2. No, continue without running it (d)                                        ",
+        "                                                                                ",
+        "  Press enter to confirm or esc to cancel                                       ",
+    ],
+    styles: [
+        x: 0, y: 0, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 2, y: 2, fg: Reset, bg: Reset, underline: Reset, modifier: BOLD,
+        x: 46, y: 2, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 10, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: ITALIC,
+        x: 52, y: 4, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 4, y: 6, fg: Rgb(137, 180, 250), bg: Reset, underline: Reset, modifier: NONE,
+        x: 7, y: 6, fg: Rgb(205, 214, 244), bg: Reset, underline: Reset, modifier: NONE,
+        x: 12, y: 6, fg: Rgb(147, 153, 178), bg: Reset, underline: Reset, modifier: NONE,
+        x: 15, y: 6, fg: Rgb(235, 160, 172), bg: Reset, underline: Reset, modifier: NONE,
+        x: 31, y: 6, fg: Rgb(205, 214, 244), bg: Reset, underline: Reset, modifier: NONE,
+        x: 44, y: 6, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 0, y: 8, fg: Cyan, bg: Reset, underline: Reset, modifier: BOLD,
+        x: 21, y: 8, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 38, y: 9, fg: Reset, bg: Reset, underline: Reset, modifier: DIM,
+        x: 39, y: 9, fg: Reset, bg: Reset, underline: Reset, modifier: NONE,
+        x: 2, y: 11, fg: Reset, bg: Reset, underline: Reset, modifier: DIM,
+    ]
+}

@@ -1404,6 +1404,56 @@ async fn mixed_rule_and_sandbox_prompt_prioritizes_rule_for_rejection_decision()
 }
 
 #[tokio::test]
+async fn force_push_requires_confirmation_when_approvals_are_disabled() {
+    for command in [
+        vec_str(&["git", "push", "--force", "origin", "topic"]),
+        vec_str(&["git", "push", "-f", "origin", "topic"]),
+        vec_str(&[
+            "bash",
+            "-lc",
+            "git status && git push --force-with-lease origin topic",
+        ]),
+    ] {
+        assert_exec_approval_requirement_for_command(
+            ExecApprovalRequirementScenario {
+                policy_src: None,
+                command,
+                approval_policy: AskForApproval::Never,
+                permission_profile: PermissionProfile::read_only(),
+                sandbox_permissions: SandboxPermissions::UseDefault,
+                prefix_rule: None,
+            },
+            ExecApprovalRequirement::NeedsApproval {
+                reason: Some("Force push requires explicit confirmation.".to_string()),
+                proposed_execpolicy_amendment: None,
+            },
+        )
+        .await;
+    }
+}
+
+#[tokio::test]
+async fn force_push_cannot_override_forbidden_exec_policy() {
+    assert_exec_approval_requirement_for_command(
+        ExecApprovalRequirementScenario {
+            policy_src: Some(
+                r#"prefix_rule(pattern=["git", "push"], decision="forbidden")"#.to_string(),
+            ),
+            command: vec_str(&["git", "push", "--force", "origin", "topic"]),
+            approval_policy: AskForApproval::Never,
+            permission_profile: PermissionProfile::read_only(),
+            sandbox_permissions: SandboxPermissions::UseDefault,
+            prefix_rule: None,
+        },
+        ExecApprovalRequirement::Forbidden {
+            reason: "`git push --force origin topic` rejected: policy forbids commands starting with `git push`"
+                .to_string(),
+        },
+    )
+    .await;
+}
+
+#[tokio::test]
 async fn forced_rm_preserves_rule_rejection_when_granular_rules_are_disabled() {
     let policy_src = r#"prefix_rule(pattern=["git"], decision="prompt")"#;
     let mut parser = PolicyParser::new();
