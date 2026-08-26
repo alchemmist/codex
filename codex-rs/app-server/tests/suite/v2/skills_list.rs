@@ -659,7 +659,10 @@ async fn skills_list_loads_remote_installed_plugin_skills_from_cache() -> Result
         std::fs::canonicalize(skill.path.as_path())?,
         expected_skill_path
     );
-    assert_eq!(skill.enabled, true);
+    assert_eq!(
+        (skill.enabled, skill.plugin_id.as_deref()),
+        (true, Some("linear@openai-curated-remote")),
+    );
     Ok(())
 }
 
@@ -841,7 +844,10 @@ enabled = true
             file_system
                 .create_directory(
                     directory,
-                    CreateDirectoryOptions { recursive: true },
+                    CreateDirectoryOptions {
+                        recursive: true,
+                        follow_symlinks: true,
+                    },
                     /*sandbox*/ None,
                 )
                 .await?;
@@ -850,6 +856,7 @@ enabled = true
             .write_file(
                 &skill_dir.join("SKILL.md")?,
                 format!("---\nname: {name}\ndescription: {name}\n---\n").into_bytes(),
+                Default::default(),
                 /*sandbox*/ None,
             )
             .await?;
@@ -938,7 +945,10 @@ enabled = true
         file_system
             .create_directory(
                 &cwd.join(".git")?,
-                CreateDirectoryOptions { recursive: true },
+                CreateDirectoryOptions {
+                    recursive: true,
+                    follow_symlinks: true,
+                },
                 /*sandbox*/ None,
             )
             .await?;

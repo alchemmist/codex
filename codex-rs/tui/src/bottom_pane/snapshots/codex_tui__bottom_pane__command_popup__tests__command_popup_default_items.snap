@@ -23,11 +23,12 @@ expression: commands
 /app - continue this session in the Desktop app
 /init - create an AGENTS.md file with instructions for Codex
 /compact - summarize conversation to prevent hitting the context limit
+/recap - summarize the current conversation now
 /todo - show the full task plan and current stage
 /workflow - run, pause, resume, or cancel a Python workflow
 /agents - view and switch between all active agent sessions
 /side - start a side conversation in an ephemeral fork
-/copy - copy last response as markdown
+/copy - copy the last response, code block, or quote
 /export - export the conversation as markdown
 /dump - save the conversation as a shareable HTML page
 /raw - toggle raw scrollback mode for copy-friendly terminal selection
