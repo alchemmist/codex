@@ -494,6 +494,57 @@ fn pending_replacement_owns_escape_before_turn_interruption() {
 }
 
 #[test]
+fn russian_layout_aliases_drive_vim_commands() {
+    let mut textarea = vim_textarea("alpha beta gamma", /*cursor*/ 0);
+
+    keys(&mut textarea, "ц");
+    assert_eq!(textarea.cursor(), "alpha ".len());
+
+    keys(&mut textarea, "вц");
+    assert_eq!(textarea.text(), "alpha gamma");
+
+    keys(&mut textarea, "шя");
+    assert_eq!(textarea.text(), "alpha яgamma");
+    assert_eq!(textarea.vim_mode_label(), Some("Insert"));
+}
+
+#[test]
+fn russian_layout_preserves_find_and_replace_targets() {
+    let mut textarea = vim_textarea("абвгд", /*cursor*/ 0);
+
+    keys(&mut textarea, "ад");
+    assert_eq!(textarea.cursor(), "абвг".len());
+
+    textarea.set_cursor(/*pos*/ 0);
+    keys(&mut textarea, "кя");
+    assert_eq!(textarea.text(), "ябвгд");
+}
+
+#[test]
+fn russian_layout_commands_have_visual_snapshot_coverage() {
+    let mut textarea = vim_textarea("alpha beta gamma", /*cursor*/ 0);
+    let mut states = Vec::new();
+    for command in ["ц", "вц", "шя"] {
+        keys(&mut textarea, command);
+        states.push(format!(
+            "{command}: {}\n{}^",
+            textarea.text(),
+            " ".repeat(textarea.cursor())
+        ));
+    }
+    insta::assert_snapshot!(states.join("\n\n"), @r###"
+    ц: alpha beta gamma
+          ^
+
+    вц: alpha gamma
+          ^
+
+    шя: alpha яgamma
+            ^
+    "###);
+}
+
+#[test]
 fn editor_commands_have_visual_snapshot_coverage() {
     let mut textarea = vim_textarea("alpha beta\ngamma delta", /*cursor*/ 0);
     let mut states = Vec::new();

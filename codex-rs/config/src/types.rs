@@ -746,6 +746,14 @@ fn default_startup_panel_title() -> String {
     "alchemmist codex".to_string()
 }
 
+#[derive(Serialize, Deserialize, Debug, Default, Copy, Clone, PartialEq, Eq, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum VimModeStart {
+    #[default]
+    Normal,
+    Insert,
+}
+
 /// Collection of settings that are specific to the TUI.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Default, JsonSchema)]
 #[schemars(deny_unknown_fields)]
@@ -770,6 +778,16 @@ pub struct Tui {
     /// Defaults to `false`.
     #[serde(default)]
     pub vim_mode_default: bool,
+
+    /// Mode entered when Vim editing starts and after successful submissions.
+    /// Defaults to `normal`.
+    #[serde(default)]
+    pub vim_mode_start: VimModeStart,
+
+    /// Show the active Vim editing mode in the composer footer.
+    /// Defaults to `false`.
+    #[serde(default)]
+    pub show_vim_mode_indicator: bool,
 
     /// Start the TUI in raw scrollback mode for copy-friendly transcript output.
     /// Defaults to `false`.

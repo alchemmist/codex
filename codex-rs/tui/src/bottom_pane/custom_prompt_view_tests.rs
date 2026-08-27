@@ -106,23 +106,14 @@ fn vim_prompt_hint_tracks_escape_behavior() {
             .trim_end()
             .to_string()
     };
-    let vim_color = |view: &CustomPromptView| {
-        let area = Rect::new(0, 0, 80, 5);
-        let mut buf = Buffer::empty(area);
-        view.render(area, &mut buf);
-        buf[(67, 4)].style().fg
-    };
-
     insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to go back");
     view.enable_vim_in_insert_mode();
-    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to enter normal mode                 Vim: Insert");
-    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 60), @"Press enter to confirm or esc to enter norm…   Vim: Insert");
+    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to enter normal mode");
+    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 60), @"Press enter to confirm or esc to enter normal mode");
     insta::assert_snapshot!(rendered_hint(&view, /*width*/ 14), @"Press enter to");
-    assert_eq!(vim_color(&view), Some(ratatui::style::Color::Green));
 
     view.handle_key_event(KeyEvent::from(KeyCode::Esc));
-    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to go back                           Vim: Normal");
-    assert_eq!(vim_color(&view), Some(ratatui::style::Color::Magenta));
+    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to go back");
 }
 
 #[test]

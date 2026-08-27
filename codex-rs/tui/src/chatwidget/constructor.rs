@@ -268,7 +268,13 @@ impl ChatWidget {
         }
         widget
             .bottom_pane
+            .set_vim_mode_start(widget.config.tui_vim_mode_start);
+        widget
+            .bottom_pane
             .set_vim_enabled(widget.config.tui_vim_mode_default);
+        widget
+            .bottom_pane
+            .set_vim_mode_indicator_enabled(widget.config.tui_show_vim_mode_indicator);
         widget
             .bottom_pane
             .set_status_line_enabled(!widget.configured_status_line_items().is_empty());

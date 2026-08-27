@@ -534,6 +534,16 @@ impl BottomPane {
         self.request_redraw();
     }
 
+    pub(crate) fn set_vim_mode_indicator_enabled(&mut self, enabled: bool) {
+        self.composer.set_vim_mode_indicator_enabled(enabled);
+        self.request_redraw();
+    }
+
+    pub(crate) fn set_vim_mode_start(&mut self, start: codex_config::types::VimModeStart) {
+        self.composer.set_vim_mode_start(start);
+        self.request_redraw();
+    }
+
     pub(crate) fn toggle_vim_enabled(&mut self) -> bool {
         let enabled = self.composer.toggle_vim_enabled();
         self.request_redraw();

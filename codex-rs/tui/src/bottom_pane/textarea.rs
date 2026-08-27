@@ -25,6 +25,7 @@ use crate::keymap::VimNormalKeymap;
 use crate::keymap::VimOperatorKeymap;
 use crate::keymap::VimTextObjectKeymap;
 use crate::width::display_width;
+use codex_config::types::VimModeStart;
 use codex_protocol::user_input::ByteRange;
 use codex_protocol::user_input::TextElement as UserTextElement;
 use crossterm::event::KeyCode;
@@ -48,6 +49,7 @@ use std::sync::Arc;
 use unicode_segmentation::UnicodeSegmentation;
 
 mod hyperlinks;
+mod russian_layout;
 mod vim;
 mod vim_commands;
 mod wrapping;
@@ -138,6 +140,8 @@ pub(crate) struct TextArea {
     kill_buffer: String,
     kill_buffer_kind: KillBufferKind,
     vim_enabled: bool,
+    vim_mode_start: VimModeStart,
+    vim_mode_indicator_enabled: bool,
     vim_mode: VimMode,
     vim_pending: VimPending,
     vim_commands: VimCommandState,
@@ -181,6 +185,8 @@ impl TextArea {
             kill_buffer: String::new(),
             kill_buffer_kind: KillBufferKind::Characterwise,
             vim_enabled: false,
+            vim_mode_start: VimModeStart::Normal,
+            vim_mode_indicator_enabled: false,
             vim_mode: VimMode::Insert,
             vim_pending: VimPending::None,
             vim_commands: VimCommandState::default(),
@@ -267,7 +273,7 @@ impl TextArea {
         self.vim_pending = VimPending::None;
         self.vim_commands = VimCommandState::default();
         self.vim_mode = if enabled {
-            VimMode::Normal
+            self.configured_vim_mode_start()
         } else {
             VimMode::Insert
         };
@@ -276,6 +282,29 @@ impl TextArea {
     /// Return whether modal Vim editing is currently enabled.
     pub(crate) fn is_vim_enabled(&self) -> bool {
         self.vim_enabled
+    }
+
+    pub(crate) fn set_vim_mode_indicator_enabled(&mut self, enabled: bool) {
+        self.vim_mode_indicator_enabled = enabled;
+    }
+
+    pub(crate) fn set_vim_mode_start(&mut self, start: VimModeStart) {
+        self.vim_mode_start = start;
+    }
+
+    pub(crate) fn reset_vim_mode(&mut self) {
+        if self.vim_enabled {
+            self.vim_mode = self.configured_vim_mode_start();
+            self.vim_pending = VimPending::None;
+            self.preferred_col = None;
+        }
+    }
+
+    fn configured_vim_mode_start(&self) -> VimMode {
+        match self.vim_mode_start {
+            VimModeStart::Normal => VimMode::Normal,
+            VimModeStart::Insert => VimMode::Insert,
+        }
     }
 
     /// Return whether Vim mode is enabled and currently waiting in normal mode.
@@ -369,6 +398,19 @@ impl TextArea {
             && matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat)
     }
 
+    pub(crate) fn normalize_vim_command_event(&self, event: KeyEvent) -> KeyEvent {
+        if self.is_vim_normal_mode()
+            && !matches!(
+                self.vim_pending,
+                VimPending::Replace | VimPending::Find { .. }
+            )
+        {
+            russian_layout::remap_vim_command_event(event)
+        } else {
+            event
+        }
+    }
+
     /// Return the footer label for the active Vim mode.
     ///
     /// `None` means Vim editing is disabled, so callers should omit the mode
@@ -387,7 +429,7 @@ impl TextArea {
 
     /// Return the styled footer indicator for the active Vim editing mode.
     pub(crate) fn vim_mode_indicator_span(&self) -> Option<Span<'static>> {
-        if !self.vim_enabled {
+        if !self.vim_enabled || !self.vim_mode_indicator_enabled {
             return None;
         }
         Some(match self.vim_mode {
@@ -707,6 +749,7 @@ impl TextArea {
     }
 
     fn handle_vim_normal(&mut self, event: KeyEvent) {
+        let event = self.normalize_vim_command_event(event);
         let pending = std::mem::replace(&mut self.vim_pending, VimPending::None);
         match pending {
             VimPending::None => {}

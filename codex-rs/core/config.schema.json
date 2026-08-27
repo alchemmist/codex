@@ -4011,6 +4011,11 @@
           "description": "Show startup tooltips in the TUI welcome screen. Defaults to `true`.",
           "type": "boolean"
         },
+        "show_vim_mode_indicator": {
+          "default": false,
+          "description": "Show the active Vim editing mode in the composer footer. Defaults to `false`.",
+          "type": "boolean"
+        },
         "startup_panel": {
           "allOf": [
             {
@@ -4071,6 +4076,15 @@
           "default": false,
           "description": "Start the composer in Vim mode (`Normal`) by default. Defaults to `false`.",
           "type": "boolean"
+        },
+        "vim_mode_start": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/VimModeStart"
+            }
+          ],
+          "default": "normal",
+          "description": "Mode entered when Vim editing starts and after successful submissions. Defaults to `normal`."
         }
       },
       "type": "object"
@@ -5500,6 +5514,13 @@
         "low",
         "medium",
         "high"
+      ],
+      "type": "string"
+    },
+    "VimModeStart": {
+      "enum": [
+        "normal",
+        "insert"
       ],
       "type": "string"
     },

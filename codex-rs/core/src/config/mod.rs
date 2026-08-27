@@ -55,6 +55,7 @@ use codex_config::types::TuiKeymap;
 use codex_config::types::TuiNotificationSettings;
 use codex_config::types::TuiPetAnchor;
 use codex_config::types::UriBasedFileOpener;
+use codex_config::types::VimModeStart;
 use codex_config::types::WindowsSandboxModeToml;
 use codex_core_plugins::PluginLoadOutcome;
 use codex_core_plugins::PluginsConfigInput;
@@ -744,6 +745,12 @@ pub struct Config {
 
     /// Start the composer in Vim mode (`Normal`) by default.
     pub tui_vim_mode_default: bool,
+
+    /// Mode entered when Vim editing starts and after successful submissions.
+    pub tui_vim_mode_start: VimModeStart,
+
+    /// Show the active Vim editing mode in the composer footer.
+    pub tui_show_vim_mode_indicator: bool,
 
     /// Start the TUI in raw scrollback mode for copy-friendly transcript output.
     pub tui_raw_output_mode: bool,
@@ -4310,6 +4317,16 @@ impl Config {
                 .tui
                 .as_ref()
                 .map(|t| t.vim_mode_default)
+                .unwrap_or(false),
+            tui_vim_mode_start: cfg
+                .tui
+                .as_ref()
+                .map(|t| t.vim_mode_start)
+                .unwrap_or_default(),
+            tui_show_vim_mode_indicator: cfg
+                .tui
+                .as_ref()
+                .map(|t| t.show_vim_mode_indicator)
                 .unwrap_or(false),
             tui_raw_output_mode: cfg
                 .tui

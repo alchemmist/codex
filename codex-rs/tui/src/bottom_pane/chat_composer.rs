@@ -1360,6 +1360,14 @@ impl ChatComposer {
         self.footer.mode = reset_mode_after_activity(self.footer.mode);
     }
 
+    pub(crate) fn set_vim_mode_indicator_enabled(&mut self, enabled: bool) {
+        self.draft.textarea.set_vim_mode_indicator_enabled(enabled);
+    }
+
+    pub(crate) fn set_vim_mode_start(&mut self, start: codex_config::types::VimModeStart) {
+        self.draft.textarea.set_vim_mode_start(start);
+    }
+
     /// Enable Vim while keeping already-active text entry in insert mode.
     pub(crate) fn enable_vim_in_insert_mode(&mut self) {
         self.set_vim_enabled(/*enabled*/ true);
@@ -3128,7 +3136,7 @@ impl ChatComposer {
                 | InputResult::ServiceTierCommand(_)
                 | InputResult::CommandWithArgs(_, _, _)
         ) {
-            self.draft.textarea.enter_vim_normal_mode();
+            self.draft.textarea.reset_vim_mode();
         }
     }
 
@@ -3454,6 +3462,7 @@ impl ChatComposer {
 
     /// Handle key event when no popup is visible.
     fn handle_key_event_without_popup(&mut self, key_event: KeyEvent) -> (InputResult, bool) {
+        let key_event = self.draft.textarea.normalize_vim_command_event(key_event);
         if let Some((result, redraw)) = self.handle_remote_image_selection_key(&key_event) {
             return (result, redraw);
         }
@@ -6048,6 +6057,7 @@ mod tests {
             /*disable_paste_burst*/ false,
         );
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
 
         assert!(composer.is_empty());
@@ -6071,6 +6081,29 @@ mod tests {
     }
 
     #[test]
+    fn vim_mode_indicator_is_opt_in() {
+        let (tx, _rx) = unbounded_channel::<AppEvent>();
+        let sender = AppEventSender::new(tx);
+        let mut composer = ChatComposer::new(
+            /*has_input_focus*/ true,
+            sender,
+            /*enhanced_keys_supported*/ true,
+            "Ask Codex to do anything".to_string(),
+            /*disable_paste_burst*/ false,
+        );
+        composer.set_vim_enabled(/*enabled*/ true);
+
+        assert_eq!(composer.vim_mode_indicator_span(), None);
+
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
+
+        assert_eq!(
+            composer.vim_mode_indicator_span(),
+            Some("Vim: Normal".magenta())
+        );
+    }
+
+    #[test]
     fn slash_opens_command_popup_in_vim_normal_mode() {
         use crossterm::event::KeyCode;
         use crossterm::event::KeyEvent;
@@ -6086,6 +6119,7 @@ mod tests {
             /*disable_paste_burst*/ true,
         );
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         let (result, needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Char('/'), KeyModifiers::NONE));
@@ -6117,6 +6151,7 @@ mod tests {
             /*disable_paste_burst*/ true,
         );
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         for ch in ['/', 'd', 'i', 'f', 'f'] {
             let _ = composer.handle_key_event(KeyEvent::new(KeyCode::Char(ch), KeyModifiers::NONE));
@@ -6153,6 +6188,7 @@ mod tests {
         );
         composer.set_collaboration_modes_enabled(/*enabled*/ true);
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
         composer.set_text_content("/plan investigate this".to_string(), Vec::new(), Vec::new());
@@ -6191,6 +6227,7 @@ mod tests {
             /*disable_paste_burst*/ true,
         );
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         let (result, needs_redraw) =
             composer.handle_key_event(KeyEvent::new(KeyCode::Char('!'), KeyModifiers::NONE));
@@ -6399,6 +6436,7 @@ mod tests {
         );
         composer.set_steer_enabled(/*enabled*/ true);
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         assert!(composer.draft.textarea.is_vim_enabled());
         assert_eq!(
@@ -6424,6 +6462,36 @@ mod tests {
     }
 
     #[test]
+    fn vim_mode_resets_to_configured_insert_after_submission() {
+        use crossterm::event::KeyCode;
+        use crossterm::event::KeyEvent;
+        use crossterm::event::KeyModifiers;
+
+        let (tx, _rx) = unbounded_channel::<AppEvent>();
+        let sender = AppEventSender::new(tx);
+        let mut composer = ChatComposer::new(
+            /*has_input_focus*/ true,
+            sender,
+            /*enhanced_keys_supported*/ true,
+            "Ask Codex to do anything".to_string(),
+            /*disable_paste_burst*/ false,
+        );
+        composer.set_vim_mode_start(codex_config::types::VimModeStart::Insert);
+        composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
+        composer.set_text_content("hello".to_string(), Vec::new(), Vec::new());
+
+        let (result, _needs_redraw) =
+            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+
+        assert!(matches!(result, InputResult::Submitted { .. }));
+        assert_eq!(
+            composer.vim_mode_indicator_span(),
+            Some("Vim: Insert".green())
+        );
+    }
+
+    #[test]
     fn vim_mode_resets_to_normal_after_queued_submission() {
         use crossterm::event::KeyCode;
         use crossterm::event::KeyEvent;
@@ -6441,6 +6509,7 @@ mod tests {
         composer.set_steer_enabled(/*enabled*/ true);
         composer.set_task_running(/*running*/ true);
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
         composer.set_text_content("queued".to_string(), Vec::new(), Vec::new());
@@ -6474,6 +6543,7 @@ mod tests {
         );
         composer.set_steer_enabled(/*enabled*/ true);
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
         composer.set_text_content("/not-a-command".to_string(), Vec::new(), Vec::new());
@@ -6504,6 +6574,7 @@ mod tests {
             /*disable_paste_burst*/ false,
         );
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         composer.handle_key_event(KeyEvent::new(KeyCode::Char('i'), KeyModifiers::NONE));
         composer.set_text_content("hey".to_string(), Vec::new(), Vec::new());
@@ -11364,6 +11435,31 @@ mod tests {
     }
 
     #[test]
+    fn russian_layout_vim_keys_navigate_history() {
+        let (tx, _rx) = unbounded_channel::<AppEvent>();
+        let sender = AppEventSender::new(tx);
+        let mut composer = ChatComposer::new(
+            /*has_input_focus*/ true,
+            sender,
+            /*enhanced_keys_supported*/ false,
+            "Ask Codex to do anything".to_string(),
+            /*disable_paste_burst*/ false,
+        );
+
+        type_chars_humanlike(&mut composer, &['f', 'i', 'r', 's', 't']);
+        let (result, _needs_redraw) =
+            composer.handle_key_event(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE));
+        assert!(matches!(result, InputResult::Submitted { .. }));
+        composer.set_vim_enabled(/*enabled*/ true);
+
+        let _ = composer.handle_key_event(KeyEvent::new(KeyCode::Char('л'), KeyModifiers::NONE));
+        assert_eq!(composer.draft.textarea.text(), "first");
+
+        let _ = composer.handle_key_event(KeyEvent::new(KeyCode::Char('о'), KeyModifiers::NONE));
+        assert!(composer.draft.textarea.is_empty());
+    }
+
+    #[test]
     fn remapped_vim_normal_history_navigation_does_not_fall_back_to_j_k() {
         use crate::key_hint;
         use crate::keymap::RuntimeKeymap;
@@ -11470,6 +11566,7 @@ mod tests {
         );
         composer.set_text_content("hello".to_string(), Vec::new(), Vec::new());
         composer.set_vim_enabled(/*enabled*/ true);
+        composer.set_vim_mode_indicator_enabled(/*enabled*/ true);
 
         let _ = composer.handle_key_event(KeyEvent::new(KeyCode::Char('d'), KeyModifiers::NONE));
         assert!(composer.draft.textarea.is_vim_operator_pending());

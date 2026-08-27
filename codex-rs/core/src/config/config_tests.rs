@@ -69,6 +69,7 @@ use codex_config::types::Tui;
 use codex_config::types::TuiKeymap;
 use codex_config::types::TuiNotificationSettings;
 use codex_config::types::TuiPetAnchor;
+use codex_config::types::VimModeStart;
 use codex_config::types::WindowsSandboxModeToml;
 use codex_config::types::WindowsToml;
 use codex_exec_server::LOCAL_FS;
@@ -1194,6 +1195,8 @@ tmux_command_log = true
             show_tooltips: true,
             startup_panel: StartupPanelConfig::default(),
             vim_mode_default: false,
+            vim_mode_start: VimModeStart::Normal,
+            show_vim_mode_indicator: false,
             raw_output_mode: false,
             tmux_command_log: true,
             alternate_screen: AltScreenMode::default(),
@@ -1307,6 +1310,38 @@ fn test_tui_vim_mode_default_true() {
             .tui
             .expect("config should include tui section")
             .vim_mode_default
+    );
+}
+
+#[test]
+fn test_tui_show_vim_mode_indicator() {
+    let toml = r#"
+        [tui]
+        show_vim_mode_indicator = true
+    "#;
+    let parsed: ConfigToml =
+        toml::from_str(toml).expect("deserialize show_vim_mode_indicator=true");
+    assert!(
+        parsed
+            .tui
+            .expect("config should include tui section")
+            .show_vim_mode_indicator
+    );
+}
+
+#[test]
+fn test_tui_vim_mode_start_insert() {
+    let toml = r#"
+        [tui]
+        vim_mode_start = "insert"
+    "#;
+    let parsed: ConfigToml = toml::from_str(toml).expect("deserialize vim_mode_start=insert");
+    assert_eq!(
+        parsed
+            .tui
+            .expect("config should include tui section")
+            .vim_mode_start,
+        VimModeStart::Insert
     );
 }
 
@@ -4275,6 +4310,8 @@ fn tui_config_missing_notifications_field_defaults_to_enabled() {
             show_tooltips: true,
             startup_panel: StartupPanelConfig::default(),
             vim_mode_default: false,
+            vim_mode_start: VimModeStart::Normal,
+            show_vim_mode_indicator: false,
             raw_output_mode: false,
             tmux_command_log: false,
             alternate_screen: AltScreenMode::Auto,
