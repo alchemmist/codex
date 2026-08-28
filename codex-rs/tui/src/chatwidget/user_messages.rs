@@ -102,7 +102,7 @@ pub(super) enum QueueDrain {
     Stop,
 }
 
-#[derive(Debug, Clone, PartialEq, Default)]
+#[derive(Debug, Clone, serde::Deserialize, serde::Serialize, PartialEq, Default)]
 pub(super) struct ThreadComposerState {
     pub(super) text: String,
     pub(super) local_images: Vec<LocalImageAttachment>,

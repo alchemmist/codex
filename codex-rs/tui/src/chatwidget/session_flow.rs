@@ -24,12 +24,27 @@ impl ChatWidget {
         self.set_skills(/*skills*/ None);
         self.session_network_proxy = session.network_proxy.clone();
         let previous_thread_id = self.thread_id;
+        let pending_unbound_stash = previous_thread_id
+            .is_none()
+            .then(|| self.stashed_composer.take())
+            .flatten();
         let connector_scope_changed = previous_thread_id != Some(session.thread_id)
             || self.config.cwd.as_path() != session.cwd.as_path();
         self.thread_id = Some(session.thread_id);
         self.bottom_pane
             .set_queue_submissions(/*queue_submissions*/ false);
         if previous_thread_id != self.thread_id {
+            self.stashed_composer = None;
+            self.bottom_pane.hide_prompt_stashed_indicator();
+            if let Some(stash) = pending_unbound_stash {
+                self.stashed_composer = Some(stash);
+                self.bottom_pane.show_prompt_stashed_indicator();
+                if let Err(err) = self.persist_prompt_stash() {
+                    tracing::warn!(%err, thread_id = %session.thread_id, "failed to persist prompt stash");
+                }
+            } else if let Err(err) = self.restore_persisted_prompt_stash(session.thread_id) {
+                tracing::warn!(%err, thread_id = %session.thread_id, "failed to restore prompt stash");
+            }
             self.pending_automatic_thread_names.clear();
             self.review.recent_auto_review_denials = RecentAutoReviewDenials::default();
             self.clear_thread_usage_state();

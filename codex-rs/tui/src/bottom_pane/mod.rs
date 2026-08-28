@@ -88,13 +88,13 @@ pub(crate) use status_line_style::status_line_from_segments;
 mod bottom_pane_view;
 mod effort_ignition;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub(crate) struct LocalImageAttachment {
     pub(crate) placeholder: String,
     pub(crate) path: PathBuf,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, serde::Deserialize, serde::Serialize, PartialEq, Eq)]
 pub(crate) struct MentionBinding {
     /// Visible mention sigil (`$` or `@`).
     pub(crate) sigil: char,

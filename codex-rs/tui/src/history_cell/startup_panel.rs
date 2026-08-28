@@ -57,7 +57,7 @@ fn startup_updates() -> StartupUpdates {
 }
 
 const FEATURE_TIPS: &[&str] = &[
-    "Ctrl-S stashes your current prompt and restores it on the next press.",
+    "Ctrl-S stashes your current prompt across restarts and restores it on the next press.",
     "/cd changes the working directory without restarting the session.",
     "/dump exports the conversation as a minimal HTML page.",
     "/context shows a compact summary of the active model context.",

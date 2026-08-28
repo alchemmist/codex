@@ -6,7 +6,7 @@ A terminal-native coding agent built on [OpenAI Codex](https://github.com/openai
 
 - The TUI uses the terminal palette and updates the composer, conversation history, plans, and diffs immediately when the terminal theme changes.
 - The configurable startup cockpit identifies alchemmist codex, shows its exact build commit, and rotates fork-specific feature tips.
-- `Ctrl+S` stashes the current prompt draft and restores it on the next press.
+- `Ctrl+S` stashes the current prompt draft, persists it across restarts, and restores it on the next press.
 - `/subagents <prompt>` explicitly enables subagents for one request; `/subagents` arms them for the next prompt.
 - `/statusline` can show the number of active subagents, while `/agents` opens an overview of their work.
 - `/cd <path>` changes the current session's working directory without restarting Codex.
