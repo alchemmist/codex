@@ -42,7 +42,8 @@ make release-major
 
 Each command updates the fork version, creates and pushes an `alchemmist-vX.Y.Z` tag, and
 starts macOS arm64 and Linux x86_64 release builds. Both archives and their checksums are published
-on the GitHub Releases page.
+on the GitHub Releases page. Each archive includes both `codex` and the required
+`codex-code-mode-host` companion executable.
 
 Fork releases use `FORK_VERSION`. The Cargo workspace version tracks the official Codex version from
 the latest upstream sync, so OpenAI compatibility checks and upstream update notices remain accurate

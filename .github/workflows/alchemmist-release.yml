@@ -69,7 +69,9 @@ jobs:
           export STABLE_GIT_COMMIT="${GITHUB_SHA::8}"
           ALCHEMMIST_FORK_VERSION="$(tr -d '[:space:]' < ../FORK_VERSION)"
           export ALCHEMMIST_FORK_VERSION
-          cargo build --locked --release --target "${TARGET}" --bin codex
+          cargo build --locked --release --target "${TARGET}" \
+            --bin codex \
+            --bin codex-code-mode-host
 
       - name: Package Codex
         shell: bash
@@ -81,11 +83,15 @@ jobs:
           staging="${RUNNER_TEMP}/codex-${TARGET}"
           mkdir -p "${staging}"
           cp "${CARGO_TARGET_DIR}/${TARGET}/release/codex" "${staging}/codex"
-          strip "${staging}/codex"
+          cp "${CARGO_TARGET_DIR}/${TARGET}/release/codex-code-mode-host" \
+            "${staging}/codex-code-mode-host"
+          strip "${staging}/codex" "${staging}/codex-code-mode-host"
           if [[ "${PLATFORM}" == "mac" ]]; then
             codesign --force --sign - "${staging}/codex"
+            codesign --force --sign - "${staging}/codex-code-mode-host"
           fi
-          tar -C "${staging}" -czf "${RUNNER_TEMP}/${archive}" codex
+          tar -C "${staging}" -czf "${RUNNER_TEMP}/${archive}" \
+            codex codex-code-mode-host
           if [[ "${PLATFORM}" == "mac" ]]; then
             (cd "${RUNNER_TEMP}" && shasum -a 256 "${archive}" > "${archive}.sha256")
           else

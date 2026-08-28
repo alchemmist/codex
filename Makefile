@@ -6,6 +6,7 @@ INSTALL ?= install
 CODEX_RS_DIR := $(CURDIR)/codex-rs
 CODEX_TARGET_DIR := $(CODEX_RS_DIR)/target
 CODEX_BINARY := $(CODEX_TARGET_DIR)/release/codex
+CODEX_CODE_MODE_HOST_BINARY := $(CODEX_TARGET_DIR)/release/codex-code-mode-host
 CODEX_INSTALL_DIR ?= $(HOME)/.local/bin
 CODEX_RELEASE_REPOSITORY ?= alchemmist/codex
 CODEX_GIT_COMMIT := $(shell git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)
@@ -16,11 +17,12 @@ CODEX_FORK_VERSION := $(shell tr -d '[:space:]' < "$(CURDIR)/FORK_VERSION")
 .PHONY: build install-local install-mac install-linux release-patch release-minor release-major
 
 build:
-	cd "$(CODEX_RS_DIR)" && CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" $(CARGO) build --release --bin codex
+	cd "$(CODEX_RS_DIR)" && CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" $(CARGO) build --release --bin codex --bin codex-code-mode-host
 
 install-local: build
 	$(INSTALL) -d "$(CODEX_INSTALL_DIR)"
 	$(INSTALL) -m 755 "$(CODEX_BINARY)" "$(CODEX_INSTALL_DIR)/codex"
+	$(INSTALL) -m 755 "$(CODEX_CODE_MODE_HOST_BINARY)" "$(CODEX_INSTALL_DIR)/codex-code-mode-host"
 	@/bin/zsh -fc 'rehash'
 	@echo "Installed $(CODEX_INSTALL_DIR)/codex"
 

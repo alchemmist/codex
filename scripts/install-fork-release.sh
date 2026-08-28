@@ -119,11 +119,19 @@ else
 fi
 
 tar -C "$temp_dir" -xzf "${temp_dir}/${archive}"
+for binary in codex codex-code-mode-host; do
+  if [[ ! -f "${temp_dir}/${binary}" ]]; then
+    echo "Release archive is missing ${binary}." >&2
+    exit 1
+  fi
+done
 install -d "$install_dir"
 install -m 755 "${temp_dir}/codex" "${install_dir}/codex"
+install -m 755 "${temp_dir}/codex-code-mode-host" "${install_dir}/codex-code-mode-host"
 
 if [[ "$platform" == "mac" ]]; then
   xattr -d com.apple.quarantine "${install_dir}/codex" 2>/dev/null || true
+  xattr -d com.apple.quarantine "${install_dir}/codex-code-mode-host" 2>/dev/null || true
 fi
 
-echo "Installed ${install_dir}/codex from the latest ${repository} release."
+echo "Installed Codex and Code Mode host from the latest ${repository} release."
