@@ -76,6 +76,7 @@ use tokio::task::JoinSet;
 use tracing::warn;
 
 static LIVE_CONNECTIONS: Gauge = Gauge::new("mcp.connections.live");
+const WORKFLOW_FORBID_QUALITY_GRAPH_IGNORE_ENV: &str = "CODEX_WORKFLOW_FORBID_QUALITY_GRAPH_IGNORE";
 
 pub(crate) struct McpServerConnection {
     identity: Option<McpServerConnectionIdentity>,
@@ -871,6 +872,12 @@ impl McpConnectionSet {
         requested_timeout: Option<Duration>,
         wait_for_server: bool,
     ) -> Result<CallToolResult> {
+        if quality_graph_ignore_forbidden(
+            arguments.as_ref(),
+            std::env::var_os(WORKFLOW_FORBID_QUALITY_GRAPH_IGNORE_ENV).is_some(),
+        ) {
+            bail!("Quality Graph ignore commands are forbidden in this workflow");
+        }
         let view = self
             .servers
             .get(server)
@@ -946,6 +953,18 @@ impl McpConnectionSet {
         }
         server_infos
     }
+}
+
+fn quality_graph_ignore_forbidden(arguments: Option<&serde_json::Value>, enabled: bool) -> bool {
+    if !enabled {
+        return false;
+    }
+    let Some(arguments) = arguments else {
+        return false;
+    };
+    let text = arguments.to_string().to_lowercase();
+    let references_quality_graph = text.contains("/qg") || text.contains("quality graph");
+    references_quality_graph && text.contains("ignore")
 }
 
 #[cfg(test)]

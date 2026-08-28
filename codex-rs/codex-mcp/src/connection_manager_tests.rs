@@ -87,6 +87,16 @@ use tokio::io::DuplexStream;
 use tokio::sync::Notify;
 use tokio_util::sync::CancellationToken;
 
+#[test]
+fn workflow_guard_rejects_quality_graph_ignore_tool_arguments() {
+    let forbidden = serde_json::json!({"body": "/qg finding ignore"});
+    let allowed = serde_json::json!({"body": "Fixed the root cause"});
+
+    assert!(quality_graph_ignore_forbidden(Some(&forbidden), true));
+    assert!(!quality_graph_ignore_forbidden(Some(&forbidden), false));
+    assert!(!quality_graph_ignore_forbidden(Some(&allowed), true));
+}
+
 impl McpConnectionSet {
     fn new_uninitialized(
         approval_policy: &Constrained<AskForApproval>,

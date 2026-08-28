@@ -27,6 +27,12 @@ pub(super) struct AgentRequest {
     #[serde(default)]
     pub(super) model: Option<String>,
     #[serde(default)]
+    pub(super) reasoning_effort: Option<String>,
+    #[serde(default)]
+    pub(super) developer_instructions: Option<String>,
+    #[serde(default)]
+    pub(super) forbid_quality_graph_ignore: bool,
+    #[serde(default)]
     pub(super) cwd: Option<String>,
     #[serde(default)]
     pub(super) timeout_seconds: Option<u64>,
@@ -135,6 +141,13 @@ pub(super) async fn execute_agent(
     if request.prompt.trim().is_empty() || request.prompt.len() > 1_048_576 {
         return Err("agent prompt must contain between 1 byte and 1 MiB".to_string());
     }
+    if request
+        .developer_instructions
+        .as_ref()
+        .is_some_and(|instructions| instructions.len() > 65_536)
+    {
+        return Err("agent developer instructions exceed 64 KiB".to_string());
+    }
     request.model = request.model.or(default_model);
     request.cwd = request.cwd.or(default_cwd);
     request.timeout_seconds = request.timeout_seconds.or(default_timeout_seconds);
@@ -154,6 +167,26 @@ pub(super) async fn execute_agent(
     {
         command.arg("--model").arg(model);
     }
+    if let Some(reasoning_effort) = request
+        .reasoning_effort
+        .as_deref()
+        .filter(|effort| !effort.trim().is_empty())
+    {
+        command.arg("-c").arg(format!(
+            "model_reasoning_effort={}",
+            toml::Value::String(reasoning_effort.to_string())
+        ));
+    }
+    if let Some(developer_instructions) = request
+        .developer_instructions
+        .as_deref()
+        .filter(|instructions| !instructions.trim().is_empty())
+    {
+        command.arg("-c").arg(format!(
+            "developer_instructions={}",
+            toml::Value::String(developer_instructions.to_string())
+        ));
+    }
     command
         .arg("-")
         .env("CODEX_WORKFLOW_DEPTH", "1")
@@ -161,6 +194,9 @@ pub(super) async fn execute_agent(
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .kill_on_drop(true);
+    if request.forbid_quality_graph_ignore {
+        command.env("CODEX_WORKFLOW_FORBID_QUALITY_GRAPH_IGNORE", "1");
+    }
     let mut child = command
         .spawn()
         .map_err(|err| format!("failed to start nested Codex agent: {err}"))?;

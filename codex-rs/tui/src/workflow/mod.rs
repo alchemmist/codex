@@ -29,3 +29,4 @@ pub(crate) use state::list_resumable_runs;
 
 pub(crate) const BUILTIN_RUFF_WORKFLOW_ID: &str = "ruff-cleanup";
 pub(crate) const BUILTIN_GITHUB_BOT_PR_WORKFLOW_ID: &str = "github-bot-pr-maintenance";
+pub(crate) const BUILTIN_PR_BABYSITTER_WORKFLOW_ID: &str = "pr-babysitter";

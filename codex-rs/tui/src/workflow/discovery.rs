@@ -5,18 +5,25 @@ use std::path::PathBuf;
 use tokio::fs;
 
 use super::BUILTIN_GITHUB_BOT_PR_WORKFLOW_ID;
+use super::BUILTIN_PR_BABYSITTER_WORKFLOW_ID;
 use super::BUILTIN_RUFF_WORKFLOW_ID;
 use super::WorkflowDefinition;
 use super::python_host::describe_workflow;
 
 const BUILTIN_RUFF_WORKFLOW: &str = include_str!("builtin_ruff.py");
 const BUILTIN_GITHUB_BOT_PR_WORKFLOW: &str = include_str!("builtin_github_bot_pr_maintenance.py");
-const BUILTIN_WORKFLOWS: [(&str, u32, &str); 2] = [
+const BUILTIN_PR_BABYSITTER_WORKFLOW: &str = include_str!("builtin_pr_babysitter.py");
+const BUILTIN_WORKFLOWS: [(&str, u32, &str); 3] = [
     (BUILTIN_RUFF_WORKFLOW_ID, 1, BUILTIN_RUFF_WORKFLOW),
     (
         BUILTIN_GITHUB_BOT_PR_WORKFLOW_ID,
         1,
         BUILTIN_GITHUB_BOT_PR_WORKFLOW,
+    ),
+    (
+        BUILTIN_PR_BABYSITTER_WORKFLOW_ID,
+        1,
+        BUILTIN_PR_BABYSITTER_WORKFLOW,
     ),
 ];
 

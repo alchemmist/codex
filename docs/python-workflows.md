@@ -2,12 +2,13 @@
 
 Python workflows — это добавленная в этом форке система перезапускаемых программ оркестрации для больших повторяющихся задач, которые неудобно решать в одном контексте модели.
 
-Сейчас вместе с Codex поставляются два готовых workflow:
+Сейчас вместе с Codex поставляются три готовых workflow:
 
 - `Ruff cleanup` — исправляет большие очереди Ruff-нарушений;
 - `GitHub bot PR maintenance` — обходит все репозитории выбранного владельца и по умолчанию исправляет и мержит безопасные bot PR.
+- `PR babysitter` — дешёво опрашивает один PR и запускает чистого сильного агента только для новых CI failures или review feedback.
 
-Их исходный код находится в `codex-rs/tui/src/workflow/builtin_ruff.py` и `codex-rs/tui/src/workflow/builtin_github_bot_pr_maintenance.py`.
+Их исходный код находится в `codex-rs/tui/src/workflow/builtin_ruff.py`, `codex-rs/tui/src/workflow/builtin_github_bot_pr_maintenance.py` и `codex-rs/tui/src/workflow/builtin_pr_babysitter.py`.
 
 При запуске Codex материализует встроенный workflow во внутренний кэш:
 
@@ -117,6 +118,8 @@ def run(ctx):
     result = ctx.agent(
         "Исправь эту конкретную ошибку",
         model="gpt-5.6-sol",
+        reasoning_effort="high",
+        developer_instructions="Never weaken quality gates.",
     )
 
     results = ctx.agent_batch(
@@ -148,13 +151,13 @@ def run(ctx):
 - `ctx.params` — значения, введённые в TUI перед запуском;
 - `ctx.state` — последний сохранённый checkpoint или пустой объект для нового запуска;
 - `ctx.shell(argv, cwd=None, timeout_seconds=None, env=None)` — выполнение ограниченной shell-команды; команда передаётся списком аргументов без неявной интерпретации shell;
-- `ctx.agent(prompt, model=None, cwd=None, timeout_seconds=None)` — запуск одного эфемерного Codex-агента;
-- `ctx.agent_batch(prompts, parallelism=None, model=None, cwd=None, timeout_seconds=None)` — параллельный запуск независимых агентов;
+- `ctx.agent(prompt, model=None, reasoning_effort=None, developer_instructions=None, forbid_quality_graph_ignore=False, cwd=None, timeout_seconds=None)` — запуск одного эфемерного Codex-агента;
+- `ctx.agent_batch(prompts, parallelism=None, model=None, reasoning_effort=None, developer_instructions=None, forbid_quality_graph_ignore=False, cwd=None, timeout_seconds=None)` — параллельный запуск независимых агентов;
 - `ctx.checkpoint(json_value)` — сохранение состояния размером до 1 MiB;
 - `ctx.progress(message, current=None, total=None)` — обновление статуса workflow в TUI;
 - `ctx.log(message)` — диагностическая запись в журнал Codex без повреждения протокола workflow.
 
-Каждый элемент `prompts` в `ctx.agent_batch` может быть строкой либо объектом с индивидуальными значениями `prompt`, `model`, `cwd` и `timeout_seconds`.
+Каждый элемент `prompts` в `ctx.agent_batch` может быть строкой либо объектом с индивидуальными значениями `prompt`, `model`, `reasoning_effort`, `developer_instructions`, `forbid_quality_graph_ignore`, `cwd` и `timeout_seconds`.
 
 Агенты запускаются через установленный локально `codex exec` с тем же `CODEX_HOME`, авторизацией и подпиской. Каждый вызов эфемерный и начинает работу с небольшим независимым контекстом.
 

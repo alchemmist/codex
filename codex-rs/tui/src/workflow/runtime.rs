@@ -225,6 +225,9 @@ impl Runtime {
                 id,
                 prompt,
                 model,
+                reasoning_effort,
+                developer_instructions,
+                forbid_quality_graph_ignore,
                 cwd,
                 timeout_seconds,
                 ..
@@ -232,6 +235,9 @@ impl Runtime {
                 let request = AgentRequest {
                     prompt,
                     model,
+                    reasoning_effort,
+                    developer_instructions,
+                    forbid_quality_graph_ignore,
                     cwd,
                     timeout_seconds,
                 };

@@ -49,3 +49,17 @@ fn rejects_duplicate_fields_and_out_of_range_defaults() {
         Err("integer field `parallelism` default or answer is outside its range".to_string())
     );
 }
+
+#[test]
+fn supports_month_long_persistent_workflows() {
+    let mut manifest = manifest();
+    manifest.guardrails.max_agent_calls = 50_000;
+    manifest.guardrails.timeout_seconds = 2_592_000;
+    assert_eq!(manifest.validate(), Ok(()));
+
+    manifest.guardrails.max_agent_calls += 1;
+    assert_eq!(
+        manifest.validate(),
+        Err("max_agent_calls must be between 1 and 50000".to_string())
+    );
+}

@@ -32,6 +32,12 @@ pub(super) enum WorkflowRequest {
         id: u64,
         prompt: String,
         model: Option<String>,
+        #[serde(default)]
+        reasoning_effort: Option<String>,
+        #[serde(default)]
+        developer_instructions: Option<String>,
+        #[serde(default)]
+        forbid_quality_graph_ignore: bool,
         cwd: Option<String>,
         timeout_seconds: Option<u64>,
     },

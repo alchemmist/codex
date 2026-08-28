@@ -44,6 +44,10 @@ async fn project_workflow_overrides_user_and_builtin_workflows() {
             && definition.manifest.title == "Project"
             && definition.source == "project"
     }));
+    assert!(definitions.iter().any(|definition| {
+        definition.manifest.id == BUILTIN_PR_BABYSITTER_WORKFLOW_ID
+            && definition.manifest.guardrails.max_agent_calls == 50_000
+    }));
     assert!(
         definitions
             .iter()
@@ -59,5 +63,40 @@ async fn project_workflow_overrides_user_and_builtin_workflows() {
         codex_home
             .join("workflow-cache/github-bot-pr-maintenance-v1.py")
             .is_file()
+    );
+    assert!(
+        codex_home
+            .join("workflow-cache/pr-babysitter-v1.py")
+            .is_file()
+    );
+}
+
+#[tokio::test]
+async fn builtin_pr_babysitter_completes_only_after_a_clean_snapshot() {
+    if Command::new(python_program())
+        .arg("--version")
+        .output()
+        .await
+        .is_err()
+    {
+        return;
+    }
+    let test_script =
+        codex_utils_cargo_bin::find_resource!("src/workflow/_builtin_pr_babysitter_tests.py")
+            .expect("PR babysitter test script");
+    let workflow = codex_utils_cargo_bin::find_resource!("src/workflow/builtin_pr_babysitter.py")
+        .expect("PR babysitter workflow");
+
+    let output = Command::new(python_program())
+        .arg(test_script)
+        .arg(workflow)
+        .output()
+        .await
+        .expect("run PR babysitter tests");
+
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
     );
 }

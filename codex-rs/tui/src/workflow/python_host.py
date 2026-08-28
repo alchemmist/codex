@@ -79,17 +79,37 @@ class Context:
             env=env or {},
         )
 
-    def agent(self, prompt, model=None, cwd=None, timeout_seconds=None):
+    def agent(
+        self,
+        prompt,
+        model=None,
+        reasoning_effort=None,
+        developer_instructions=None,
+        forbid_quality_graph_ignore=False,
+        cwd=None,
+        timeout_seconds=None,
+    ):
         return self._request(
             "agent",
             prompt=str(prompt),
             model=model,
+            reasoning_effort=reasoning_effort,
+            developer_instructions=developer_instructions,
+            forbid_quality_graph_ignore=bool(forbid_quality_graph_ignore),
             cwd=cwd,
             timeout_seconds=timeout_seconds,
         )
 
     def agent_batch(
-        self, prompts, parallelism=None, model=None, cwd=None, timeout_seconds=None
+        self,
+        prompts,
+        parallelism=None,
+        model=None,
+        reasoning_effort=None,
+        developer_instructions=None,
+        forbid_quality_graph_ignore=False,
+        cwd=None,
+        timeout_seconds=None,
     ):
         requests = []
         for prompt in prompts:
@@ -99,6 +119,12 @@ class Context:
                 requests.append(dict(prompt))
             else:
                 raise TypeError("agent_batch prompts must be strings or dictionaries")
+        for request in requests:
+            request.setdefault("reasoning_effort", reasoning_effort)
+            request.setdefault("developer_instructions", developer_instructions)
+            request.setdefault(
+                "forbid_quality_graph_ignore", bool(forbid_quality_graph_ignore)
+            )
         return self._request(
             "agent_batch",
             requests=requests,

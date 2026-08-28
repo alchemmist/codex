@@ -12,7 +12,9 @@ async fn nested_codex_jsonl_is_reduced_to_a_bounded_agent_result() {
     let fake_codex = temp.path().join("codex");
     tokio::fs::write(
         &fake_codex,
-        r#"#!/bin/sh
+r#"#!/bin/sh
+printf '%s\n' "$@" > "$0.args"
+printf '%s' "$CODEX_WORKFLOW_FORBID_QUALITY_GRAPH_IGNORE" > "$0.guard"
 cat >/dev/null
 printf '%s\n' '{"type":"item.completed","item":{"id":"msg","type":"agent_message","text":"fixed"}}'
 printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":8,"cache_write_input_tokens":0,"output_tokens":3,"reasoning_output_tokens":0}}'
@@ -31,6 +33,9 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
         AgentRequest {
             prompt: "Fix one issue".to_string(),
             model: None,
+            reasoning_effort: Some("low".to_string()),
+            developer_instructions: Some("Never weaken quality gates.".to_string()),
+            forbid_quality_graph_ignore: true,
             cwd: None,
             timeout_seconds: Some(10),
         },
@@ -56,4 +61,13 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
             output_tokens: 3,
         }
     );
+    let args = tokio::fs::read_to_string(fake_codex.with_extension("args"))
+        .await
+        .expect("read nested codex args");
+    assert!(args.contains("model_reasoning_effort=\"low\""));
+    assert!(args.contains("developer_instructions=\"Never weaken quality gates.\""));
+    let guard = tokio::fs::read_to_string(fake_codex.with_extension("guard"))
+        .await
+        .expect("read nested codex guard");
+    assert_eq!(guard, "1");
 }

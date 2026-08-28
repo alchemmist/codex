@@ -62,10 +62,10 @@ the async execution machinery.
 - `ctx.progress(message, current=None, total=None)`: update the TUI status row.
 - `ctx.shell(argv, cwd=None, timeout_seconds=None, env=None)`: run a bounded command. `argv` must be
   a list; string shell evaluation is deliberately not implicit.
-- `ctx.agent(prompt, model=None, cwd=None, timeout_seconds=None)`: run one ephemeral Codex agent.
-- `ctx.agent_batch(prompts, parallelism=None, model=None, cwd=None, timeout_seconds=None)`: run
+- `ctx.agent(prompt, model=None, reasoning_effort=None, developer_instructions=None, forbid_quality_graph_ignore=False, cwd=None, timeout_seconds=None)`: run one ephemeral Codex agent.
+- `ctx.agent_batch(prompts, parallelism=None, model=None, reasoning_effort=None, developer_instructions=None, forbid_quality_graph_ignore=False, cwd=None, timeout_seconds=None)`: run
   independent ephemeral agents concurrently. A prompt can be a string or a dictionary containing
-  `prompt`, `model`, `cwd`, and `timeout_seconds`.
+  `prompt`, `model`, `reasoning_effort`, `developer_instructions`, `forbid_quality_graph_ignore`, `cwd`, and `timeout_seconds`.
 - `ctx.checkpoint(json_value)`: persist at most 1 MiB of restart state.
 - `ctx.log(message)`: write a diagnostic to the Codex log without corrupting the protocol stream.
 

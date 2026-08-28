@@ -8,6 +8,8 @@ use serde_json::Value;
 const MAX_MANIFEST_FIELDS: usize = 32;
 const MAX_OPTIONS_PER_FIELD: usize = 64;
 const MAX_TEXT_LEN: usize = 4_096;
+const MAX_AGENT_CALLS: u32 = 50_000;
+const MAX_WORKFLOW_TIMEOUT_SECONDS: u64 = 2_592_000;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub(crate) struct WorkflowDefinition {
@@ -127,8 +129,11 @@ impl WorkflowManifest {
             )?;
             field.validate()?;
         }
-        if self.guardrails.max_agent_calls == 0 || self.guardrails.max_agent_calls > 10_000 {
-            return Err("max_agent_calls must be between 1 and 10000".to_string());
+        if self.guardrails.max_agent_calls == 0 || self.guardrails.max_agent_calls > MAX_AGENT_CALLS
+        {
+            return Err(format!(
+                "max_agent_calls must be between 1 and {MAX_AGENT_CALLS}"
+            ));
         }
         if self.guardrails.max_shell_calls == 0 || self.guardrails.max_shell_calls > 10_000 {
             return Err("max_shell_calls must be between 1 and 10000".to_string());
@@ -136,8 +141,10 @@ impl WorkflowManifest {
         if !(1..=16).contains(&self.guardrails.max_parallel_agents) {
             return Err("max_parallel_agents must be between 1 and 16".to_string());
         }
-        if !(1..=86_400).contains(&self.guardrails.timeout_seconds) {
-            return Err("timeout_seconds must be between 1 and 86400".to_string());
+        if !(1..=MAX_WORKFLOW_TIMEOUT_SECONDS).contains(&self.guardrails.timeout_seconds) {
+            return Err(format!(
+                "timeout_seconds must be between 1 and {MAX_WORKFLOW_TIMEOUT_SECONDS}"
+            ));
         }
         Ok(())
     }
