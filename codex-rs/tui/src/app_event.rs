@@ -356,6 +356,9 @@ pub(crate) enum AppEvent {
         text: Arc<str>,
         label: String,
     },
+    CopyVisualSelection {
+        text: Arc<str>,
+    },
 
     /// Persist a submitted prompt in the cross-session message history.
     AppendMessageHistoryEntry {

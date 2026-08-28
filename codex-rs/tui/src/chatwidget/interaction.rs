@@ -408,6 +408,22 @@ impl ChatWidget {
         self.request_redraw();
     }
 
+    pub(crate) fn copy_visual_selection(&mut self, text: Arc<str>) {
+        self.copy_visual_selection_with(&text, crate::clipboard_copy::copy_to_clipboard);
+    }
+
+    pub(super) fn copy_visual_selection_with(
+        &mut self,
+        text: &str,
+        copy_fn: impl FnOnce(&str) -> Result<Option<crate::clipboard_copy::ClipboardLease>, String>,
+    ) {
+        match copy_fn(text) {
+            Ok(lease) => self.clipboard_lease = lease,
+            Err(error) => self.add_error_message(format!("Copy failed: {error}")),
+        }
+        self.request_redraw();
+    }
+
     #[cfg(test)]
     pub(crate) fn last_agent_markdown_text(&self) -> Option<&str> {
         self.transcript.last_agent_markdown.as_deref()

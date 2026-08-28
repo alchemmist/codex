@@ -52,6 +52,7 @@ mod hyperlinks;
 mod russian_layout;
 mod vim;
 mod vim_commands;
+mod visual;
 mod wrapping;
 use self::vim::VimMode;
 use self::vim::VimMotion;
@@ -63,6 +64,11 @@ use self::vim_commands::VimAction;
 use self::vim_commands::VimCommandState;
 use self::vim_commands::VimEditTarget;
 use self::vim_commands::VimInsertPosition;
+use self::visual::VimVisualKind;
+use self::visual::VimVisualState;
+use self::visual::visual_control_key;
+use self::visual::visual_key;
+use self::visual::visual_shift_key;
 
 const WORD_SEPARATORS: &str = "`~!@#$%^&*()-=+[{]}\\|;:'\",.<>/?";
 
@@ -143,8 +149,10 @@ pub(crate) struct TextArea {
     vim_mode_start: VimModeStart,
     vim_mode_indicator_enabled: bool,
     vim_mode: VimMode,
+    vim_visual: Option<VimVisualState>,
     vim_pending: VimPending,
     vim_commands: VimCommandState,
+    pending_system_clipboard_yank: Option<String>,
     editor_keymap: Arc<EditorKeymap>,
     vim_normal_keymap: VimNormalKeymap,
     vim_operator_keymap: VimOperatorKeymap,
@@ -188,8 +196,10 @@ impl TextArea {
             vim_mode_start: VimModeStart::Normal,
             vim_mode_indicator_enabled: false,
             vim_mode: VimMode::Insert,
+            vim_visual: None,
             vim_pending: VimPending::None,
             vim_commands: VimCommandState::default(),
+            pending_system_clipboard_yank: None,
             editor_keymap: defaults.editor,
             vim_normal_keymap: defaults.vim_normal,
             vim_operator_keymap: defaults.vim_operator,
@@ -259,6 +269,7 @@ impl TextArea {
         self.wrap_cache.replace(None);
         self.preferred_col = None;
         self.vim_pending = VimPending::None;
+        self.vim_visual = None;
         self.vim_commands = VimCommandState::default();
     }
 
@@ -295,6 +306,7 @@ impl TextArea {
     pub(crate) fn reset_vim_mode(&mut self) {
         if self.vim_enabled {
             self.vim_mode = self.configured_vim_mode_start();
+            self.vim_visual = None;
             self.vim_pending = VimPending::None;
             self.preferred_col = None;
         }
@@ -313,7 +325,15 @@ impl TextArea {
     /// offered to history navigation only after normal-mode movement reaches a
     /// text boundary.
     pub(crate) fn is_vim_normal_mode(&self) -> bool {
-        self.vim_enabled && self.vim_mode == VimMode::Normal
+        self.vim_enabled && self.vim_mode == VimMode::Normal && self.vim_visual.is_none()
+    }
+
+    pub(crate) fn is_vim_visual_mode(&self) -> bool {
+        self.vim_enabled && self.vim_visual.is_some()
+    }
+
+    pub(crate) fn take_system_clipboard_yank(&mut self) -> Option<String> {
+        self.pending_system_clipboard_yank.take()
     }
 
     /// Return the cursor position that represents the last editable item in Vim normal mode.
@@ -354,6 +374,7 @@ impl TextArea {
     pub(crate) fn enter_vim_insert_mode(&mut self) {
         if self.vim_enabled {
             self.vim_mode = VimMode::Insert;
+            self.vim_visual = None;
             self.vim_pending = VimPending::None;
         }
     }
@@ -367,6 +388,7 @@ impl TextArea {
     pub(crate) fn enter_vim_normal_mode(&mut self) {
         if self.vim_enabled {
             self.vim_mode = VimMode::Normal;
+            self.vim_visual = None;
             self.vim_pending = VimPending::None;
             self.preferred_col = None;
         }
@@ -392,14 +414,17 @@ impl TextArea {
     /// transition rather than a popup cancel/backtrack or turn-interrupt shortcut.
     pub(crate) fn should_handle_vim_insert_escape(&self, event: KeyEvent) -> bool {
         self.vim_enabled
-            && (self.vim_mode == VimMode::Insert || !matches!(self.vim_pending, VimPending::None))
+            && (self.vim_mode == VimMode::Insert
+                || self.vim_visual.is_some()
+                || !matches!(self.vim_pending, VimPending::None))
             && event.code == KeyCode::Esc
             && event.modifiers == KeyModifiers::NONE
             && matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat)
     }
 
     pub(crate) fn normalize_vim_command_event(&self, event: KeyEvent) -> KeyEvent {
-        if self.is_vim_normal_mode()
+        if self.vim_enabled
+            && self.vim_mode == VimMode::Normal
             && !matches!(
                 self.vim_pending,
                 VimPending::Replace | VimPending::Find { .. }
@@ -422,7 +447,7 @@ impl TextArea {
             return None;
         }
         Some(match self.vim_mode {
-            VimMode::Normal => "Normal",
+            VimMode::Normal => self.vim_visual_label().unwrap_or("Normal"),
             VimMode::Insert => "Insert",
         })
     }
@@ -433,7 +458,10 @@ impl TextArea {
             return None;
         }
         Some(match self.vim_mode {
-            VimMode::Normal => "Vim: Normal".magenta(),
+            VimMode::Normal => match self.vim_visual_label() {
+                Some(label) => format!("Vim: {label}").cyan(),
+                None => "Vim: Normal".magenta(),
+            },
             VimMode::Insert => "Vim: Insert".green(),
         })
     }
@@ -722,9 +750,13 @@ impl TextArea {
 
     fn handle_vim_input(&mut self, event: KeyEvent) {
         let prior_mode = self.vim_mode;
-        match self.vim_mode {
-            VimMode::Insert => self.handle_vim_insert(event),
-            VimMode::Normal => self.handle_vim_normal(event),
+        if self.vim_visual.is_some() {
+            self.handle_vim_visual(event);
+        } else {
+            match self.vim_mode {
+                VimMode::Insert => self.handle_vim_insert(event),
+                VimMode::Normal => self.handle_vim_normal(event),
+            }
         }
         if prior_mode == VimMode::Insert && self.vim_mode == VimMode::Normal {
             self.finish_pending_vim_change();
@@ -765,6 +797,19 @@ impl TextArea {
                 self.handle_vim_pending_command(pending, event);
                 return;
             }
+        }
+
+        if visual_key(event, 'v') {
+            self.start_vim_visual(VimVisualKind::Character);
+            return;
+        }
+        if visual_shift_key(event, 'v') {
+            self.start_vim_visual(VimVisualKind::Line);
+            return;
+        }
+        if visual_control_key(event, 'v') {
+            self.start_vim_visual(VimVisualKind::Block);
+            return;
         }
 
         if self.vim_normal_keymap.enter_insert.is_pressed(event) {
@@ -2175,11 +2220,14 @@ impl TextArea {
             );
 
             // Apply search highlights last so they remain visible over styled elements.
+            let visual_ranges = self.vim_visual_ranges();
+            let visual_style = Style::default().bg(Color::DarkGray);
             let overlays = self
                 .elements
                 .iter()
                 .map(|element| (&element.range, element_style))
-                .chain(highlights.iter().map(|(range, style)| (range, *style)));
+                .chain(highlights.iter().map(|(range, style)| (range, *style)))
+                .chain(visual_ranges.iter().map(|range| (range, visual_style)));
             for (overlay_range, style) in overlays {
                 let overlap_start = overlay_range.start.max(line_range.start);
                 let overlap_end = overlay_range.end.min(line_range.end);

@@ -403,7 +403,7 @@ impl TextArea {
         }
     }
 
-    fn start_vim_find(&mut self, motion: VimFindMotion, operator: Option<VimOperator>) {
+    pub(super) fn start_vim_find(&mut self, motion: VimFindMotion, operator: Option<VimOperator>) {
         self.vim_pending = VimPending::Find { motion, operator };
     }
 

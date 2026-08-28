@@ -2520,6 +2520,20 @@ async fn slash_copy_stores_clipboard_lease_and_preserves_it_on_failure() {
     assert!(chat.clipboard_lease.is_some());
     let rendered = lines_to_single_string(&drain_insert_history(&mut rx)[0]);
     assert!(rendered.contains("Copy failed: blocked selection"));
+
+    chat.copy_visual_selection_with("visual selection", |content| {
+        assert_eq!(content, "visual selection");
+        Ok(Some(crate::clipboard_copy::ClipboardLease::test()))
+    });
+    assert!(chat.clipboard_lease.is_some());
+    assert!(drain_insert_history(&mut rx).is_empty());
+
+    chat.copy_visual_selection_with("blocked visual selection", |content| {
+        assert_eq!(content, "blocked visual selection");
+        Err("blocked visual selection".to_string())
+    });
+    let rendered = lines_to_single_string(&drain_insert_history(&mut rx)[0]);
+    assert!(rendered.contains("Copy failed: blocked visual selection"));
 }
 
 #[tokio::test]

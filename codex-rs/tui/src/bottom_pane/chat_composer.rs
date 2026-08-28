@@ -3557,8 +3557,10 @@ impl ChatComposer {
             return (InputResult::None, false);
         }
 
-        let (history_up_pressed, history_down_pressed) = if self.draft.textarea.is_vim_normal_mode()
+        let (history_up_pressed, history_down_pressed) = if self.draft.textarea.is_vim_visual_mode()
         {
+            (false, false)
+        } else if self.draft.textarea.is_vim_normal_mode() {
             if self.draft.textarea.is_vim_operator_pending() {
                 (false, false)
             } else {
@@ -3768,6 +3770,11 @@ impl ChatComposer {
         }
 
         self.draft.textarea.input(input);
+        if let Some(text) = self.draft.textarea.take_system_clipboard_yank() {
+            self.app_event_tx.send(AppEvent::CopyVisualSelection {
+                text: Arc::from(text),
+            });
+        }
         self.sync_bash_mode_from_text();
 
         if let Some(elements_before) = elements_before {
@@ -11457,6 +11464,35 @@ mod tests {
 
         let _ = composer.handle_key_event(KeyEvent::new(KeyCode::Char('о'), KeyModifiers::NONE));
         assert!(composer.draft.textarea.is_empty());
+    }
+
+    #[test]
+    fn visual_yank_requests_system_clipboard_copy() {
+        let (tx, mut rx) = unbounded_channel::<AppEvent>();
+        let sender = AppEventSender::new(tx);
+        let mut composer = ChatComposer::new(
+            /*has_input_focus*/ true,
+            sender,
+            /*enhanced_keys_supported*/ false,
+            "Ask Codex to do anything".to_string(),
+            /*disable_paste_burst*/ false,
+        );
+        composer.set_text_content("alpha beta".to_string(), Vec::new(), Vec::new());
+        composer.draft.textarea.set_cursor(/*pos*/ 0);
+        composer.set_vim_enabled(/*enabled*/ true);
+
+        for key in ['v', 'e', 'y'] {
+            let _ =
+                composer.handle_key_event(KeyEvent::new(KeyCode::Char(key), KeyModifiers::NONE));
+        }
+
+        let event = rx
+            .try_recv()
+            .expect("visual yank should request clipboard copy");
+        assert!(matches!(
+            event,
+            AppEvent::CopyVisualSelection { text } if text.as_ref() == "alpha"
+        ));
     }
 
     #[test]
