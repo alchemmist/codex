@@ -2,6 +2,7 @@ use std::path::PathBuf;
 use std::process::Stdio;
 use std::sync::Arc;
 use std::time::Duration;
+use std::time::Instant;
 
 use serde_json::Value;
 use tokio::io::AsyncBufReadExt;
@@ -17,6 +18,8 @@ use super::WorkflowControl;
 use super::WorkflowRunRequest;
 use super::WorkflowRunStatus;
 use super::WorkflowUpdate;
+use super::executor::AgentActivity;
+use super::executor::AgentExecutionContext;
 use super::executor::AgentRequest;
 use super::executor::AgentResult;
 use super::executor::execute_agent;
@@ -330,6 +333,7 @@ impl Runtime {
 
         let semaphore = Arc::new(tokio::sync::Semaphore::new(parallelism));
         let mut tasks = JoinSet::new();
+        let (activity_tx, mut activity_rx) = mpsc::unbounded_channel::<AgentActivity>();
         let total = requests.len();
         for (index, request) in requests.into_iter().enumerate() {
             let semaphore = semaphore.clone();
@@ -338,6 +342,7 @@ impl Runtime {
             let control = self.control.clone();
             let default_model = default_model.clone();
             let default_cwd = default_cwd.clone();
+            let activity_tx = activity_tx.clone();
             tasks.spawn(async move {
                 let permit = semaphore
                     .acquire_owned()
@@ -345,51 +350,140 @@ impl Runtime {
                     .map_err(|_| "agent batch was closed".to_string())?;
                 let result = execute_agent(
                     request,
-                    default_model,
-                    default_cwd,
-                    default_timeout_seconds,
-                    &codex_exe,
-                    &workspace,
-                    control,
+                    AgentExecutionContext {
+                        default_model,
+                        default_cwd,
+                        default_timeout_seconds,
+                        codex_exe: &codex_exe,
+                        workspace: &workspace,
+                        control,
+                        agent_index: index,
+                        activity_tx,
+                    },
                 )
                 .await;
                 drop(permit);
                 Ok::<_, String>((index, result))
             });
         }
+        drop(activity_tx);
         let mut completed = 0usize;
         let mut results = vec![None; total];
-        while let Some(joined) = tasks.join_next().await {
-            let (index, result) =
-                joined.map_err(|err| format!("agent batch task failed: {err}"))??;
-            let result = result.unwrap_or_else(|error| AgentResult {
-                success: false,
-                exit_code: None,
-                message: String::new(),
-                error,
-                input_tokens: 0,
-                cached_input_tokens: 0,
-                output_tokens: 0,
-            });
-            completed = completed.saturating_add(1);
-            self.send(WorkflowUpdate::AgentFinished {
-                run_id: self.run.run_id.clone(),
-                completed,
-                total,
-                success: result.success,
-                phase: self
-                    .progress
-                    .as_ref()
-                    .map(|(message, _, _)| message.clone()),
-                phase_current: self.progress.as_ref().and_then(|(_, current, _)| *current),
-                phase_total: self.progress.as_ref().and_then(|(_, _, total)| *total),
-            });
-            results[index] = Some(result);
+        let mut live_activity = vec![None::<(String, Instant)>; total];
+        let mut heartbeat = tokio::time::interval(Duration::from_secs(5));
+        heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+        heartbeat.tick().await;
+        let mut last_activity_persisted_at = Instant::now();
+        while completed < total {
+            tokio::select! {
+                Some(joined) = tasks.join_next() => {
+                    let (index, result) =
+                        joined.map_err(|err| format!("agent batch task failed: {err}"))??;
+                    let result = result.unwrap_or_else(|error| AgentResult {
+                        success: false,
+                        exit_code: None,
+                        message: String::new(),
+                        error,
+                        input_tokens: 0,
+                        cached_input_tokens: 0,
+                        output_tokens: 0,
+                    });
+                    completed = completed.saturating_add(1);
+                    live_activity[index] = None;
+                    self.send(WorkflowUpdate::AgentFinished {
+                        run_id: self.run.run_id.clone(),
+                        completed,
+                        total,
+                        success: result.success,
+                        phase: self
+                            .progress
+                            .as_ref()
+                            .map(|(message, _, _)| message.clone()),
+                        phase_current: self.progress.as_ref().and_then(|(_, current, _)| *current),
+                        phase_total: self.progress.as_ref().and_then(|(_, _, total)| *total),
+                    });
+                    results[index] = Some(result);
+                }
+                Some(activity) = activity_rx.recv() => {
+                    let persisted = format!(
+                        "Agent {}/{}: {}",
+                        activity.agent_index.saturating_add(1),
+                        total,
+                        activity.message
+                    );
+                    if let Err(err) = self.run.record_activity(persisted).await {
+                        tracing::warn!(%err, "failed to persist workflow agent activity");
+                    }
+                    last_activity_persisted_at = Instant::now();
+                    live_activity[activity.agent_index] =
+                        Some((activity.message.clone(), Instant::now()));
+                    self.send_agent_activity(
+                        activity.agent_index,
+                        total,
+                        activity.message,
+                        /*idle_seconds*/ 0,
+                    );
+                }
+                _ = heartbeat.tick() => {
+                    let latest = live_activity
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(index, activity)| {
+                            activity.as_ref().map(|(message, at)| (index, message, *at))
+                        })
+                        .min_by_key(|(_, _, at)| at.elapsed());
+                    if let Some((index, message, at)) = latest {
+                        let idle_seconds = at.elapsed().as_secs();
+                        self.send_agent_activity(
+                            index,
+                            total,
+                            message.clone(),
+                            idle_seconds,
+                        );
+                        if last_activity_persisted_at.elapsed() >= Duration::from_secs(30) {
+                            if let Err(err) = self.run
+                                .record_activity(format!(
+                                    "Agent {}/{}: {} · {idle_seconds}s since activity",
+                                    index.saturating_add(1),
+                                    total,
+                                    message
+                                ))
+                                .await
+                            {
+                                tracing::warn!(%err, "failed to persist workflow heartbeat");
+                            }
+                            last_activity_persisted_at = Instant::now();
+                        }
+                    }
+                }
+            }
         }
         results
             .into_iter()
             .map(|result| result.ok_or_else(|| "agent batch lost a result".to_string()))
             .collect()
+    }
+
+    fn send_agent_activity(
+        &self,
+        agent_index: usize,
+        total: usize,
+        message: String,
+        idle_seconds: u64,
+    ) {
+        self.send(WorkflowUpdate::AgentActivity {
+            run_id: self.run.run_id.clone(),
+            agent: agent_index.saturating_add(1),
+            total,
+            message,
+            idle_seconds,
+            phase: self
+                .progress
+                .as_ref()
+                .map(|(message, _, _)| message.clone()),
+            phase_current: self.progress.as_ref().and_then(|(_, current, _)| *current),
+            phase_total: self.progress.as_ref().and_then(|(_, _, total)| *total),
+        });
     }
 
     async fn finish_completed(&mut self, result: Value) {

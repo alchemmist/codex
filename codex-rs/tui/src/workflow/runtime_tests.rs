@@ -44,6 +44,7 @@ def run(ctx):
         r#"#!/bin/sh
 cat >/dev/null
 printf '%s\n' '{"type":"item.completed","item":{"id":"msg","type":"agent_message","text":"agent-ok"}}'
+sleep 6
 printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_tokens":0,"cache_write_input_tokens":0,"output_tokens":1,"reasoning_output_tokens":0}}'
 "#,
     )
@@ -86,7 +87,18 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_
     .await;
 
     let mut terminal = None;
+    let mut agent_activity = Vec::new();
+    let mut agent_idle_seconds = Vec::new();
     while let Ok(update) = update_rx.try_recv() {
+        if let WorkflowUpdate::AgentActivity {
+            message,
+            idle_seconds,
+            ..
+        } = &update
+        {
+            agent_activity.push(message.clone());
+            agent_idle_seconds.push(*idle_seconds);
+        }
         if update.is_terminal() {
             terminal = Some(update);
         }
@@ -105,6 +117,13 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":1,"cached_input_
     assert_eq!(result, json!({"shell": "shell-ok", "agent": "agent-ok"}));
     assert_eq!(agent_calls, 1);
     assert_eq!(shell_calls, 1);
+    assert_eq!(
+        agent_activity,
+        vec!["preparing workflow result", "preparing workflow result"]
+    );
+    assert_eq!(agent_idle_seconds.len(), 2);
+    assert_eq!(agent_idle_seconds[0], 0);
+    assert!(agent_idle_seconds[1] >= 4);
     assert_eq!(
         list_resumable_runs(temp.path()).await.expect("list runs"),
         Vec::new()

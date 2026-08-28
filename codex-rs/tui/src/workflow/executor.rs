@@ -14,6 +14,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::process::Child;
 use tokio::process::Command;
+use tokio::sync::mpsc;
 use tokio::sync::watch;
 
 use super::WorkflowControl;
@@ -47,6 +48,23 @@ pub(super) struct AgentResult {
     pub(super) input_tokens: i64,
     pub(super) cached_input_tokens: i64,
     pub(super) output_tokens: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(super) struct AgentActivity {
+    pub(super) agent_index: usize,
+    pub(super) message: String,
+}
+
+pub(super) struct AgentExecutionContext<'a> {
+    pub(super) default_model: Option<String>,
+    pub(super) default_cwd: Option<String>,
+    pub(super) default_timeout_seconds: Option<u64>,
+    pub(super) codex_exe: &'a Path,
+    pub(super) workspace: &'a Path,
+    pub(super) control: watch::Receiver<WorkflowControl>,
+    pub(super) agent_index: usize,
+    pub(super) activity_tx: mpsc::UnboundedSender<AgentActivity>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -128,13 +146,18 @@ pub(super) async fn execute_shell(
 
 pub(super) async fn execute_agent(
     mut request: AgentRequest,
-    default_model: Option<String>,
-    default_cwd: Option<String>,
-    default_timeout_seconds: Option<u64>,
-    codex_exe: &Path,
-    workspace: &Path,
-    control: watch::Receiver<WorkflowControl>,
+    context: AgentExecutionContext<'_>,
 ) -> Result<AgentResult, String> {
+    let AgentExecutionContext {
+        default_model,
+        default_cwd,
+        default_timeout_seconds,
+        codex_exe,
+        workspace,
+        control,
+        agent_index,
+        activity_tx,
+    } = context;
     if *control.borrow() != WorkflowControl::Run {
         return Err("workflow interrupted".to_string());
     }
@@ -217,7 +240,7 @@ pub(super) async fn execute_agent(
         .stderr
         .take()
         .ok_or_else(|| "failed to capture nested Codex stderr".to_string())?;
-    let stdout_task = tokio::spawn(read_agent_events(stdout));
+    let stdout_task = tokio::spawn(read_agent_events(stdout, agent_index, activity_tx));
     let stderr_task = tokio::spawn(read_bounded(stderr, MAX_CAPTURE_BYTES));
     let status = wait_for_child(
         &mut child,
@@ -334,13 +357,23 @@ struct ParsedAgentEvents {
     output_tokens: i64,
 }
 
-async fn read_agent_events(reader: impl AsyncRead + Unpin) -> std::io::Result<ParsedAgentEvents> {
+async fn read_agent_events(
+    reader: impl AsyncRead + Unpin,
+    agent_index: usize,
+    activity_tx: mpsc::UnboundedSender<AgentActivity>,
+) -> std::io::Result<ParsedAgentEvents> {
     let mut parsed = ParsedAgentEvents::default();
     let mut lines = BufReader::new(reader).lines();
     while let Some(line) = lines.next_line().await? {
         let Ok(event) = serde_json::from_str::<serde_json::Value>(&line) else {
             continue;
         };
+        if let Some(message) = summarize_agent_event(&event) {
+            let _ = activity_tx.send(AgentActivity {
+                agent_index,
+                message,
+            });
+        }
         match event.get("type").and_then(serde_json::Value::as_str) {
             Some("item.completed")
                 if event
@@ -380,6 +413,92 @@ async fn read_agent_events(reader: impl AsyncRead + Unpin) -> std::io::Result<Pa
         }
     }
     Ok(parsed)
+}
+
+fn summarize_agent_event(event: &serde_json::Value) -> Option<String> {
+    let event_type = event.get("type")?.as_str()?;
+    if event_type == "turn.started" {
+        return Some("model started working".to_string());
+    }
+    let item = event.get("item")?;
+    let item_type = item.get("type")?.as_str()?;
+    let completed = event_type == "item.completed";
+    let message = match item_type {
+        "command_execution" => {
+            let command = item
+                .get("command")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("command");
+            if completed {
+                let exit_code = item
+                    .get("exit_code")
+                    .and_then(serde_json::Value::as_i64)
+                    .map_or_else(|| "finished".to_string(), |code| format!("exit {code}"));
+                format!("command {exit_code}: {command}")
+            } else {
+                format!("running command: {command}")
+            }
+        }
+        "mcp_tool_call" => {
+            let server = item
+                .get("server")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("mcp");
+            let tool = item
+                .get("tool")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("tool");
+            if completed {
+                format!("finished MCP call: {server}.{tool}")
+            } else {
+                format!("calling MCP: {server}.{tool}")
+            }
+        }
+        "web_search" => {
+            let query = item
+                .get("query")
+                .and_then(serde_json::Value::as_str)
+                .filter(|query| !query.is_empty())
+                .unwrap_or("web");
+            if completed {
+                format!("finished web search: {query}")
+            } else {
+                format!("searching web: {query}")
+            }
+        }
+        "file_change" => {
+            if completed {
+                "file changes applied".to_string()
+            } else {
+                "applying file changes".to_string()
+            }
+        }
+        "collab_tool_call" => {
+            let tool = item
+                .get("tool")
+                .and_then(serde_json::Value::as_str)
+                .unwrap_or("agent");
+            if completed {
+                format!("finished delegation: {tool}")
+            } else {
+                format!("delegating: {tool}")
+            }
+        }
+        "todo_list" => "updating task list".to_string(),
+        "reasoning" if completed => {
+            let summary = item
+                .get("text")
+                .and_then(serde_json::Value::as_str)
+                .and_then(|text| text.lines().find(|line| !line.trim().is_empty()))
+                .unwrap_or("thinking");
+            format!("thinking: {summary}")
+        }
+        "agent_message" if completed => "preparing workflow result".to_string(),
+        "error" => "agent reported an error".to_string(),
+        _ => return None,
+    };
+    let message = message.split_whitespace().collect::<Vec<_>>().join(" ");
+    Some(truncate_string(&message, 240))
 }
 
 fn truncate_string(value: &str, max_bytes: usize) -> String {

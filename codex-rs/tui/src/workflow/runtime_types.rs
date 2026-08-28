@@ -47,6 +47,16 @@ pub(crate) enum WorkflowUpdate {
         phase_current: Option<u64>,
         phase_total: Option<u64>,
     },
+    AgentActivity {
+        run_id: String,
+        agent: usize,
+        total: usize,
+        message: String,
+        idle_seconds: u64,
+        phase: Option<String>,
+        phase_current: Option<u64>,
+        phase_total: Option<u64>,
+    },
     Checkpointed {
         run_id: String,
     },
@@ -79,6 +89,7 @@ impl WorkflowUpdate {
             | Self::Progress { run_id, .. }
             | Self::AgentBatchStarted { run_id, .. }
             | Self::AgentFinished { run_id, .. }
+            | Self::AgentActivity { run_id, .. }
             | Self::Checkpointed { run_id }
             | Self::Completed { run_id, .. }
             | Self::Paused { run_id, .. }

@@ -16,6 +16,9 @@ r#"#!/bin/sh
 printf '%s\n' "$@" > "$0.args"
 printf '%s' "$CODEX_WORKFLOW_FORBID_QUALITY_GRAPH_IGNORE" > "$0.guard"
 cat >/dev/null
+printf '%s\n' '{"type":"turn.started"}'
+printf '%s\n' '{"type":"item.started","item":{"id":"cmd","type":"command_execution","command":"git status"}}'
+printf '%s\n' '{"type":"item.completed","item":{"id":"mcp","type":"mcp_tool_call","server":"github","tool":"get_pull_request"}}'
 printf '%s\n' '{"type":"item.completed","item":{"id":"msg","type":"agent_message","text":"fixed"}}'
 printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input_tokens":8,"cache_write_input_tokens":0,"output_tokens":3,"reasoning_output_tokens":0}}'
 "#,
@@ -28,6 +31,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
     permissions.set_mode(0o755);
     std::fs::set_permissions(&fake_codex, permissions).expect("chmod fake codex");
     let (_control_tx, control_rx) = watch::channel(WorkflowControl::Run);
+    let (activity_tx, mut activity_rx) = mpsc::unbounded_channel();
 
     let result = execute_agent(
         AgentRequest {
@@ -39,12 +43,16 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
             cwd: None,
             timeout_seconds: Some(10),
         },
-        /*default_model*/ None,
-        /*default_cwd*/ None,
-        /*default_timeout_seconds*/ None,
-        &fake_codex,
-        temp.path(),
-        control_rx,
+        AgentExecutionContext {
+            default_model: None,
+            default_cwd: None,
+            default_timeout_seconds: None,
+            codex_exe: &fake_codex,
+            workspace: temp.path(),
+            control: control_rx,
+            agent_index: 2,
+            activity_tx,
+        },
     )
     .await
     .expect("agent result");
@@ -70,4 +78,25 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
         .await
         .expect("read nested codex guard");
     assert_eq!(guard, "1");
+    assert_eq!(
+        std::iter::from_fn(|| activity_rx.try_recv().ok()).collect::<Vec<_>>(),
+        vec![
+            AgentActivity {
+                agent_index: 2,
+                message: "model started working".to_string(),
+            },
+            AgentActivity {
+                agent_index: 2,
+                message: "running command: git status".to_string(),
+            },
+            AgentActivity {
+                agent_index: 2,
+                message: "finished MCP call: github.get_pull_request".to_string(),
+            },
+            AgentActivity {
+                agent_index: 2,
+                message: "preparing workflow result".to_string(),
+            },
+        ]
+    );
 }

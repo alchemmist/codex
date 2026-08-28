@@ -266,6 +266,29 @@ impl ChatWidget {
                     /*details_max_lines*/ 2,
                 );
             }
+            WorkflowUpdate::AgentActivity {
+                agent,
+                total,
+                message,
+                idle_seconds,
+                phase,
+                phase_current,
+                phase_total,
+                ..
+            } => {
+                let activity = if *idle_seconds == 0 {
+                    message.clone()
+                } else {
+                    format!("{message} · {idle_seconds}s since new activity")
+                };
+                let phase = format_workflow_phase(phase.as_deref(), *phase_current, *phase_total);
+                self.set_status(
+                    format!("Workflow: agent {agent}/{total}"),
+                    Some(format!("{activity}\n{phase}")),
+                    StatusDetailsCapitalization::Preserve,
+                    /*details_max_lines*/ 3,
+                );
+            }
             WorkflowUpdate::Checkpointed { .. } => {}
             WorkflowUpdate::Completed {
                 title,

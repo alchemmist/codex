@@ -112,3 +112,27 @@ async fn workflow_agent_status_retains_current_phase_snapshot() {
         render_bottom_popup(&chat, /*width*/ 96)
     );
 }
+
+#[tokio::test]
+async fn workflow_agent_activity_status_snapshot() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(/*model_override*/ None).await;
+    chat.handle_workflow_update(&WorkflowUpdate::Started {
+        run_id: "20260828-144940-1cbae1fc".to_string(),
+        title: "PR babysitter".to_string(),
+    });
+    chat.handle_workflow_update(&WorkflowUpdate::AgentActivity {
+        run_id: "20260828-144940-1cbae1fc".to_string(),
+        agent: 1,
+        total: 3,
+        message: "calling MCP: github.get_pull_request".to_string(),
+        idle_seconds: 17,
+        phase: Some("Repairing 4 review items and 3 failed checks".to_string()),
+        phase_current: Some(2),
+        phase_total: Some(7),
+    });
+
+    assert_chatwidget_snapshot!(
+        "workflow_agent_activity_status",
+        render_bottom_popup(&chat, /*width*/ 96)
+    );
+}

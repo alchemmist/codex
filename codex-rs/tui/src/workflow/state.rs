@@ -56,6 +56,10 @@ pub(crate) struct StoredWorkflowRun {
     pub(crate) agent_calls: u32,
     #[serde(default)]
     pub(crate) shell_calls: u32,
+    #[serde(default)]
+    pub(crate) last_activity: Option<String>,
+    #[serde(default)]
+    pub(crate) last_activity_at: Option<DateTime<Utc>>,
     pub(crate) run_dir: PathBuf,
 }
 
@@ -117,6 +121,14 @@ impl StoredWorkflowRun {
         self.updated_at = Utc::now();
         write_json(&self.metadata_path(), self).await
     }
+
+    pub(crate) async fn record_activity(&mut self, activity: String) -> Result<(), String> {
+        let now = Utc::now();
+        self.last_activity = Some(activity);
+        self.last_activity_at = Some(now);
+        self.updated_at = now;
+        write_json(&self.metadata_path(), self).await
+    }
 }
 
 pub(crate) async fn create_run(
@@ -149,6 +161,8 @@ pub(crate) async fn create_run(
         error: None,
         agent_calls: 0,
         shell_calls: 0,
+        last_activity: None,
+        last_activity_at: None,
         run_dir,
     };
     run.persist().await?;
