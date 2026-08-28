@@ -55,8 +55,8 @@ jobs:
           set -euo pipefail
           [[ "${GITHUB_REF_NAME}" =~ ^alchemmist-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
           tag_version="${GITHUB_REF_NAME#alchemmist-v}"
-          cargo_version="$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' Cargo.toml | head -n 1)"
-          [[ "${tag_version}" == "${cargo_version}" ]]
+          fork_version="$(tr -d '[:space:]' < ../FORK_VERSION)"
+          [[ "${tag_version}" == "${fork_version}" ]]
 
       - name: Configure rusty_v8 artifacts
         uses: ./.github/actions/setup-rusty-v8
@@ -67,6 +67,8 @@ jobs:
         shell: bash
         run: |
           export STABLE_GIT_COMMIT="${GITHUB_SHA::8}"
+          ALCHEMMIST_FORK_VERSION="$(tr -d '[:space:]' < ../FORK_VERSION)"
+          export ALCHEMMIST_FORK_VERSION
           cargo build --locked --release --target "${TARGET}" --bin codex
 
       - name: Package Codex

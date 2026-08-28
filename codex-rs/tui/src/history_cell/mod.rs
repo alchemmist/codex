@@ -44,7 +44,6 @@ use crate::test_support::test_path_buf;
 use crate::text_formatting::format_and_truncate_tool_result;
 use crate::text_formatting::truncate_text;
 use crate::tooltips;
-use crate::update_action::UpdateAction;
 use crate::version::CODEX_CLI_VERSION;
 use crate::wrapping::RtOptions;
 use crate::wrapping::adaptive_wrap_line;
@@ -116,6 +115,13 @@ mod search;
 mod separators;
 mod session;
 mod startup_panel;
+
+#[cfg(any(not(debug_assertions), test))]
+pub(crate) use startup_panel::StartupUpdates;
+#[cfg(any(not(debug_assertions), test))]
+pub(crate) use startup_panel::VersionUpdate;
+#[cfg(not(debug_assertions))]
+pub(crate) use startup_panel::set_startup_updates;
 
 pub(crate) use approvals::*;
 pub(crate) use base::*;

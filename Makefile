@@ -11,11 +11,12 @@ CODEX_RELEASE_REPOSITORY ?= alchemmist/codex
 CODEX_GIT_COMMIT := $(shell git rev-parse --short=8 HEAD 2>/dev/null || printf unknown)
 CODEX_GIT_DIRTY := $(shell test -z "$$(git status --porcelain --untracked-files=normal -- . ':(exclude)codex-conversation-*.html' 2>/dev/null)" || printf +dirty)
 CODEX_BUILD_COMMIT := $(CODEX_GIT_COMMIT)$(CODEX_GIT_DIRTY)
+CODEX_FORK_VERSION := $(shell tr -d '[:space:]' < "$(CURDIR)/FORK_VERSION")
 
 .PHONY: build install-local install-mac install-linux release-patch release-minor release-major
 
 build:
-	cd "$(CODEX_RS_DIR)" && CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" $(CARGO) build --release --bin codex
+	cd "$(CODEX_RS_DIR)" && CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" $(CARGO) build --release --bin codex
 
 install-local: build
 	$(INSTALL) -d "$(CODEX_INSTALL_DIR)"

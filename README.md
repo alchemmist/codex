@@ -40,8 +40,12 @@ make release-minor
 make release-major
 ```
 
-Each command updates the workspace version, creates and pushes an `alchemmist-vX.Y.Z` tag, and
+Each command updates the fork version, creates and pushes an `alchemmist-vX.Y.Z` tag, and
 starts macOS arm64 and Linux x86_64 release builds. Both archives and their checksums are published
 on the GitHub Releases page.
+
+Fork releases use `FORK_VERSION`. The Cargo workspace version tracks the official Codex version from
+the latest upstream sync, so OpenAI compatibility checks and upstream update notices remain accurate
+without confusing them with the fork release version.
 
 Upstream documentation: [developers.openai.com/codex](https://developers.openai.com/codex).

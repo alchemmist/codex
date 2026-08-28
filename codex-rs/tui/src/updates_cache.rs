@@ -16,37 +16,22 @@ pub(crate) struct VersionInfo {
 }
 
 const VERSION_FILENAME: &str = "version.json";
+#[cfg(not(debug_assertions))]
+const FORK_VERSION_FILENAME: &str = "fork-version.json";
 
 pub(crate) fn version_filepath(config: &Config) -> PathBuf {
     config.codex_home.join(VERSION_FILENAME).into_path_buf()
+}
+
+#[cfg(not(debug_assertions))]
+pub(crate) fn fork_version_filepath(config: &Config) -> PathBuf {
+    config
+        .codex_home
+        .join(FORK_VERSION_FILENAME)
+        .into_path_buf()
 }
 
 pub(crate) fn read_version_info(version_file: &Path) -> anyhow::Result<VersionInfo> {
     let contents = std::fs::read_to_string(version_file)?;
     Ok(serde_json::from_str(&contents)?)
 }
-
-/// Persist a dismissal for the current latest version so we don't show
-/// the update popup again for this version.
-pub(crate) async fn dismiss_version(config: &Config, version: &str) -> anyhow::Result<()> {
-    let version_file = version_filepath(config);
-    let mut info = match read_version_info(&version_file) {
-        Ok(info) => info,
-        Err(_) => VersionInfo {
-            latest_version: version.to_string(),
-            last_checked_at: DateTime::<Utc>::UNIX_EPOCH,
-            dismissed_version: None,
-        },
-    };
-    info.dismissed_version = Some(version.to_string());
-    let json_line = format!("{}\n", serde_json::to_string(&info)?);
-    if let Some(parent) = version_file.parent() {
-        tokio::fs::create_dir_all(parent).await?;
-    }
-    tokio::fs::write(version_file, json_line).await?;
-    Ok(())
-}
-
-#[cfg(test)]
-#[path = "updates_cache_tests.rs"]
-mod tests;

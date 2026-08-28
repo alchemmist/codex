@@ -264,6 +264,7 @@ pub(crate) struct SessionHeaderHistoryCell {
     yolo_mode: bool,
     startup_panel: Option<StartupPanelConfig>,
     context_window: Option<i64>,
+    startup_updates: Option<super::startup_panel::StartupUpdates>,
 }
 
 impl SessionHeaderHistoryCell {
@@ -302,6 +303,7 @@ impl SessionHeaderHistoryCell {
             yolo_mode: false,
             startup_panel: None,
             context_window: None,
+            startup_updates: None,
         }
     }
 
@@ -317,6 +319,15 @@ impl SessionHeaderHistoryCell {
 
     pub(crate) fn with_yolo_mode(mut self, yolo_mode: bool) -> Self {
         self.yolo_mode = yolo_mode;
+        self
+    }
+
+    #[cfg(test)]
+    pub(crate) fn with_startup_updates(
+        mut self,
+        startup_updates: super::startup_panel::StartupUpdates,
+    ) -> Self {
+        self.startup_updates = Some(startup_updates);
         self
     }
 
@@ -368,6 +379,7 @@ impl HistoryCell for SessionHeaderHistoryCell {
                 directory: &self.directory,
                 yolo_mode: self.yolo_mode,
                 context_window: self.context_window,
+                updates: self.startup_updates.as_ref(),
             }
             .display_lines(width);
         }
@@ -462,6 +474,7 @@ impl HistoryCell for SessionHeaderHistoryCell {
                 directory: &self.directory,
                 yolo_mode: self.yolo_mode,
                 context_window: self.context_window,
+                updates: self.startup_updates.as_ref(),
             }
             .raw_lines();
         }

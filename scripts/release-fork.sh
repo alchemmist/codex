@@ -36,7 +36,7 @@ release_commit_created=0
 
 cleanup_uncommitted_release() {
   if (( ! release_commit_created )); then
-    git restore -- codex-rs/Cargo.toml codex-rs/Cargo.lock
+    git restore -- FORK_VERSION
   fi
 }
 
@@ -48,13 +48,13 @@ import re
 import sys
 
 level = sys.argv[1]
-manifest = pathlib.Path("codex-rs/Cargo.toml")
-text = manifest.read_text()
-match = re.search(r'(?m)^version = "((\d+)\.(\d+)\.(\d+))"$', text)
+version_file = pathlib.Path("FORK_VERSION")
+text = version_file.read_text()
+match = re.fullmatch(r'(\d+)\.(\d+)\.(\d+)\n?', text)
 if match is None:
-    raise SystemExit("workspace version is not a plain semantic version")
+    raise SystemExit("FORK_VERSION is not a plain semantic version")
 
-major, minor, patch = map(int, match.groups()[1:])
+major, minor, patch = map(int, match.groups())
 if level == "major":
     major, minor, patch = major + 1, 0, 0
 elif level == "minor":
@@ -63,16 +63,10 @@ else:
     patch += 1
 
 version = f"{major}.{minor}.{patch}"
-updated = text[: match.start(1)] + version + text[match.end(1) :]
-manifest.write_text(updated)
+version_file.write_text(f"{version}\n")
 print(version)
 PY
 )"
-
-(
-  cd codex-rs
-  cargo metadata --format-version 1 >/dev/null
-)
 
 tag="alchemmist-v${next_version}"
 
@@ -81,10 +75,10 @@ if git rev-parse --verify --quiet "refs/tags/${tag}" >/dev/null; then
   exit 1
 fi
 
-git add codex-rs/Cargo.toml codex-rs/Cargo.lock
+git add FORK_VERSION
 git commit -m "release ${next_version}"
 release_commit_created=1
 git tag -a "$tag" -m "Release ${next_version}"
 git push --atomic origin main "refs/tags/${tag}"
 
-echo "Released ${tag}. GitHub Actions is building the macOS artifact."
+echo "Released ${tag}. GitHub Actions is building the macOS and Linux artifacts."

@@ -13,6 +13,48 @@ use rand::Rng as _;
 use ratatui::prelude::*;
 use ratatui::style::Stylize;
 use std::path::Path;
+use std::sync::OnceLock;
+use std::sync::RwLock;
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub(crate) struct StartupUpdates {
+    pub(crate) fork: Option<VersionUpdate>,
+    pub(crate) upstream: Option<VersionUpdate>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub(crate) struct VersionUpdate {
+    pub(crate) current: String,
+    pub(crate) latest: String,
+}
+
+impl VersionUpdate {
+    #[cfg(any(not(debug_assertions), test))]
+    pub(crate) fn new(current: impl Into<String>, latest: impl Into<String>) -> Self {
+        Self {
+            current: current.into(),
+            latest: latest.into(),
+        }
+    }
+}
+
+static STARTUP_UPDATES: OnceLock<RwLock<StartupUpdates>> = OnceLock::new();
+
+#[cfg(not(debug_assertions))]
+pub(crate) fn set_startup_updates(updates: StartupUpdates) {
+    let lock = STARTUP_UPDATES.get_or_init(|| RwLock::new(StartupUpdates::default()));
+    *lock
+        .write()
+        .unwrap_or_else(std::sync::PoisonError::into_inner) = updates;
+}
+
+fn startup_updates() -> StartupUpdates {
+    STARTUP_UPDATES
+        .get_or_init(|| RwLock::new(StartupUpdates::default()))
+        .read()
+        .unwrap_or_else(std::sync::PoisonError::into_inner)
+        .clone()
+}
 
 const FEATURE_TIPS: &[&str] = &[
     "Ctrl-S stashes your current prompt and restores it on the next press.",
@@ -36,6 +78,7 @@ pub(super) struct StartupPanelView<'a> {
     pub directory: &'a Path,
     pub yolo_mode: bool,
     pub context_window: Option<i64>,
+    pub updates: Option<&'a StartupUpdates>,
 }
 
 impl StartupPanelView<'_> {
@@ -155,6 +198,13 @@ impl StartupPanelView<'_> {
             spans.push(status.join(" · ").into());
             lines.push(Line::from(spans));
         }
+        let updates = self.updates.cloned().unwrap_or_else(startup_updates);
+        if let Some(update) = &updates.fork {
+            lines.push(update_line("fork", update));
+        }
+        if let Some(update) = &updates.upstream {
+            lines.push(update_line("upstream", update));
+        }
         lines
     }
 
@@ -164,6 +214,17 @@ impl StartupPanelView<'_> {
         }
         format!("{} · {}", self.config.title, build_commit())
     }
+}
+
+fn update_line(label: &str, update: &VersionUpdate) -> Line<'static> {
+    Line::from(vec![
+        "update · ".dim(),
+        label.to_string().cyan(),
+        " ".into(),
+        update.current.clone().dim(),
+        " → ".dim(),
+        update.latest.clone().cyan().bold(),
+    ])
 }
 
 #[derive(Clone, Copy, Eq, PartialEq)]

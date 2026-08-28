@@ -774,6 +774,30 @@ fn startup_panel_styles_snapshot() {
     insta::assert_snapshot!(rendered);
 }
 
+#[test]
+fn startup_panel_updates_snapshot() {
+    let config = StartupPanelConfig {
+        show_feature_tip: false,
+        ..StartupPanelConfig::default()
+    };
+    let updates = StartupUpdates {
+        fork: Some(VersionUpdate::new("0.0.2", "0.0.3")),
+        upstream: Some(VersionUpdate::new("0.146.0", "0.150.0")),
+    };
+    let cell = SessionHeaderHistoryCell::new(
+        "gpt-5.6-sol".to_string(),
+        Some(ReasoningEffortConfig::Low),
+        /*show_fast_status*/ false,
+        test_path_buf("/tmp/project"),
+        "0.146.0",
+    )
+    .with_startup_panel(config, Some(1_000_000))
+    .with_startup_updates(updates)
+    .with_yolo_mode(true);
+
+    insta::assert_snapshot!(render_lines(&cell.display_lines(/*width*/ 68)).join("\n"));
+}
+
 #[tokio::test]
 async fn session_info_first_event_suppresses_tooltips_and_nux() {
     let config = test_config().await;
@@ -1270,33 +1294,6 @@ fn web_search_history_cell_snapshot() {
         },
     );
     let rendered = render_lines(&cell.display_lines(/*width*/ 64)).join("\n");
-
-    insta::assert_snapshot!(rendered);
-}
-
-#[test]
-fn standalone_unix_update_available_history_cell_snapshot() {
-    let cell =
-        UpdateAvailableHistoryCell::new("9.9.9".to_string(), Some(UpdateAction::StandaloneUnix));
-    let rendered = render_lines(&cell.display_lines(/*width*/ 110)).join("\n");
-
-    insta::assert_snapshot!(rendered);
-}
-
-#[test]
-fn standalone_windows_update_available_history_cell_snapshot() {
-    let cell =
-        UpdateAvailableHistoryCell::new("9.9.9".to_string(), Some(UpdateAction::StandaloneWindows));
-    let rendered = render_lines(&cell.display_lines(/*width*/ 110)).join("\n");
-
-    insta::assert_snapshot!(rendered);
-}
-
-#[test]
-fn pnpm_update_available_history_cell_snapshot() {
-    let cell =
-        UpdateAvailableHistoryCell::new("9.9.9".to_string(), Some(UpdateAction::PnpmGlobalLatest));
-    let rendered = render_lines(&cell.display_lines(/*width*/ 110)).join("\n");
 
     insta::assert_snapshot!(rendered);
 }
