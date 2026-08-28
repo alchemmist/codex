@@ -20,12 +20,14 @@ A terminal-native coding agent built on [OpenAI Codex](https://github.com/openai
 - Prompts interrupted before work begins return to the editor; later interruptions are shown without a noisy error message.
 - Force pushes always require an explicit Yes or No selection in the TUI.
 - Fixes include tmux pane resize redraws, focus-related flickering, and a stable `Working` animation.
-- The root `Makefile` builds and installs the local binary with one command.
+- The root `Makefile` installs a local build or downloads ready-made macOS and Linux releases.
 
 ## Build and install
 
 ```shell
-make install
+make install-local
+make install-mac
+make install-linux
 ```
 
 ## Releases
@@ -39,7 +41,7 @@ make release-major
 ```
 
 Each command updates the workspace version, creates and pushes an `alchemmist-vX.Y.Z` tag, and
-starts the macOS arm64 release build. The resulting archive and checksum are published on the
-GitHub Releases page.
+starts macOS arm64 and Linux x86_64 release builds. Both archives and their checksums are published
+on the GitHub Releases page.
 
 Upstream documentation: [developers.openai.com/codex](https://developers.openai.com/codex).
