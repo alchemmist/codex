@@ -30,6 +30,15 @@ esac
 archive="codex-${target}.tar.gz"
 base_url="${CODEX_RELEASE_BASE_URL:-https://github.com/${repository}/releases/latest/download}"
 temp_dir="$(mktemp -d "${TMPDIR:-/tmp}/alchemmist-codex-install.XXXXXX")"
+curl_options=(
+  --fail
+  --silent
+  --show-error
+  --retry 3
+  --retry-all-errors
+  --retry-delay 1
+  --connect-timeout 8
+)
 
 cleanup() {
   rm -rf -- "$temp_dir"
@@ -37,8 +46,71 @@ cleanup() {
 
 trap cleanup EXIT
 
-curl --fail --location --silent --show-error "${base_url}/${archive}" --output "${temp_dir}/${archive}"
-curl --fail --location --silent --show-error "${base_url}/${archive}.sha256" --output "${temp_dir}/${archive}.sha256"
+resolve_github_asset_url() {
+  local url="$1"
+  local headers
+  local location
+
+  for _ in 1 2 3; do
+    headers="$(curl "${curl_options[@]}" --head --dump-header - --output /dev/null "$url")"
+    location="$(printf '%s\n' "$headers" | sed -n 's/^location: //Ip' | tr -d '\r' | tail -n 1)"
+    if [[ -z "$location" ]]; then
+      printf '%s\n' "$url"
+      return
+    fi
+
+    case "$location" in
+      /*) url="https://github.com${location}" ;;
+      https://github.com/*|https://release-assets.githubusercontent.com/*) url="$location" ;;
+      *)
+        echo "Refusing unexpected release redirect: ${location%%\?*}" >&2
+        return 1
+        ;;
+    esac
+
+    if [[ "$url" == https://release-assets.githubusercontent.com/* ]]; then
+      printf '%s\n' "$url"
+      return
+    fi
+  done
+
+  echo "Too many GitHub release redirects." >&2
+  return 1
+}
+
+download_file() {
+  local name="$1"
+  local source_url="${base_url}/${name}"
+  local destination="${temp_dir}/${name}"
+  local address
+  local ipv6_addresses
+
+  if [[ "$source_url" == https://github.com/* ]]; then
+    source_url="$(resolve_github_asset_url "$source_url")"
+    ipv6_addresses="$(dig +short release-assets.githubusercontent.com AAAA 2>/dev/null || true)"
+    if [[ -z "$ipv6_addresses" ]]; then
+      ipv6_addresses=$'2606:50c0:8000::154\n2606:50c0:8001::154\n2606:50c0:8002::154\n2606:50c0:8003::154'
+    fi
+
+    for address in "${(@f)ipv6_addresses}"; do
+      if [[ "$address" == *:* ]] && curl \
+        --fail \
+        --silent \
+        --show-error \
+        --connect-timeout 4 \
+        --resolve "release-assets.githubusercontent.com:443:[${address}]" \
+        "$source_url" \
+        --output "$destination"; then
+        return
+      fi
+    done
+  fi
+
+  curl "${curl_options[@]}" --location "$source_url" --output "$destination"
+}
+
+download_file "$archive"
+download_file "${archive}.sha256"
 
 if [[ "$platform" == "mac" ]]; then
   (cd "$temp_dir" && shasum -a 256 -c "${archive}.sha256")
