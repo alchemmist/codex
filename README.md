@@ -28,4 +28,18 @@ A terminal-native coding agent built on [OpenAI Codex](https://github.com/openai
 make install
 ```
 
+## Releases
+
+Create a new fork release from a clean, up-to-date `main` branch:
+
+```sh
+make release-patch
+make release-minor
+make release-major
+```
+
+Each command updates the workspace version, creates and pushes an `alchemmist-vX.Y.Z` tag, and
+starts the macOS arm64 release build. The resulting archive and checksum are published on the
+GitHub Releases page.
+
 Upstream documentation: [developers.openai.com/codex](https://developers.openai.com/codex).

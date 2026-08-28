@@ -11,7 +11,7 @@ CODEX_GIT_COMMIT := $(shell git rev-parse --short=8 HEAD 2>/dev/null || printf u
 CODEX_GIT_DIRTY := $(shell test -z "$$(git status --porcelain --untracked-files=normal -- . ':(exclude)codex-conversation-*.html' 2>/dev/null)" || printf +dirty)
 CODEX_BUILD_COMMIT := $(CODEX_GIT_COMMIT)$(CODEX_GIT_DIRTY)
 
-.PHONY: build install
+.PHONY: build install release-patch release-minor release-major releaes-major
 
 build:
 	cd "$(CODEX_RS_DIR)" && CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" $(CARGO) build --release --bin codex
@@ -21,3 +21,14 @@ install: build
 	$(INSTALL) -m 755 "$(CODEX_BINARY)" "$(CODEX_INSTALL_DIR)/codex"
 	@/bin/zsh -fc 'rehash'
 	@echo "Installed $(CODEX_INSTALL_DIR)/codex"
+
+release-patch:
+	./scripts/release-fork.sh patch
+
+release-minor:
+	./scripts/release-fork.sh minor
+
+release-major:
+	./scripts/release-fork.sh major
+
+releaes-major: release-major

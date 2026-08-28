@@ -1,0 +1,84 @@
+name: alchemmist-release
+
+on:
+  push:
+    tags:
+      - "alchemmist-v*.*.*"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  macos-arm64:
+    name: macOS arm64
+    runs-on: macos-15
+    timeout-minutes: 90
+    defaults:
+      run:
+        working-directory: codex-rs
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_NET_GIT_FETCH_WITH_CLI: "true"
+      CARGO_PROFILE_RELEASE_DEBUG: "0"
+      CARGO_PROFILE_RELEASE_SPLIT_DEBUGINFO: "off"
+      CARGO_TARGET_DIR: ${{ github.workspace }}/codex-rs/target
+      TARGET: aarch64-apple-darwin
+
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Validate release version
+        shell: bash
+        run: |
+          set -euo pipefail
+          [[ "${GITHUB_REF_NAME}" =~ ^alchemmist-v[0-9]+\.[0-9]+\.[0-9]+$ ]]
+          tag_version="${GITHUB_REF_NAME#alchemmist-v}"
+          cargo_version="$(sed -nE 's/^version = "([0-9]+\.[0-9]+\.[0-9]+)"$/\1/p' Cargo.toml | head -n 1)"
+          [[ "${tag_version}" == "${cargo_version}" ]]
+
+      - name: Configure rusty_v8 artifacts
+        uses: ./.github/actions/setup-rusty-v8
+        with:
+          target: aarch64-apple-darwin
+
+      - name: Build Codex
+        shell: bash
+        run: |
+          export STABLE_GIT_COMMIT="${GITHUB_SHA::8}"
+          cargo build --locked --release --target "${TARGET}" --bin codex
+
+      - name: Package Codex
+        id: package
+        shell: bash
+        run: |
+          set -euo pipefail
+          archive="codex-${TARGET}.tar.gz"
+          staging="${RUNNER_TEMP}/codex-${TARGET}"
+          mkdir -p "${staging}"
+          cp "${CARGO_TARGET_DIR}/${TARGET}/release/codex" "${staging}/codex"
+          strip "${staging}/codex"
+          codesign --force --sign - "${staging}/codex"
+          tar -C "${staging}" -czf "${RUNNER_TEMP}/${archive}" codex
+          (cd "${RUNNER_TEMP}" && shasum -a 256 "${archive}" > "${archive}.sha256")
+          echo "archive=${RUNNER_TEMP}/${archive}" >> "${GITHUB_OUTPUT}"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@153bb8e04406b158c6c84fc1615b65b24149a1fe
+        with:
+          name: ${{ github.ref_name }}
+          tag_name: ${{ github.ref_name }}
+          generate_release_notes: true
+          make_latest: true
+          files: |
+            ${{ steps.package.outputs.archive }}
+            ${{ steps.package.outputs.archive }}.sha256
