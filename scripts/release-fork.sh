@@ -71,7 +71,7 @@ PY
 
 (
   cd codex-rs
-  cargo metadata --format-version 1 --no-deps >/dev/null
+  cargo metadata --format-version 1 >/dev/null
 )
 
 tag="alchemmist-v${next_version}"
