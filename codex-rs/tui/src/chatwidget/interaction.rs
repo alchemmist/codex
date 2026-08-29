@@ -3,6 +3,13 @@
 use super::*;
 use crate::bottom_pane::BottomPaneView;
 
+fn is_paste_image_key_event(key_event: KeyEvent) -> bool {
+    key_hint::ctrl(KeyCode::Char('v')).is_press(key_event)
+        || key_hint::alt(KeyCode::Char('v')).is_press(key_event)
+        || key_hint::ctrl_alt(KeyCode::Char('v')).is_press(key_event)
+        || KeyBinding::new(KeyCode::Char('v'), KeyModifiers::SUPER).is_press(key_event)
+}
+
 impl ChatWidget {
     pub(crate) fn keymap_contexts(&self) -> crate::keymap::KeymapContextSet {
         self.bottom_pane.keymap_contexts()
@@ -76,14 +83,7 @@ impl ChatWidget {
                 self.quit_shortcut_expires_at = None;
                 self.quit_shortcut_key = None;
             }
-            KeyEvent {
-                code: KeyCode::Char(c),
-                modifiers,
-                kind: KeyEventKind::Press,
-                ..
-            } if modifiers.intersects(KeyModifiers::CONTROL | KeyModifiers::ALT)
-                && c.eq_ignore_ascii_case(&'v') =>
-            {
+            key_event if is_paste_image_key_event(key_event) => {
                 match paste_image_to_temp_png() {
                     Ok((path, info)) => {
                         tracing::debug!(
@@ -664,3 +664,7 @@ impl ChatWidget {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "interaction_tests.rs"]
+mod tests;
