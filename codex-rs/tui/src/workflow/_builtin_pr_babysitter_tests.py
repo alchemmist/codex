@@ -37,12 +37,14 @@ class FakeContext:
     def agent(self, prompt, **kwargs):
         self.agent_calls.append((prompt, kwargs))
         if prompt.startswith("Inspect pull request"):
+            assert kwargs["sandbox"] == "read-only"
             value = next(self.monitor_results)
         else:
             assert kwargs["developer_instructions"] == self.module.WORKER_POLICY
             assert kwargs["forbid_quality_graph_ignore"] is True
             assert kwargs["cwd"] == "/tmp/pr-7"
             assert kwargs["timeout_seconds"] == 1800
+            assert kwargs["sandbox"] == "danger-full-access"
             assert "Do not create another worktree" in prompt
             value = next(self.worker_results)
         return {"success": True, "message": self.module.json.dumps(value), "error": ""}
@@ -52,7 +54,7 @@ class FakeContext:
         return {
             "exit_code": 0,
             "stdout": self.module.json.dumps(
-                {"path": "/tmp/pr-7", "head_sha": "a" * 40}
+                {"path": "/tmp/pr-7", "head_sha": "a" * 40, "dirty": True}
             ),
             "stderr": "",
         }
@@ -135,8 +137,10 @@ def test_prepare_checkout(module):
         checkout = json.loads(result.stdout)
         checkout_path = pathlib.Path(checkout["path"])
         assert checkout["head_sha"] == head_sha
+        assert checkout["dirty"] is False
         assert (checkout_path / ".git").is_file()
         assert checkout_path.parent.name == "codex-workflow-checkouts"
+        (checkout_path / "file.txt").write_text("changed\n")
         repeated = subprocess.run(
             [
                 sys.executable,
@@ -150,7 +154,10 @@ def test_prepare_checkout(module):
             capture_output=True,
         )
         assert repeated.returncode == 0, repeated.stderr
-        assert json.loads(repeated.stdout) == checkout
+        repeated_checkout = json.loads(repeated.stdout)
+        assert repeated_checkout["path"] == checkout["path"]
+        assert repeated_checkout["head_sha"] == checkout["head_sha"]
+        assert repeated_checkout["dirty"] is True
 
 
 def main():

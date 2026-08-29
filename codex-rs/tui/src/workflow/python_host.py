@@ -86,6 +86,7 @@ class Context:
         reasoning_effort=None,
         developer_instructions=None,
         forbid_quality_graph_ignore=False,
+        sandbox="workspace-write",
         cwd=None,
         timeout_seconds=None,
     ):
@@ -96,6 +97,7 @@ class Context:
             reasoning_effort=reasoning_effort,
             developer_instructions=developer_instructions,
             forbid_quality_graph_ignore=bool(forbid_quality_graph_ignore),
+            sandbox=sandbox,
             cwd=cwd,
             timeout_seconds=timeout_seconds,
         )
@@ -108,6 +110,7 @@ class Context:
         reasoning_effort=None,
         developer_instructions=None,
         forbid_quality_graph_ignore=False,
+        sandbox="workspace-write",
         cwd=None,
         timeout_seconds=None,
     ):
@@ -125,6 +128,7 @@ class Context:
             request.setdefault(
                 "forbid_quality_graph_ignore", bool(forbid_quality_graph_ignore)
             )
+            request.setdefault("sandbox", sandbox)
         return self._request(
             "agent_batch",
             requests=requests,

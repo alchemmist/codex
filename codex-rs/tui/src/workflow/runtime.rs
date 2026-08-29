@@ -231,6 +231,7 @@ impl Runtime {
                 reasoning_effort,
                 developer_instructions,
                 forbid_quality_graph_ignore,
+                sandbox,
                 cwd,
                 timeout_seconds,
                 ..
@@ -241,6 +242,7 @@ impl Runtime {
                     reasoning_effort,
                     developer_instructions,
                     forbid_quality_graph_ignore,
+                    sandbox,
                     cwd,
                     timeout_seconds,
                 };

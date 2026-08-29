@@ -42,6 +42,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
             forbid_quality_graph_ignore: true,
             cwd: None,
             timeout_seconds: Some(10),
+            sandbox: AgentSandbox::DangerFullAccess,
         },
         AgentExecutionContext {
             default_model: None,
@@ -74,6 +75,7 @@ printf '%s\n' '{"type":"turn.completed","usage":{"input_tokens":12,"cached_input
         .expect("read nested codex args");
     assert!(args.contains("model_reasoning_effort=\"low\""));
     assert!(args.contains("developer_instructions=\"Never weaken quality gates.\""));
+    assert!(args.contains("danger-full-access"));
     let guard = tokio::fs::read_to_string(fake_codex.with_extension("guard"))
         .await
         .expect("read nested codex guard");

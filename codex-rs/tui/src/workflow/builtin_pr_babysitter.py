@@ -157,10 +157,12 @@ worktree = root / ".git" / "codex-workflow-checkouts" / f"pr-{number}"
 if worktree.exists():
     if not (worktree / ".git").exists():
         raise RuntimeError(f"existing checkout is not a git worktree: {worktree}")
-    if git("status", "--porcelain", cwd=worktree):
-        raise RuntimeError(f"existing PR checkout is dirty: {worktree}")
     current_head = git("rev-parse", "HEAD", cwd=worktree)
     if current_head != fetched_head:
+        if git("status", "--porcelain", cwd=worktree):
+            raise RuntimeError(
+                f"existing PR checkout is dirty and behind the PR head: {worktree}"
+            )
         subprocess.run(
             ["git", "merge-base", "--is-ancestor", current_head, fetched_head],
             cwd=worktree,
@@ -173,7 +175,8 @@ else:
     worktree.parent.mkdir(parents=True, exist_ok=True)
     git("worktree", "add", "--detach", str(worktree), fetched_head, capture=False)
 
-print(json.dumps({"path": str(worktree), "head_sha": fetched_head}))
+dirty = bool(git("status", "--porcelain", cwd=worktree))
+print(json.dumps({"path": str(worktree), "head_sha": fetched_head, "dirty": dirty}))
 """
 
 
@@ -249,7 +252,9 @@ def worker_prompt(snapshot, checkout):
 {json.dumps(issue_bundle, ensure_ascii=False, sort_keys=True)}
 
 The workflow prepared a real git worktree at `{checkout['path']}` with HEAD
-`{checkout['head_sha']}`. Work only in that checkout. Do not create another worktree, clone, copy,
+`{checkout['head_sha']}`. Existing workflow-owned uncommitted changes: `{checkout['dirty']}`. If
+true, inspect and continue those changes instead of discarding them. Work only in that checkout.
+Do not create another worktree, clone, copy,
 `.repair-*` directory, patch directory, or detached project copy. Start by running `git status` and
 confirming HEAD. Process review feedback before CI failures when a
 code change will retrigger CI. For every feedback item, either implement the valid request and push
@@ -430,6 +435,7 @@ def run(ctx):
             model=monitor_model,
             reasoning_effort=monitor_reasoning,
             developer_instructions=MONITOR_POLICY,
+            sandbox="read-only",
             timeout_seconds=600,
         )
         if not monitor.get("success"):
@@ -572,6 +578,7 @@ def run(ctx):
             reasoning_effort=worker_reasoning,
             developer_instructions=WORKER_POLICY,
             forbid_quality_graph_ignore=True,
+            sandbox="danger-full-access",
             cwd=checkout["path"],
             timeout_seconds=1800,
         )

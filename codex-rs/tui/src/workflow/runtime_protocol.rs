@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::Value;
 
 use super::executor::AgentRequest;
+use super::executor::AgentSandbox;
 
 pub(super) const PROTOCOL_VERSION: u32 = 1;
 pub(super) const MAX_PROTOCOL_LINE_BYTES: usize = 2_097_152;
@@ -38,6 +39,8 @@ pub(super) enum WorkflowRequest {
         developer_instructions: Option<String>,
         #[serde(default)]
         forbid_quality_graph_ignore: bool,
+        #[serde(default)]
+        sandbox: AgentSandbox,
         cwd: Option<String>,
         timeout_seconds: Option<u64>,
     },

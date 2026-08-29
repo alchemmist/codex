@@ -37,6 +37,27 @@ pub(super) struct AgentRequest {
     pub(super) cwd: Option<String>,
     #[serde(default)]
     pub(super) timeout_seconds: Option<u64>,
+    #[serde(default)]
+    pub(super) sandbox: AgentSandbox,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum AgentSandbox {
+    ReadOnly,
+    #[default]
+    WorkspaceWrite,
+    DangerFullAccess,
+}
+
+impl AgentSandbox {
+    fn as_cli_value(self) -> &'static str {
+        match self {
+            Self::ReadOnly => "read-only",
+            Self::WorkspaceWrite => "workspace-write",
+            Self::DangerFullAccess => "danger-full-access",
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize)]
@@ -182,7 +203,7 @@ pub(super) async fn execute_agent(
         .arg("--ephemeral")
         .arg("--skip-git-repo-check")
         .arg("--sandbox")
-        .arg("workspace-write")
+        .arg(request.sandbox.as_cli_value())
         .arg("--cd")
         .arg(&cwd);
     if let Some(model) = &request.model
