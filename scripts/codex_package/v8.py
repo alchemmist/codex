@@ -5,16 +5,24 @@ from __future__ import annotations
 import hashlib
 import os
 import shutil
+import subprocess
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from urllib.request import urlopen
+from urllib.parse import urljoin
+from urllib.parse import urlparse
 
 from .targets import REPO_ROOT, TargetSpec
 
-DOWNLOAD_TIMEOUT_SECS = 120
+DOWNLOAD_TIMEOUT_SECS = 600
 V8_ARTIFACT_PROFILE = "ptrcomp_sandbox_release"
+RELEASE_ASSET_IPV6_FALLBACKS = (
+    "2606:50c0:8000::154",
+    "2606:50c0:8001::154",
+    "2606:50c0:8002::154",
+    "2606:50c0:8003::154",
+)
 
 
 @dataclass(frozen=True)
@@ -171,9 +179,92 @@ def download_file(url: str, dest: Path) -> None:
     temp_path = dest.with_suffix(f"{dest.suffix}.tmp")
     temp_path.unlink(missing_ok=True)
     try:
-        with urlopen(url, timeout=DOWNLOAD_TIMEOUT_SECS) as response:
-            with temp_path.open("wb") as output:
-                shutil.copyfileobj(response, output)
+        if urlparse(url).hostname == "github.com":
+            release_url = resolve_github_asset_url(url)
+            if download_github_asset_over_ipv6(release_url, temp_path):
+                temp_path.replace(dest)
+                return
+        run_curl(["--location", url, "--output", str(temp_path)])
         temp_path.replace(dest)
     finally:
         temp_path.unlink(missing_ok=True)
+
+
+def resolve_github_asset_url(url: str) -> str:
+    for _ in range(3):
+        result = run_curl(
+            ["--head", "--dump-header", "-", "--output", os.devnull, url],
+            capture_output=True,
+        )
+        locations = [
+            line.partition(":")[2].strip()
+            for line in result.stdout.splitlines()
+            if line.lower().startswith("location:")
+        ]
+        if not locations:
+            return url
+        url = urljoin(url, locations[-1])
+        if urlparse(url).hostname == "release-assets.githubusercontent.com":
+            return url
+        if urlparse(url).hostname != "github.com":
+            raise RuntimeError(
+                f"Refusing unexpected release redirect host: {urlparse(url).hostname}"
+            )
+    raise RuntimeError("Too many GitHub release redirects.")
+
+
+def download_github_asset_over_ipv6(url: str, dest: Path) -> bool:
+    addresses = RELEASE_ASSET_IPV6_FALLBACKS
+    if dig := shutil.which("dig"):
+        result = subprocess.run(
+            [dig, "+short", "release-assets.githubusercontent.com", "AAAA"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+        addresses = result.stdout.splitlines() or addresses
+    for address in addresses:
+        attempt = run_curl(
+            [
+                "--connect-timeout",
+                "4",
+                "--resolve",
+                f"release-assets.githubusercontent.com:443:[{address}]",
+                url,
+                "--output",
+                str(dest),
+            ],
+            check=False,
+        )
+        if attempt.returncode == 0:
+            return True
+    return False
+
+
+def run_curl(
+    args: list[str],
+    *,
+    capture_output: bool = False,
+    check: bool = True,
+) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [
+            "curl",
+            "--fail",
+            "--silent",
+            "--show-error",
+            "--retry",
+            "3",
+            "--retry-all-errors",
+            "--retry-delay",
+            "1",
+            "--connect-timeout",
+            "8",
+            "--max-time",
+            str(DOWNLOAD_TIMEOUT_SECS),
+            *args,
+        ],
+        capture_output=capture_output,
+        text=True,
+        check=check,
+    )

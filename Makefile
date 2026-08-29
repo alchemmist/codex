@@ -17,7 +17,7 @@ CODEX_FORK_VERSION := $(shell tr -d '[:space:]' < "$(CURDIR)/FORK_VERSION")
 .PHONY: build install-local install-mac install-linux release-patch release-minor release-major
 
 build:
-	cd "$(CODEX_RS_DIR)" && CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" $(CARGO) build --release --bin codex --bin codex-code-mode-host
+	CODEX_REPO_ROOT="$(CURDIR)" CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" python3 scripts/build-fork-local.py "$(CARGO)"
 
 install-local: build
 	$(INSTALL) -d "$(CODEX_INSTALL_DIR)"
