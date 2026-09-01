@@ -980,6 +980,8 @@ async fn run_ratatui_app(
     environment_manager: Arc<EnvironmentManager>,
     startup_draft: startup_draft::StartupDraft,
 ) -> color_eyre::Result<AppExitInfo> {
+    let mut initial_config = initial_config;
+    service_tier_resolution::reset_fast_mode_for_new_process(&mut initial_config);
     let uses_remote_workspace = app_server_target.uses_remote_workspace();
     let workload_identity_selected = is_workload_identity_selected();
     color_eyre::install()?;
@@ -1121,7 +1123,7 @@ async fn run_ratatui_app(
     let should_show_onboarding =
         should_show_onboarding(login_status, &initial_config, should_show_trust_screen_flag);
 
-    let config = if should_show_onboarding {
+    let mut config = if should_show_onboarding {
         if let Err(err) = startup_draft.flush_pending_events(&mut tui).await {
             shutdown_startup_session(app_server.take(), &mut terminal_restore_guard).await;
             return Err(err.into());
@@ -1217,6 +1219,7 @@ async fn run_ratatui_app(
     } else {
         initial_config
     };
+    service_tier_resolution::reset_fast_mode_for_new_process(&mut config);
     startup_draft.apply_config(&config);
     if !(cli.resume_picker || cli.fork_picker || cli.agents_overview)
         && let Err(err) = startup_draft.show(&mut tui)
@@ -1542,6 +1545,7 @@ async fn run_ratatui_app(
             return Err(err.into());
         }
     };
+    service_tier_resolution::reset_fast_mode_for_new_process(&mut config);
     startup_draft.apply_config(&config);
 
     // Configure syntax highlighting theme from the final config — onboarding

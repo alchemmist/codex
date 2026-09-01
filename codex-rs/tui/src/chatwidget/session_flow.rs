@@ -3,14 +3,37 @@
 use super::*;
 use crate::tmux_command_log::TmuxCommandLog;
 use crate::tmux_command_log::TmuxViewerState;
+use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
+use codex_protocol::config_types::ServiceTier;
 
 impl ChatWidget {
     fn on_session_configured_with_display_and_fork_parent_title(
         &mut self,
-        session: ThreadSessionState,
+        mut session: ThreadSessionState,
         display: SessionConfiguredDisplay,
         fork_parent_title: Option<String>,
     ) {
+        let stale_fast_mode = session.service_tier.as_deref()
+            == Some(ServiceTier::Fast.request_value())
+            && !self.fast_mode_threads.contains(&session.thread_id);
+        if stale_fast_mode {
+            session.service_tier = Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE.to_string());
+            self.app_event_tx
+                .send(AppEvent::CodexOp(AppCommand::override_turn_context(
+                    /*cwd*/ None,
+                    /*approval_policy*/ None,
+                    /*approvals_reviewer*/ None,
+                    /*permission_profile*/ None,
+                    /*active_permission_profile*/ None,
+                    /*windows_sandbox_level*/ None,
+                    /*model*/ None,
+                    /*effort*/ None,
+                    /*summary*/ None,
+                    Some(session.service_tier.clone()),
+                    /*collaboration_mode*/ None,
+                    /*personality*/ None,
+                )));
+        }
         if display != SessionConfiguredDisplay::SideConversation {
             self.ensure_tmux_command_log(session.thread_id, session.cwd.as_path());
         }

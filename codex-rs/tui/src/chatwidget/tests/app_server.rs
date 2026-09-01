@@ -374,6 +374,16 @@ async fn thread_settings_updated_updates_visible_state_without_transcript() {
     );
     assert_eq!(
         chat.current_service_tier(),
+        Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE)
+    );
+
+    chat.toggle_fast_mode_from_ui();
+    chat.handle_server_notification(
+        ServerNotification::ThreadSettingsUpdated(thread_settings_for_test("gpt-5.4", thread_id)),
+        /*replay_kind*/ None,
+    );
+    assert_eq!(
+        chat.current_service_tier(),
         Some(ServiceTier::Fast.request_value())
     );
     assert_eq!(

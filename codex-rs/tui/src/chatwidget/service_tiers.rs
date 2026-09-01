@@ -60,16 +60,21 @@ impl ChatWidget {
         } else {
             Some(fast_tier.id)
         };
-        self.set_service_tier_selection(next_tier);
+        self.set_fast_mode_selection(next_tier);
     }
 
     pub(crate) fn toggle_service_tier_from_ui(&mut self, command: ServiceTierCommand) {
+        let is_fast_mode = command.id == ServiceTier::Fast.request_value();
         let next_tier = if self.current_service_tier() == Some(command.id.as_str()) {
             Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE.to_string())
         } else {
             Some(command.id)
         };
-        self.set_service_tier_selection(next_tier);
+        if is_fast_mode {
+            self.set_fast_mode_selection(next_tier);
+        } else {
+            self.set_service_tier_selection(next_tier);
+        }
     }
 
     pub(super) fn sync_service_tier_commands(&mut self) {
@@ -104,6 +109,23 @@ impl ChatWidget {
     }
 
     fn set_service_tier_selection(&mut self, service_tier: Option<String>) {
+        self.apply_service_tier_selection(service_tier.clone());
+        self.app_event_tx
+            .send(AppEvent::PersistServiceTierSelection { service_tier });
+    }
+
+    fn set_fast_mode_selection(&mut self, service_tier: Option<String>) {
+        if let Some(thread_id) = self.thread_id {
+            if service_tier.as_deref() == Some(ServiceTier::Fast.request_value()) {
+                self.fast_mode_threads.insert(thread_id);
+            } else {
+                self.fast_mode_threads.remove(&thread_id);
+            }
+        }
+        self.apply_service_tier_selection(service_tier);
+    }
+
+    fn apply_service_tier_selection(&mut self, service_tier: Option<String>) {
         self.set_service_tier(service_tier.clone());
         self.app_event_tx
             .send(AppEvent::CodexOp(AppCommand::override_turn_context(
@@ -116,12 +138,10 @@ impl ChatWidget {
                 /*model*/ None,
                 /*effort*/ None,
                 /*summary*/ None,
-                Some(service_tier.clone()),
+                Some(service_tier),
                 /*collaboration_mode*/ None,
                 /*personality*/ None,
             )));
-        self.app_event_tx
-            .send(AppEvent::PersistServiceTierSelection { service_tier });
     }
 
     fn model_supports_service_tier(&self, model: &str, service_tier: &str) -> bool {

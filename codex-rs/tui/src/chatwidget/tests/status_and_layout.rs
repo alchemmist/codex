@@ -3852,11 +3852,23 @@ async fn status_line_fast_mode_renders_on_and_off() {
     chat.config.tui_status_line = Some(vec!["fast-mode".to_string()]);
 
     chat.refresh_status_line();
-    assert_eq!(status_line_text(&chat), Some("Fast off".to_string()));
+    assert_eq!(status_line_text(&chat), None);
 
     chat.set_service_tier(Some(ServiceTier::Fast.request_value().to_string()));
     chat.refresh_status_line();
-    assert_eq!(status_line_text(&chat), Some("Fast on".to_string()));
+    assert_eq!(status_line_text(&chat), Some("⚡".to_string()));
+}
+
+#[tokio::test]
+async fn status_line_always_shows_lightning_when_fast_mode_is_active() {
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    set_fast_mode_test_catalog(&mut chat);
+    chat.config.tui_status_line = Some(vec!["current-dir".to_string()]);
+
+    chat.set_service_tier(Some(ServiceTier::Fast.request_value().to_string()));
+    chat.refresh_status_line();
+
+    assert!(status_line_text(&chat).is_some_and(|line| line.contains('⚡')));
 }
 
 #[tokio::test]
@@ -3866,18 +3878,18 @@ async fn status_line_fast_mode_updates_visibility_on_model_change() {
     chat.config.tui_status_line = Some(vec!["fast-mode".to_string()]);
 
     chat.refresh_status_line();
-    assert_eq!(status_line_text(&chat), Some("Fast off".to_string()));
+    assert_eq!(status_line_text(&chat), None);
 
     chat.set_model("gpt-5.2");
     assert_eq!(status_line_text(&chat), None);
 
     chat.set_model("gpt-5.4");
-    assert_eq!(status_line_text(&chat), Some("Fast off".to_string()));
+    assert_eq!(status_line_text(&chat), None);
 
     chat.set_model("uncatalogued-model");
-    assert_eq!(status_line_text(&chat), Some("Fast off".to_string()));
+    assert_eq!(status_line_text(&chat), None);
     chat.set_service_tier(Some(ServiceTier::Fast.request_value().to_string()));
-    assert_eq!(status_line_text(&chat), Some("Fast on".to_string()));
+    assert_eq!(status_line_text(&chat), Some("⚡".to_string()));
 }
 
 #[tokio::test]
@@ -3885,7 +3897,7 @@ async fn status_line_fast_mode_footer_snapshot() {
     use ratatui::Terminal;
     use ratatui::backend::TestBackend;
 
-    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.2")).await;
+    let (mut chat, _rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
     set_fast_mode_test_catalog(&mut chat);
     chat.show_welcome_banner = false;
     chat.config.tui_status_line = Some(vec![
@@ -3893,6 +3905,7 @@ async fn status_line_fast_mode_footer_snapshot() {
         "fast-mode".to_string(),
     ]);
     chat.set_reasoning_effort(Some(ReasoningEffortConfig::High));
+    chat.set_service_tier(Some(ServiceTier::Fast.request_value().to_string()));
     chat.refresh_status_line();
 
     let width = 80;
@@ -3928,7 +3941,9 @@ async fn status_line_model_with_reasoning_includes_fast_for_fast_capable_models(
 
     assert_eq!(
         status_line_text(&chat),
-        Some(format!("gpt-5.4 xhigh fast · Context 0% used · {test_cwd}"))
+        Some(format!(
+            "gpt-5.4 xhigh fast · Context 0% used · {test_cwd} · ⚡"
+        ))
     );
 
     chat.set_model("gpt-5.2");
@@ -3964,7 +3979,7 @@ async fn status_line_and_terminal_title_reasoning_render_only_effort() {
     chat.refresh_status_line();
     chat.refresh_terminal_title();
 
-    assert_eq!(status_line_text(&chat), Some("xhigh".to_string()));
+    assert_eq!(status_line_text(&chat), Some("xhigh · ⚡".to_string()));
     assert_eq!(chat.last_terminal_title, Some("xhigh".to_string()));
 }
 

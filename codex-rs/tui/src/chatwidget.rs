@@ -560,6 +560,7 @@ pub(crate) struct ChatWidget {
     raw_output_mode: bool,
     /// Runtime value resolved by core. `config.service_tier` remains the explicit user choice.
     effective_service_tier: Option<String>,
+    fast_mode_threads: HashSet<ThreadId>,
     /// The unmasked collaboration mode settings (always Default mode).
     ///
     /// Masks are applied on top of this base mode to derive the effective mode.

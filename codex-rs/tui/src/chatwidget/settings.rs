@@ -3,6 +3,8 @@
 use super::*;
 use crate::app_event::AppEvent;
 use crate::chatwidget::rate_limits::RATE_LIMIT_SWITCH_PROMPT_VIEW_ID;
+use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
+use codex_protocol::config_types::ServiceTier;
 
 impl ChatWidget {
     /// Set the approval policy in the widget's config copy.
@@ -453,7 +455,17 @@ impl ChatWidget {
         let cwd_changed = self.config.cwd != settings.cwd;
         self.apply_thread_settings_cwd(settings.cwd.clone());
         self.config.model_provider_id = settings.model_provider.clone();
-        self.set_service_tier(settings.service_tier.clone());
+        let service_tier = if settings.service_tier.as_deref()
+            == Some(ServiceTier::Fast.request_value())
+            && self
+                .thread_id
+                .is_none_or(|thread_id| !self.fast_mode_threads.contains(&thread_id))
+        {
+            Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE.to_string())
+        } else {
+            settings.service_tier.clone()
+        };
+        self.set_service_tier(service_tier);
         self.set_approval_policy(settings.approval_policy);
         self.set_approvals_reviewer(settings.approvals_reviewer.to_core());
         self.config.personality = settings.personality;

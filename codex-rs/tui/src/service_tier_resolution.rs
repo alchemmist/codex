@@ -1,7 +1,25 @@
 use crate::legacy_core::config::Config;
 use codex_features::Feature;
 use codex_protocol::config_types::SERVICE_TIER_DEFAULT_REQUEST_VALUE;
+use codex_protocol::config_types::ServiceTier;
 use codex_protocol::openai_models::ModelPreset;
+
+pub(crate) fn reset_fast_mode_for_new_process(config: &mut Config) {
+    config.service_tier = service_tier_for_new_process(config.service_tier.take());
+}
+
+fn service_tier_for_new_process(service_tier: Option<String>) -> Option<String> {
+    if service_tier.is_none()
+        || service_tier
+            .as_deref()
+            .and_then(ServiceTier::from_request_value)
+            == Some(ServiceTier::Fast)
+    {
+        Some(SERVICE_TIER_DEFAULT_REQUEST_VALUE.to_string())
+    } else {
+        service_tier
+    }
+}
 
 pub(crate) fn configured_service_tier(config: &Config) -> Option<String> {
     config.service_tier.clone().or_else(|| {
@@ -62,3 +80,7 @@ pub(crate) fn model_supports_service_tier(model: &ModelPreset, service_tier: &st
         .iter()
         .any(|tier| tier.id == service_tier)
 }
+
+#[cfg(test)]
+#[path = "service_tier_resolution_tests.rs"]
+mod tests;

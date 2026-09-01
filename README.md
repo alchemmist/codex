@@ -9,6 +9,7 @@ A terminal-native coding agent built on [OpenAI Codex](https://github.com/openai
 - `Ctrl+S` stashes the current prompt draft, persists it across restarts, and restores it on the next press.
 - `/subagents <prompt>` explicitly enables subagents for one request; `/subagents` arms them for the next prompt.
 - `/statusline` can show the number of active subagents, while `/agents` opens an overview of their work.
+- Fast mode is process-local, resets to standard on every start or resume, and shows `⚡` in the status line while active.
 - `/cd <path>` changes the current session's working directory without restarting Codex.
 - `/todo` shows the complete plan, while a compact adaptive list of active items remains visible at the bottom of the TUI.
 - `/workflow` runs configurable Python workflows with persistent state, per-agent models and reasoning, and parallel-agent support. The PR babysitter keeps CI and review feedback moving with fresh repair agents and forbids Quality Graph ignores.

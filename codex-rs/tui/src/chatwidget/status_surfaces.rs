@@ -419,7 +419,13 @@ impl ChatWidget {
     ///
     /// Unknown ids are deduplicated in insertion order for warning messages.
     fn status_line_items_with_invalids(&self) -> (Vec<StatusLineItem>, Vec<String>) {
-        parse_items_with_invalids(self.configured_status_line_items())
+        let (mut items, invalid) = parse_items_with_invalids(self.configured_status_line_items());
+        if self.current_service_tier() == Some(ServiceTier::Fast.request_value())
+            && !items.contains(&StatusLineItem::FastMode)
+        {
+            items.push(StatusLineItem::FastMode);
+        }
+        (items, invalid)
     }
 
     pub(super) fn configured_status_line_items(&self) -> Vec<String> {
@@ -765,13 +771,8 @@ impl ChatWidget {
                         .find(|preset| preset.model == self.current_model())
                 })
                 .is_none_or(|preset| preset.supports_fast_mode())
-                .then(|| {
-                    if self.current_service_tier() == Some(ServiceTier::Fast.request_value()) {
-                        "Fast on".to_string()
-                    } else {
-                        "Fast off".to_string()
-                    }
-                }),
+                .then_some("⚡".to_string())
+                .filter(|_| self.current_service_tier() == Some(ServiceTier::Fast.request_value())),
             StatusLineItem::RawOutput => self.raw_output_mode().then(|| "raw output".to_string()),
             StatusLineItem::ThreadTitle => self.thread_name.as_ref().map_or_else(
                 || self.thread_id.map(|id| id.to_string()),
