@@ -61,15 +61,12 @@ pub(crate) fn terminal_foreground(color: Color) -> Color {
 ///
 /// Computed neutral surfaces intentionally collapse to the terminal's default background. This
 /// keeps transcript and composer cells theme-agnostic after they have entered terminal scrollback.
-/// Explicit chromatic ANSI backgrounds remain available for selections and warnings.
+/// Dark gray remains available for transient selections, while explicit chromatic ANSI backgrounds
+/// remain available for warnings.
 pub(crate) fn terminal_background(color: Color) -> Color {
     match color {
-        Color::Reset
-        | Color::Black
-        | Color::Gray
-        | Color::DarkGray
-        | Color::White
-        | Color::Rgb(..) => Color::Reset,
+        Color::Reset | Color::Black | Color::Gray | Color::White | Color::Rgb(..) => Color::Reset,
+        Color::DarkGray => Color::DarkGray,
         Color::Indexed(index) => ansi_system_color(index)
             .map(terminal_background)
             .unwrap_or(Color::Reset),
@@ -721,6 +718,11 @@ mod tests {
                     terminal_background(indexed_color(9)),
                 ),
                 (
+                    "visual selection background",
+                    Color::Reset,
+                    terminal_background(Color::DarkGray),
+                ),
+                (
                     "diff addition",
                     terminal_foreground(Color::Green),
                     terminal_background(rgb_color((33, 58, 43))),
@@ -732,6 +734,11 @@ mod tests {
                 ),
             ]
         );
+    }
+
+    #[test]
+    fn terminal_background_preserves_visual_selection_gray() {
+        assert_eq!(terminal_background(Color::DarkGray), Color::DarkGray);
     }
 
     #[test]
