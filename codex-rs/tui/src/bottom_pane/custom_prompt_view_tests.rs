@@ -116,7 +116,7 @@ fn vim_prompt_hint_tracks_escape_behavior() {
     insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to go back");
     insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to go back");
     view.handle_key_event(KeyEvent::from(KeyCode::Char('R')));
-    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to go back");
+    insta::assert_snapshot!(rendered_hint(&view, /*width*/ 80), @"Press enter to confirm or esc to enter normal mode");
 }
 
 #[test]

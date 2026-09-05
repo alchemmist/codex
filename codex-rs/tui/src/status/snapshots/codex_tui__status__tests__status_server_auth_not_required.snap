@@ -5,7 +5,7 @@ expression: rendered
 /status
 
 ╭────────────────────────────────────────────────────────────────────────────────────────╮
-│  >_ OpenAI Codex (v0.146.0)                                                            │
+│  >_ OpenAI Codex (v0.153.4)                                                            │
 │                                                                                        │
 │  Model:            gpt-5.6-sol (reasoning none, summaries auto)                        │
 │  Model provider:   Amazon Bedrock - https://bedrock-mantle.eu-west-1.api.aws/openai/v1 │

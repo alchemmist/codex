@@ -349,8 +349,10 @@ async fn legacy_terminal_preserves_active_alt_chords() -> Result<()> {
 async fn legacy_terminal_preserves_image_paste_without_reading_clipboard() -> Result<()> {
     for mode in ['i', 'R'] {
         let (mut app, mut tui, mut app_server) = chord_app().await?;
-        app.chat_widget.toggle_vim_mode_and_notify();
-        app.chat_widget.insert_str("abc");
+        if !app.chat_widget.composer_is_vim_enabled() {
+            app.chat_widget.toggle_vim_mode_and_notify();
+        }
+        press(&mut app, &mut tui, &mut app_server, KeyCode::Esc.into()).await?;
         press(
             &mut app,
             &mut tui,
@@ -358,6 +360,7 @@ async fn legacy_terminal_preserves_image_paste_without_reading_clipboard() -> Re
             KeyCode::Char(mode).into(),
         )
         .await?;
+        app.chat_widget.insert_str("abc");
         for key in [
             KeyEvent::new(KeyCode::Char('v'), KeyModifiers::ALT),
             KeyEvent::new(KeyCode::Char('V'), KeyModifiers::ALT | KeyModifiers::SHIFT),
@@ -384,7 +387,9 @@ async fn legacy_terminal_preserves_agent_shortcuts_without_editor_word_bindings(
             RuntimeKeymap::from_config(&config).map_err(|error| color_eyre::eyre::eyre!(error))?;
         app.chat_widget.apply_keymap_update(config, &runtime);
         app.keymap = runtime;
-        app.chat_widget.toggle_vim_mode_and_notify();
+        if !app.chat_widget.composer_is_vim_enabled() {
+            app.chat_widget.toggle_vim_mode_and_notify();
+        }
         press(&mut app, &mut tui, &mut app_server, KeyCode::Esc.into()).await?;
         press(
             &mut app,

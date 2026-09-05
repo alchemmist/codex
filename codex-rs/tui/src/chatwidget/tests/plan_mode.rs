@@ -1355,12 +1355,26 @@ async fn plan_slash_command_with_hidden_shell_paste_rejected_image_remains_liter
         .expect("current model")
         .input_modalities
         .retain(|modality| *modality != InputModality::Image);
-    chat.model_catalog = Arc::new(ModelCatalog::new(models));
+    let collaboration_modes = chat.model_catalog.collaboration_modes.clone();
+    chat.model_catalog =
+        Arc::new(ModelCatalog::new(models).with_collaboration_modes(collaboration_modes));
     let payload = paste_hidden_plan_shell_payload(&mut chat);
     chat.set_remote_image_urls(vec!["https://example.com/image.png".to_string()]);
 
     chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
+    assert_eq!(
+        chat.composer_text_with_pending(),
+        format!("/plan {payload}")
+    );
+    assert!(!chat.bottom_pane.is_task_running());
+    assert!(chat.bottom_pane.composer_pending_pastes().is_empty());
     chat.set_remote_image_urls(Vec::new());
+    assert_eq!(
+        chat.composer_text_with_pending(),
+        format!("/plan {payload}")
+    );
+    assert!(!chat.is_user_turn_pending_or_running());
+    assert!(chat.no_modal_or_popup_active());
     chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
 
     assert_literal_plan_prompt(&chat, op_rx.try_recv(), payload);

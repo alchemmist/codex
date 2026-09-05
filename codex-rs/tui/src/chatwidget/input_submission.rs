@@ -528,6 +528,7 @@ impl ChatWidget {
     ) {
         // Preserve the user's composed payload so they can retry after changing models.
         let local_image_paths = local_images.iter().map(|img| img.path.clone()).collect();
+        self.bottom_pane.set_composer_pending_pastes(Vec::new());
         self.set_remote_image_urls(remote_image_urls);
         self.bottom_pane.set_composer_text_with_mention_bindings(
             text,

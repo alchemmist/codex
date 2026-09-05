@@ -898,14 +898,16 @@ impl ChatWidget {
                     return;
                 }
                 if self.is_session_configured() {
-                    self.reasoning_buffer.clear();
-                    self.reasoning_header = None;
-                    self.reasoning_summary_parts.clear();
-                    self.set_status_header(String::from("Working"));
-                    self.submit_user_message_with_shell_escape_policy(
+                    let submitted = self.submit_user_message_with_shell_escape_policy(
                         user_message,
                         ShellEscapePolicy::Disallow,
                     );
+                    if submitted.is_some() {
+                        self.reasoning_buffer.clear();
+                        self.reasoning_header = None;
+                        self.reasoning_summary_parts.clear();
+                        self.set_status_header(String::from("Working"));
+                    }
                 } else {
                     self.queue_user_message_with_options(
                         user_message,

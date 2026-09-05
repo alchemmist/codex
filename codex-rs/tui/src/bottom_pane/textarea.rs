@@ -436,11 +436,9 @@ impl TextArea {
     /// transition rather than a popup cancel/backtrack or turn-interrupt shortcut.
     pub(crate) fn should_handle_vim_insert_escape(&self, event: KeyEvent) -> bool {
         self.vim_enabled
-            && (self.vim_mode == VimMode::Insert
+            && (matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
                 || self.vim_visual.is_some()
                 || !matches!(self.vim_pending, VimPending::None))
-            && (matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
-                || self.is_vim_operator_pending())
             && event.code == KeyCode::Esc
             && event.modifiers == KeyModifiers::NONE
             && matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat)

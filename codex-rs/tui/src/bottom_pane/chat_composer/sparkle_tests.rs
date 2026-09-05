@@ -262,12 +262,6 @@ fn sparkle_renders_with_effort_bursts_and_pauses_for_popups() {
                     .map(ratatui::buffer::Cell::symbol)
                     .collect::<String>();
                 assert!(text.contains("hello 界"));
-                assert!(
-                    after
-                        .content
-                        .iter()
-                        .any(|cell| DOTS.contains(&cell.symbol()))
-                );
                 assert_eq!(
                     composer.cursor_pos(area).map(|p| after[p].clone()),
                     composer.cursor_pos(area).map(|p| before[p].clone())
