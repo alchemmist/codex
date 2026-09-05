@@ -309,6 +309,7 @@ pub(crate) enum AppEvent {
         result: Result<(), String>,
     },
     /// Open the agent picker for switching active threads.
+    #[allow(dead_code)]
     OpenAgentPicker,
     /// Merge a completed root-scoped agent-picker refresh without blocking terminal input.
     AgentPickerThreadsLoaded {
@@ -462,6 +463,7 @@ pub(crate) enum AppEvent {
     ///
     /// This is the Plan Mode handoff path: the previous thread remains resumable, but the model
     /// sees only the explicit prompt carried in `text` once the new session is configured.
+    #[allow(dead_code)]
     ClearUiAndSubmitUserMessage {
         text: String,
     },
@@ -1317,6 +1319,7 @@ pub(crate) enum AppEvent {
     OpenReviewCustomPrompt,
 
     /// Submit a user message with an explicit collaboration mask.
+    #[allow(dead_code)]
     SubmitUserMessageWithMode {
         text: String,
         collaboration_mode: CollaborationModeMask,

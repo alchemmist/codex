@@ -315,15 +315,6 @@ impl TextArea {
         self.vim_mode_start = start;
     }
 
-    pub(crate) fn reset_vim_mode(&mut self) {
-        if self.vim_enabled {
-            self.vim_mode = self.configured_vim_mode_start();
-            self.vim_visual = None;
-            self.vim_pending = VimPending::None;
-            self.preferred_col = None;
-        }
-    }
-
     fn configured_vim_mode_start(&self) -> VimMode {
         match self.vim_mode_start {
             VimModeStart::Normal => VimMode::Normal,
