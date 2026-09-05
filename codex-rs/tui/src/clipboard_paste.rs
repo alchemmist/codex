@@ -2,6 +2,9 @@ use std::path::Path;
 use std::path::PathBuf;
 use tempfile::Builder;
 
+#[cfg(target_os = "macos")]
+mod macos;
+
 #[derive(Debug, Clone)]
 pub enum PasteImageError {
     ClipboardUnavailable(String),
@@ -73,18 +76,36 @@ pub fn paste_image_as_png() -> Result<(Vec<u8>, PastedImageInfo), PasteImageErro
         img
     } else {
         let _span = tracing::debug_span!("get_image").entered();
-        let img = cb
-            .get_image()
-            .map_err(|e| PasteImageError::NoImage(e.to_string()))?;
-        let w = img.width as u32;
-        let h = img.height as u32;
-        tracing::debug!("clipboard image opened from image: {}x{}", w, h);
+        match cb.get_image() {
+            Ok(img) => {
+                let w = img.width as u32;
+                let h = img.height as u32;
+                tracing::debug!("clipboard image opened from image: {}x{}", w, h);
 
-        let Some(rgba_img) = image::RgbaImage::from_raw(w, h, img.bytes.into_owned()) else {
-            return Err(PasteImageError::EncodeFailed("invalid RGBA buffer".into()));
-        };
+                let Some(rgba_img) = image::RgbaImage::from_raw(w, h, img.bytes.into_owned())
+                else {
+                    return Err(PasteImageError::EncodeFailed("invalid RGBA buffer".into()));
+                };
 
-        image::DynamicImage::ImageRgba8(rgba_img)
+                image::DynamicImage::ImageRgba8(rgba_img)
+            }
+            Err(error) => {
+                #[cfg(target_os = "macos")]
+                if let Ok(image) = macos::read_public_png() {
+                    tracing::debug!(
+                        "clipboard image opened from macOS PNG fallback: {}x{}",
+                        image.width(),
+                        image.height()
+                    );
+                    image
+                } else {
+                    return Err(PasteImageError::NoImage(error.to_string()));
+                }
+
+                #[cfg(not(target_os = "macos"))]
+                return Err(PasteImageError::NoImage(error.to_string()));
+            }
+        }
     };
 
     let mut png: Vec<u8> = Vec::new();
