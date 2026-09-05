@@ -58,6 +58,7 @@ impl ChatWidget {
                 let should_submit_now = self.is_session_configured()
                     && !self.is_plan_streaming_in_tui()
                     && !self.input_queue.suppress_queue_autosend
+                    && !self.input_queue.rate_limit_recovery_pending
                     && (!self.input_queue.user_turn_pending_start
                         || self.turn_lifecycle.agent_turn_running);
                 if should_submit_now {
@@ -183,12 +184,13 @@ impl ChatWidget {
         pending_pastes: Vec<(String, String)>,
         subagent_spawn_policy: SubagentSpawnPolicy,
     ) {
-        if self.misalignment_policy_violation {
+        if self.has_misalignment_policy_violation() {
             return;
         }
         let should_run_now = self.is_session_configured()
             && !self.is_user_turn_pending_or_running()
-            && !self.input_queue.suppress_queue_autosend;
+            && !self.input_queue.suppress_queue_autosend
+            && !self.input_queue.rate_limit_recovery_pending;
         if !should_run_now || action != QueuedInputAction::Plain {
             self.input_queue
                 .queued_user_messages
@@ -213,8 +215,10 @@ impl ChatWidget {
     /// If idle and there are queued inputs, submit exactly one to start the next turn.
     pub(crate) fn maybe_send_next_queued_input(&mut self) -> bool {
         if !self.is_session_configured()
-            || self.misalignment_policy_violation
+            || self.has_misalignment_policy_violation()
             || self.input_queue.suppress_queue_autosend
+            || self.input_queue.rate_limit_recovery_pending
+            || self.input_queue.recovered_queue
         {
             return false;
         }
@@ -323,6 +327,10 @@ impl ChatWidget {
 
     /// Rebuild and update the bottom-pane pending-input preview.
     pub(super) fn refresh_pending_input_preview(&mut self) {
+        let has_queued = self.has_queued_follow_up_messages();
+        if let Some(questions) = &mut self.bottom_pane.questions {
+            questions.has_queued_messages = has_queued;
+        }
         let preview = self.input_queue.preview();
         self.bottom_pane.set_pending_input_preview(
             preview.queued_messages,

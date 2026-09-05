@@ -93,16 +93,16 @@ def test_prepare_checkout(module):
         origin = root / "origin.git"
         seed = root / "seed"
         workspace = root / "workspace"
-        subprocess.run(["git", "init", "--bare", origin], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "init", "--bare", origin], check=True, capture_output=True
+        )
         subprocess.run(["git", "init", seed], check=True, capture_output=True)
         subprocess.run(
             ["git", "config", "user.email", "test@example.com"],
             cwd=seed,
             check=True,
         )
-        subprocess.run(
-            ["git", "config", "user.name", "Test"], cwd=seed, check=True
-        )
+        subprocess.run(["git", "config", "user.name", "Test"], cwd=seed, check=True)
         (seed / "file.txt").write_text("content\n")
         subprocess.run(["git", "add", "file.txt"], cwd=seed, check=True)
         subprocess.run(["git", "commit", "-m", "initial"], cwd=seed, check=True)
@@ -120,7 +120,9 @@ def test_prepare_checkout(module):
             cwd=origin,
             check=True,
         )
-        subprocess.run(["git", "clone", origin, workspace], check=True, capture_output=True)
+        subprocess.run(
+            ["git", "clone", origin, workspace], check=True, capture_output=True
+        )
         result = subprocess.run(
             [
                 sys.executable,

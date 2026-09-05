@@ -180,6 +180,7 @@ fn commentary_is_exported_as_collapsible_activity() {
         phase: Some(MessagePhase::Commentary),
         memory_citation: None,
         delivery: None,
+        questions: None,
     };
     let final_answer = ThreadItem::AgentMessage {
         id: "final".to_string(),
@@ -187,6 +188,7 @@ fn commentary_is_exported_as_collapsible_activity() {
         phase: Some(MessagePhase::FinalAnswer),
         memory_citation: None,
         delivery: None,
+        questions: None,
     };
 
     assert!(super::export_activity_cell(&commentary).is_some());

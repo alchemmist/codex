@@ -30,8 +30,10 @@ use std::sync::atomic::Ordering;
 use std::time::Duration;
 
 use crate::binding::call_tool_result_from_rmcp;
+use crate::catalog::McpServerSource;
 use crate::elicitation::ElicitationRequestManager;
 use crate::elicitation::ElicitationRequestRouter;
+use crate::event_stream::EventStreamConnectionSettings;
 use crate::mcp::CODEX_APPS_MCP_SERVER_NAME;
 use crate::mcp::ToolPluginProvenance;
 use crate::pagination::MAX_CODEX_APPS_TOOL_CATALOG_ITEMS;
@@ -52,6 +54,8 @@ use crate::tool_catalog_cache::McpToolCatalogCacheContext;
 use crate::tools::ToolFilter;
 use crate::tools::ToolInfo;
 use crate::tools::filter_tools;
+use crate::trusted_access::ENTITLEMENT_CONTEXT_KEY;
+use crate::trusted_access::TrustedAccessContext;
 use anyhow::Context;
 use anyhow::Result;
 use anyhow::anyhow;
@@ -168,10 +172,10 @@ impl McpServerView {
     async fn listed_tools(
         &self,
         tool_plugin_provenance: &ToolPluginProvenance,
-    ) -> Option<Vec<ToolInfo>> {
+    ) -> Result<Vec<ToolInfo>, StartupOutcomeError> {
         let tools = self.connection.client.listed_tools().await?;
         let tools = filter_tools(tools, &self.tool_filter);
-        Some(if self.connection.client.is_codex_apps_mcp_server {
+        Ok(if self.connection.client.is_codex_apps_mcp_server {
             prepare_codex_apps_tools_for_model(tools, tool_plugin_provenance)
         } else {
             prepare_regular_mcp_tools_for_model(tools, tool_plugin_provenance)
@@ -182,6 +186,7 @@ impl McpServerView {
 /// A published view over a set of running MCP server connections.
 pub(crate) struct McpConnectionSet {
     servers: HashMap<String, McpServerView>,
+    pub(crate) event_stream_connection: Option<Arc<EventStreamConnectionSettings>>,
     disabled_servers: Vec<String>,
     protocol_mode: crate::McpProtocolMode,
     required_servers: Vec<String>,
@@ -193,6 +198,7 @@ pub(crate) struct McpConnectionSet {
     prefix_mcp_tool_names: bool,
     non_prefixed_mcp_tool_servers: Vec<String>,
     elicitation_requests: ElicitationRequestManager,
+    pub(crate) trusted_access: Option<TrustedAccessContext>,
 }
 
 impl McpConnectionSet {
@@ -204,6 +210,7 @@ impl McpConnectionSet {
         input: McpRuntimeInput,
         elicitation_router: ElicitationRequestRouter,
     ) -> Self {
+        let trusted_access = TrustedAccessContext::from_runtime(&input);
         let McpRuntimeInput {
             startup_policy,
             config,
@@ -219,12 +226,13 @@ impl McpConnectionSet {
             codex_apps_tools_cache_key,
             client_mcp_extensions,
             auth,
-            codex_apps_auth_manager,
+            auth_manager,
             elicitation_reviewer,
             elicitation_lifecycle,
         } = input;
         let store_mode = config.mcp_oauth_credentials_store_mode;
         let keyring_backend_kind = config.auth_keyring_backend_kind;
+        let oauth_refresh_mode = config.oauth_refresh_mode;
         let codex_home = config.codex_home.clone();
         let prefix_mcp_tool_names = config.prefix_mcp_tool_names;
         let non_prefixed_mcp_tool_servers = config.non_prefixed_mcp_tool_servers.clone();
@@ -233,6 +241,7 @@ impl McpConnectionSet {
         let tool_plugin_provenance = crate::mcp::tool_plugin_provenance(&config);
         let auth = auth.as_ref();
         let mut servers = HashMap::new();
+        let mut event_stream_connection = None;
         let disabled_servers = mcp_servers
             .iter()
             .filter(|(_, server)| !server.enabled())
@@ -272,23 +281,31 @@ impl McpConnectionSet {
         let static_chatgpt_auth_provider = auth
             .filter(|auth| auth.uses_codex_backend())
             .map(codex_model_provider::auth_provider_from_auth);
-        let codex_apps_auth_provider = codex_apps_auth_manager.and_then(|auth_manager| {
+        let codex_apps_auth_provider = auth_manager.as_ref().and_then(|auth_manager| {
             auth.filter(|auth| auth.uses_codex_backend()).map(|auth| {
-                codex_model_provider::auth_provider_from_auth_manager(auth_manager, auth)
+                codex_model_provider::auth_provider_from_auth_manager(
+                    Arc::clone(auth_manager),
+                    auth,
+                )
             })
         });
         for (server_name, server) in mcp_servers
             .into_iter()
             .filter(|(_, server)| server.enabled())
         {
-            let is_host_owned_codex_apps = config
-                .mcp_server_catalog
-                .server(&server_name)
-                .is_some_and(|server| {
-                    server
-                        .source()
-                        .is_host_owned_apps(&server_name, server.config())
-                });
+            let registration = config.mcp_server_catalog.server(&server_name);
+            let is_host_owned_codex_apps = registration.is_some_and(|server| {
+                server
+                    .source()
+                    .is_host_owned_apps(&server_name, server.config())
+            });
+            let host_plugin_root = registration.and_then(|server| match server.source() {
+                McpServerSource::Plugin(plugin) => plugin.host_root(),
+                McpServerSource::SelectedPlugin(_)
+                | McpServerSource::Config
+                | McpServerSource::Compatibility { .. }
+                | McpServerSource::Extension { .. } => None,
+            });
             let catalog_item_limit = if is_host_owned_codex_apps {
                 MAX_CODEX_APPS_TOOL_CATALOG_ITEMS
             } else {
@@ -342,11 +359,28 @@ impl McpConnectionSet {
                 } else {
                     chatgpt_auth_provider_for_server(&server, chatgpt_auth_provider)
                 };
+            if is_host_owned_codex_apps {
+                event_stream_connection = Some(Arc::new(EventStreamConnectionSettings {
+                    server: server.clone(),
+                    store_mode,
+                    keyring_backend_kind,
+                    oauth_refresh_mode,
+                    runtime_context: runtime_context.clone(),
+                    resolved_environment: resolved_environment.clone(),
+                    auth_provider: runtime_auth_provider.clone(),
+                    auth_manager: auth_manager.clone(),
+                    auth: auth.cloned(),
+                    protocol_mode,
+                    client_mcp_extensions: client_mcp_extensions.clone(),
+                }));
+            }
             let connection_identity = McpServerConnectionIdentity::new(
                 &server_name,
                 &server,
+                host_plugin_root,
                 store_mode,
                 keyring_backend_kind,
+                oauth_refresh_mode,
                 &resolved_environment,
                 &runtime_context,
                 runtime_auth_provider.as_ref(),
@@ -509,6 +543,7 @@ impl McpConnectionSet {
                 server,
                 store_mode,
                 keyring_backend_kind,
+                oauth_refresh_mode,
                 cancel_token.clone(),
                 tx_event.clone(),
                 elicitation_requests.clone(),
@@ -672,6 +707,7 @@ impl McpConnectionSet {
         }
         let manager = Self {
             servers,
+            event_stream_connection,
             disabled_servers,
             protocol_mode,
             required_servers,
@@ -683,6 +719,7 @@ impl McpConnectionSet {
             prefix_mcp_tool_names,
             non_prefixed_mcp_tool_servers,
             elicitation_requests: elicitation_requests.clone(),
+            trusted_access,
         };
         let summary_publication_gate = publication_gate;
         tokio::spawn(async move {
@@ -732,6 +769,7 @@ impl McpConnectionSet {
     pub fn empty(prefix_mcp_tool_names: bool) -> Self {
         Self {
             servers: HashMap::new(),
+            event_stream_connection: None,
             disabled_servers: Vec::new(),
             protocol_mode: crate::McpProtocolMode::Legacy,
             required_servers: Vec::new(),
@@ -743,6 +781,7 @@ impl McpConnectionSet {
             prefix_mcp_tool_names,
             non_prefixed_mcp_tool_servers: Vec::new(),
             elicitation_requests: ElicitationRequestManager::default(),
+            trusted_access: None,
         }
     }
 
@@ -868,7 +907,7 @@ impl McpConnectionSet {
         tool: &str,
         environment_id: Option<&str>,
         arguments: Option<serde_json::Value>,
-        meta: Option<serde_json::Value>,
+        mut meta: Option<serde_json::Value>,
         requested_timeout: Option<Duration>,
         wait_for_server: bool,
     ) -> Result<CallToolResult> {
@@ -918,6 +957,10 @@ impl McpConnectionSet {
             }
             (server_timeout, requested_timeout) => server_timeout.or(requested_timeout),
         };
+        // Direct callers cannot supply host-owned entitlement metadata, even for unlisted tools.
+        if let Some(serde_json::Value::Object(meta)) = meta.as_mut() {
+            meta.remove(ENTITLEMENT_CONTEXT_KEY);
+        }
         let result: rmcp::model::CallToolResult = client
             .client
             .call_tool(tool.to_string(), arguments, meta, effective_timeout)

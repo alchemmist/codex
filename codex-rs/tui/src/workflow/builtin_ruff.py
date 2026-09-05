@@ -99,7 +99,9 @@ def _scan(ctx, command, scope):
     try:
         return json.loads(result["stdout"] or "[]")
     except json.JSONDecodeError as exc:
-        raise RuntimeError("Ruff did not return JSON; check the configured command") from exc
+        raise RuntimeError(
+            "Ruff did not return JSON; check the configured command"
+        ) from exc
 
 
 def _issue_key(issue):

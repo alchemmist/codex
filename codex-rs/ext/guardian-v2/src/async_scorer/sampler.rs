@@ -18,6 +18,7 @@ use codex_api::ResponsesWebsocketConnection;
 use codex_api::ResponsesWsRequest;
 use codex_api::TransportError;
 use codex_api::build_session_headers;
+use codex_extension_api::ContextualUserFragment;
 use codex_extension_api::ExtensionMetrics;
 use codex_http_client::HttpClientFactory;
 use codex_login::AgentIdentityAuthPolicy;
@@ -28,6 +29,7 @@ use codex_login::default_client::default_headers;
 use codex_model_provider::AgentIdentitySessionFallback;
 use codex_model_provider::ProviderAuthScope;
 use codex_model_provider::SharedModelProvider;
+use codex_protocol::ResponseItemId;
 use codex_protocol::ThreadId;
 use codex_protocol::error::CodexErr;
 use codex_protocol::models::ContentItem;
@@ -42,12 +44,16 @@ use thiserror::Error;
 use tokio::sync::OwnedSemaphorePermit;
 use tokio::sync::Semaphore;
 use tokio::sync::oneshot;
+use uuid::Uuid;
+
+use super::trusted_skills::GuardianTrustedSkillsFragment;
+use super::trusted_tools::GuardianTrustedToolFragment;
 
 pub(crate) const MODEL: &str = "gpt-5.6-luna";
 pub(crate) const CLASSIFICATION_TOKEN_USAGE_METRIC: &str =
     "codex.guardian_v2.classification.token_usage";
 const MAX_OUTPUT_BYTES: usize = 8 * 1024;
-pub(super) const INITIAL_WEBSOCKET_CONNECTIONS: usize = 8;
+pub(super) const INITIAL_WEBSOCKET_CONNECTIONS: usize = if cfg!(test) { 2 } else { 8 };
 const MAX_WEBSOCKET_CONNECTIONS: usize = 16;
 const MAX_SAMPLING_RETRIES: usize = 2;
 const MAX_WEBSOCKET_AGE: Duration = Duration::from_secs(55 * 60);
@@ -84,22 +90,30 @@ pub struct LunaSamplerConfig {
 
 /// One tool-less Luna classification request over an already-open connection.
 pub struct LunaSamplingRequest {
+    /// Runtime receipt of the response handling the classified tool.
+    pub guardian_ticket: Option<codex_protocol::guardian_ticket::GuardianTicket>,
     /// Trusted instructions describing the requested classification.
     pub instructions: String,
     /// Host-supplied Guardian reviews isolated from untrusted transcript entries.
     pub trusted_review_evidence: Vec<String>,
+    /// Host-attested metadata for the current home-owned MCP tool or connector.
+    pub trusted_tool_context: Option<GuardianTrustedToolFragment>,
+    /// Host-verified paths of user-owned skills invoked during this turn.
+    pub trusted_skill_paths: Vec<String>,
     /// Ordered untrusted input entries that the model should classify.
     pub input: Vec<String>,
     /// Optional bounded screenshots accompanying the transcript.
     pub images: Vec<ContentItem>,
     /// Opaque parent compaction to reuse only for compatible model configurations.
     pub parent_compaction: Option<ResponseItem>,
-    /// Current parent model's encrypted-compaction compatibility hash.
+    /// Host-selected compatibility hash for the supplied parent checkpoint.
     pub parent_compaction_hash: Option<String>,
     /// Reasoning budget explicitly selected for this request.
     pub reasoning_effort: ReasoningEffort,
-    /// Owning turn identifier used for request attribution.
-    pub turn_id: String,
+    /// Owning turn that initiated this classification, not the classifier turn.
+    pub parent_turn_id: String,
+    /// Trusted causal root of the owning turn, absent when unknown or ambiguous.
+    pub root_turn_id: Option<String>,
 }
 
 /// Failures returned while connecting or sampling the Luna model.
@@ -123,6 +137,9 @@ pub enum LunaSamplerError {
     /// A newer classification replaced this request when the pool was full.
     #[error("Luna request was superseded by a newer classification")]
     Superseded,
+    /// The supplied parent checkpoint cannot be consumed by this Luna configuration.
+    #[error("parent compaction is incompatible with Luna")]
+    IncompatibleCompaction,
 }
 
 struct PooledConnection {
@@ -191,26 +208,43 @@ pub struct LunaSampler {
 }
 
 impl LunaSampler {
-    /// Opens the initial WebSockets before any sample is requested.
-    pub async fn connect(config: LunaSamplerConfig) -> Result<Self, LunaSamplerError> {
-        let sampler = Self {
+    /// A checkpoint is reusable only when both models declare the same nonempty hash.
+    pub(super) fn supports_parent_compaction(&self, parent_hash: Option<&str>) -> bool {
+        parent_hash
+            .zip(self.config.luna_compaction_hash.as_deref())
+            .is_some_and(|(parent_hash, luna_hash)| {
+                !parent_hash.is_empty() && parent_hash == luna_hash
+            })
+    }
+
+    pub(super) fn new(config: LunaSamplerConfig) -> Self {
+        Self {
             config,
             idle_connections: Arc::new(Mutex::new(Vec::with_capacity(MAX_WEBSOCKET_CONNECTIONS))),
             capacity: Arc::new(Semaphore::new(MAX_WEBSOCKET_CONNECTIONS)),
             active_requests: Mutex::new(VecDeque::with_capacity(MAX_WEBSOCKET_CONNECTIONS)),
-        };
+        }
+    }
+
+    pub(super) async fn prewarm(&self) {
         for _ in 0..INITIAL_WEBSOCKET_CONNECTIONS {
-            let connection = match sampler.open_connection().await {
+            let idle_connections = self
+                .idle_connections
+                .lock()
+                .unwrap_or_else(std::sync::PoisonError::into_inner)
+                .len();
+            if idle_connections >= self.capacity.available_permits() {
+                break;
+            }
+            let connection = match self.open_connection().await {
                 Ok(connection) => connection,
                 Err(_) => break,
             };
-            sampler
-                .idle_connections
+            self.idle_connections
                 .lock()
                 .unwrap_or_else(std::sync::PoisonError::into_inner)
                 .push(connection);
         }
-        Ok(sampler)
     }
 
     async fn responses_endpoint(&self) -> ResponsesEndpoint {
@@ -392,6 +426,7 @@ impl LunaSampler {
             | LunaSamplerError::MissingOutput
             | LunaSamplerError::OutputTooLarge
             | LunaSamplerError::Superseded
+            | LunaSamplerError::IncompatibleCompaction
             | LunaSamplerError::Api(
                 ApiError::Transport(TransportError::Build(_))
                 | ApiError::ContextWindowExceeded
@@ -412,7 +447,16 @@ impl LunaSampler {
 
     /// Sends one tool-less classification request on an exclusively leased WebSocket.
     pub async fn sample(&self, request: LunaSamplingRequest) -> Result<String, LunaSamplerError> {
-        let turn_id = request.turn_id;
+        if request.parent_compaction.is_some()
+            && !self.supports_parent_compaction(request.parent_compaction_hash.as_deref())
+        {
+            return Err(LunaSamplerError::IncompatibleCompaction);
+        }
+        // A classification is its own inference turn; retries keep that identity.
+        let turn_id = Uuid::now_v7().to_string();
+        let guardian_ticket = request.guardian_ticket;
+        let parent_turn_id = request.parent_turn_id;
+        let root_turn_id = request.root_turn_id;
         let mut input = vec![
             ResponseItem::AdditionalTools {
                 id: None,
@@ -429,15 +473,7 @@ impl LunaSampler {
                 internal_chat_message_metadata_passthrough: None,
             },
         ];
-        if request
-            .parent_compaction_hash
-            .as_deref()
-            .zip(self.config.luna_compaction_hash.as_deref())
-            .is_some_and(|(parent_hash, luna_hash)| {
-                !parent_hash.is_empty() && parent_hash == luna_hash
-            })
-            && let Some(parent_compaction) = request.parent_compaction
-        {
+        if let Some(parent_compaction) = request.parent_compaction {
             input.push(parent_compaction);
         }
         if !request.trusted_review_evidence.is_empty() {
@@ -461,6 +497,16 @@ impl LunaSampler {
                 internal_chat_message_metadata_passthrough: None,
             });
         }
+        if let Some(fragment) = request.trusted_tool_context {
+            input.push(ContextualUserFragment::into(fragment));
+        }
+        if !request.trusted_skill_paths.is_empty() {
+            input.push(ContextualUserFragment::into(
+                GuardianTrustedSkillsFragment {
+                    paths: request.trusted_skill_paths,
+                },
+            ));
+        }
         input.push(ResponseItem::Message {
             id: None,
             role: "user".to_owned(),
@@ -478,6 +524,14 @@ impl LunaSampler {
             phase: None,
             internal_chat_message_metadata_passthrough: None,
         });
+        // Assign IDs once so retries reuse the same input item identities.
+        for item in &mut input {
+            if item.id().is_none()
+                && let Some(prefix) = item.id_prefix()
+            {
+                item.set_id(Some(ResponseItemId::new(prefix)));
+            }
+        }
         let mut request = ResponsesApiRequest {
             model: MODEL.to_owned(),
             instructions: String::new(),
@@ -552,24 +606,30 @@ impl LunaSampler {
                     self.config.service_tier.clone()
                 };
             let thread_id = &lease.connection.thread_id;
-            let turn_metadata = json!({
+            let mut turn_metadata = json!({
                 "session_id": self.config.session_id,
                 "thread_id": thread_id,
                 "guardian_classifier_source_thread_id": self.config.thread_id,
                 "turn_id": turn_id,
+                "parent_turn_id": parent_turn_id,
                 "thread_source": "guardian_classifier",
-            })
-            .to_string();
-            request.client_metadata = Some(HashMap::from([
+            });
+            let mut client_metadata = HashMap::from([
                 ("session_id".to_owned(), self.config.session_id.clone()),
                 ("thread_id".to_owned(), thread_id.clone()),
                 ("turn_id".to_owned(), turn_id.clone()),
+                ("parent_turn_id".to_owned(), parent_turn_id.clone()),
                 ("x-openai-subagent".to_owned(), "guardian".to_owned()),
                 // Classifier requests do not advance their own context window.
                 ("x-codex-window-id".to_owned(), format!("{thread_id}:0")),
                 (RESPONSES_LITE_METADATA_KEY.to_owned(), "true".to_owned()),
-                (TURN_METADATA_KEY.to_owned(), turn_metadata),
-            ]));
+            ]);
+            if let Some(root_turn_id) = &root_turn_id {
+                client_metadata.insert("root_turn_id".to_owned(), root_turn_id.clone());
+                turn_metadata["root_turn_id"] = json!(root_turn_id);
+            }
+            client_metadata.insert(TURN_METADATA_KEY.to_owned(), turn_metadata.to_string());
+            request.client_metadata = Some(client_metadata);
             let mut stream = match lease
                 .connection
                 .connection
@@ -577,6 +637,7 @@ impl LunaSampler {
                     ResponsesWsRequest::ResponseCreate((&request).into()),
                     /*connection_reused*/ true,
                     /*turn_state*/ None,
+                    guardian_ticket.as_ref(),
                 )
                 .await
             {

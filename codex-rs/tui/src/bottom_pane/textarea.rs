@@ -23,6 +23,7 @@ use crate::keymap::KeymapContext;
 use crate::keymap::RuntimeKeymap;
 use crate::keymap::VimNormalKeymap;
 use crate::keymap::VimOperatorKeymap;
+use crate::keymap::VimSearchKeymap;
 use crate::keymap::VimTextObjectKeymap;
 use crate::width::display_width;
 use codex_config::types::VimModeStart;
@@ -52,6 +53,7 @@ mod hyperlinks;
 mod russian_layout;
 mod vim;
 mod vim_commands;
+mod vim_search;
 mod visual;
 mod wrapping;
 use self::vim::VimMode;
@@ -64,6 +66,7 @@ use self::vim_commands::VimAction;
 use self::vim_commands::VimCommandState;
 use self::vim_commands::VimEditTarget;
 use self::vim_commands::VimInsertPosition;
+pub(crate) use self::vim_commands::VimPersistentState;
 use self::visual::VimVisualKind;
 use self::visual::VimVisualState;
 use self::visual::visual_control_key;
@@ -153,9 +156,12 @@ pub(crate) struct TextArea {
     vim_pending: VimPending,
     vim_commands: VimCommandState,
     pending_system_clipboard_yank: Option<String>,
+    vim_search: vim_search::VimSearch,
+    vim_search_enabled: bool,
     editor_keymap: Arc<EditorKeymap>,
     vim_normal_keymap: VimNormalKeymap,
     vim_operator_keymap: VimOperatorKeymap,
+    vim_search_keymap: VimSearchKeymap,
     vim_text_object_keymap: VimTextObjectKeymap,
 }
 
@@ -200,9 +206,12 @@ impl TextArea {
             vim_pending: VimPending::None,
             vim_commands: VimCommandState::default(),
             pending_system_clipboard_yank: None,
+            vim_search: vim_search::VimSearch::default(),
+            vim_search_enabled: false,
             editor_keymap: defaults.editor,
             vim_normal_keymap: defaults.vim_normal,
             vim_operator_keymap: defaults.vim_operator,
+            vim_search_keymap: defaults.vim_search,
             vim_text_object_keymap: defaults.vim_text_object,
         }
     }
@@ -217,6 +226,7 @@ impl TextArea {
         self.editor_keymap = Arc::clone(&keymap.editor);
         self.vim_normal_keymap = keymap.vim_normal.clone();
         self.vim_operator_keymap = keymap.vim_operator.clone();
+        self.vim_search_keymap = keymap.vim_search.clone();
         self.vim_text_object_keymap = keymap.vim_text_object.clone();
     }
 
@@ -270,6 +280,7 @@ impl TextArea {
         self.preferred_col = None;
         self.vim_pending = VimPending::None;
         self.vim_visual = None;
+        self.vim_search = vim_search::VimSearch::default();
         self.vim_commands = VimCommandState::default();
     }
 
@@ -282,6 +293,7 @@ impl TextArea {
     pub(crate) fn set_vim_enabled(&mut self, enabled: bool) {
         self.vim_enabled = enabled;
         self.vim_pending = VimPending::None;
+        self.vim_search = vim_search::VimSearch::default();
         self.vim_commands = VimCommandState::default();
         self.vim_mode = if enabled {
             self.configured_vim_mode_start()
@@ -350,12 +362,15 @@ impl TextArea {
     /// This is observable so the composer can avoid stealing the second key of
     /// `d{motion}` or `y{motion}` for higher-level shortcuts.
     pub(crate) fn is_vim_operator_pending(&self) -> bool {
-        !matches!(self.vim_pending, VimPending::None)
+        self.vim_query().is_some() || !matches!(self.vim_pending, VimPending::None)
     }
 
     /// Return the keymap context that owns the next editing key.
     pub(crate) fn keymap_context(&self) -> KeymapContext {
-        if !self.vim_enabled || self.vim_mode == VimMode::Insert {
+        if !self.vim_enabled
+            || matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
+            || self.vim_query().is_some()
+        {
             return KeymapContext::Editor;
         }
         match self.vim_pending {
@@ -376,6 +391,11 @@ impl TextArea {
             self.vim_mode = VimMode::Insert;
             self.vim_visual = None;
             self.vim_pending = VimPending::None;
+            self.clear_vim_replace_recovery();
+            self.cancel_vim_search();
+            if self.vim_commands.pending_change.is_empty() && !self.vim_commands.replaying {
+                self.start_vim_edit(VimAction::Insert(VimInsertPosition::Cursor));
+            }
         }
     }
 
@@ -390,7 +410,9 @@ impl TextArea {
             self.vim_mode = VimMode::Normal;
             self.vim_visual = None;
             self.vim_pending = VimPending::None;
+            self.cancel_vim_search();
             self.preferred_col = None;
+            self.clear_vim_replace_recovery();
         }
     }
 
@@ -400,7 +422,7 @@ impl TextArea {
     /// like `dd` or `yw` remains command input instead of being converted into
     /// literal text.
     pub(crate) fn allows_paste_burst(&self) -> bool {
-        !self.vim_enabled || self.vim_mode == VimMode::Insert
+        !self.vim_enabled || matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
     }
 
     /// Return whether rendering should use the insert-mode cursor style.
@@ -417,6 +439,8 @@ impl TextArea {
             && (self.vim_mode == VimMode::Insert
                 || self.vim_visual.is_some()
                 || !matches!(self.vim_pending, VimPending::None))
+            && (matches!(self.vim_mode, VimMode::Insert | VimMode::Replace)
+                || self.is_vim_operator_pending())
             && event.code == KeyCode::Esc
             && event.modifiers == KeyModifiers::NONE
             && matches!(event.kind, KeyEventKind::Press | KeyEventKind::Repeat)
@@ -449,6 +473,7 @@ impl TextArea {
         Some(match self.vim_mode {
             VimMode::Normal => self.vim_visual_label().unwrap_or("Normal"),
             VimMode::Insert => "Insert",
+            VimMode::Replace => "Replace",
         })
     }
 
@@ -463,6 +488,7 @@ impl TextArea {
                 None => "Vim: Normal".magenta(),
             },
             VimMode::Insert => "Vim: Insert".green(),
+            VimMode::Replace => "Vim: Replace".cyan(),
         })
     }
 
@@ -472,10 +498,15 @@ impl TextArea {
 
     pub fn insert_str(&mut self, text: &str) {
         self.record_vim_inserted_text(text);
-        self.insert_str_at(self.cursor_pos, text);
+        if self.is_vim_replace_mode() {
+            self.replace_vim_text(text);
+        } else {
+            self.insert_str_at(self.cursor_pos, text);
+        }
     }
 
     pub fn insert_str_at(&mut self, pos: usize, text: &str) {
+        self.clear_vim_replace_recovery();
         let pos = self.clamp_pos_for_insertion(pos);
         self.text.insert_str(pos, text);
         self.wrap_cache.replace(None);
@@ -487,6 +518,12 @@ impl TextArea {
     }
 
     pub fn replace_range(&mut self, range: std::ops::Range<usize>, text: &str) {
+        self.clear_vim_replace_recovery();
+        self.replace_range_preserving_recovery(range, text);
+    }
+
+    // Replace typing and Backspace keep contiguous recovery, but still respect atomic elements.
+    fn replace_range_preserving_recovery(&mut self, range: Range<usize>, text: &str) {
         let range = self.expand_range_to_element_boundaries(range);
         self.replace_range_raw(range, text);
     }
@@ -749,16 +786,21 @@ impl TextArea {
     }
 
     fn handle_vim_input(&mut self, event: KeyEvent) {
+        if self.handle_vim_search_key(event) {
+            return;
+        }
         let prior_mode = self.vim_mode;
         if self.vim_visual.is_some() {
             self.handle_vim_visual(event);
         } else {
             match self.vim_mode {
-                VimMode::Insert => self.handle_vim_insert(event),
+                VimMode::Insert | VimMode::Replace => self.handle_vim_insert(event),
                 VimMode::Normal => self.handle_vim_normal(event),
             }
         }
-        if prior_mode == VimMode::Insert && self.vim_mode == VimMode::Normal {
+        if matches!(prior_mode, VimMode::Insert | VimMode::Replace)
+            && self.vim_mode == VimMode::Normal
+        {
             self.finish_pending_vim_change();
         }
     }
@@ -766,6 +808,12 @@ impl TextArea {
     fn handle_vim_insert(&mut self, event: KeyEvent) {
         if matches!(event.code, KeyCode::Esc) {
             self.leave_vim_insert_mode();
+            return;
+        }
+        if self.is_vim_replace_mode()
+            && self.editor_keymap.delete_backward.is_pressed(event)
+            && self.apply_vim_insert_action(VimAction::RestoreReplacedCharacter)
+        {
             return;
         }
         let keymap = self.editor_keymap.clone();
@@ -918,6 +966,7 @@ impl TextArea {
         }
         if self.vim_normal_keymap.cancel_operator.is_pressed(event) {
             self.vim_pending = VimPending::None;
+            self.cancel_vim_search();
             return;
         }
         self.handle_vim_extra_command(event);

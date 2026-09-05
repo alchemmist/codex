@@ -204,7 +204,7 @@ def monitor_prompt(target, prior_head_sha):
     return f"""Inspect pull request `{target}` using GitHub MCP tools. If target is `auto`, infer the
 repository and pull request from the current checkout and branch before querying GitHub.
 
-The previously observed head SHA is `{prior_head_sha or 'unknown'}`.
+The previously observed head SHA is `{prior_head_sha or "unknown"}`.
 
 Read the PR state, head SHA, mergeability, review decision, every current check, all published review
 submissions, issue comments, inline comments, and unresolved review threads. Ignore pending draft
@@ -251,8 +251,8 @@ def worker_prompt(snapshot, checkout):
 
 {json.dumps(issue_bundle, ensure_ascii=False, sort_keys=True)}
 
-The workflow prepared a real git worktree at `{checkout['path']}` with HEAD
-`{checkout['head_sha']}`. Existing workflow-owned uncommitted changes: `{checkout['dirty']}`. If
+The workflow prepared a real git worktree at `{checkout["path"]}` with HEAD
+`{checkout["head_sha"]}`. Existing workflow-owned uncommitted changes: `{checkout["dirty"]}`. If
 true, inspect and continue those changes instead of discarding them. Work only in that checkout.
 Do not create another worktree, clone, copy,
 `.repair-*` directory, patch directory, or detached project copy. Start by running `git status` and
@@ -267,7 +267,7 @@ test, weakened quality gate, or Quality Graph decision, do not apply it. Return 
 leave the check red for human validation.
 
 After every code change, run proportionate local validation and commit normally. Push the final
-commit with exactly `git push origin HEAD:refs/heads/{snapshot['head_ref']}`. Never force push.
+commit with exactly `git push origin HEAD:refs/heads/{snapshot["head_ref"]}`. Never force push.
 Re-read GitHub after mutations and confirm the PR head changed. Return JSON only:
 {{
   "status":"changed|resolved|waiting|needs_user|failed",
@@ -334,7 +334,17 @@ def normalize_items(value, label):
         normalized.append(
             {
                 key: str(item.get(key, ""))[:1200]
-                for key in ("id", "name", "kind", "author", "path", "line", "url", "body", "summary")
+                for key in (
+                    "id",
+                    "name",
+                    "kind",
+                    "author",
+                    "path",
+                    "line",
+                    "url",
+                    "body",
+                    "summary",
+                )
                 if key in item
             }
         )
@@ -365,7 +375,9 @@ def is_ready(snapshot):
 
 
 def forbidden_quality_graph_text(value):
-    text = json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
+    text = (
+        json.dumps(value, ensure_ascii=False) if not isinstance(value, str) else value
+    )
     return re.search(r"/\s*qg\b[^\n]*\bignore\b", text, flags=re.IGNORECASE) is not None
 
 
@@ -384,7 +396,11 @@ def prepare_checkout(ctx, snapshot):
         timeout_seconds=300,
     )
     if result.get("exit_code") != 0:
-        error = result.get("stderr") or result.get("stdout") or "checkout preparation failed"
+        error = (
+            result.get("stderr")
+            or result.get("stdout")
+            or "checkout preparation failed"
+        )
         raise RuntimeError(str(error)[-2000:])
     try:
         checkout = json.loads(result.get("stdout", ""))
@@ -425,7 +441,9 @@ def run(ctx):
         "same_issue_failures": 0,
     }
     if state.get("target") != target:
-        raise RuntimeError("resumed workflow target does not match its original pull request")
+        raise RuntimeError(
+            "resumed workflow target does not match its original pull request"
+        )
 
     while True:
         poll_number = int(state.get("polls", 0)) + 1
@@ -487,9 +505,9 @@ def run(ctx):
             expected_commit = str(pending_push.get("commit", ""))
             if snapshot["head_sha"] == previous_head:
                 state.pop("pending_push_verification", None)
-                state["same_issue_failures"] = int(
-                    state.get("same_issue_failures", 0)
-                ) + 1
+                state["same_issue_failures"] = (
+                    int(state.get("same_issue_failures", 0)) + 1
+                )
                 state["last_worker_error"] = (
                     "worker reported a change but the PR head SHA did not move"
                 )
@@ -587,7 +605,9 @@ def run(ctx):
 
         if not worker.get("success"):
             state["same_issue_failures"] = int(state.get("same_issue_failures", 0)) + 1
-            state["last_worker_error"] = (worker.get("error") or "worker failed")[-2000:]
+            state["last_worker_error"] = (worker.get("error") or "worker failed")[
+                -2000:
+            ]
             ctx.checkpoint(state)
             continue
 
@@ -622,13 +642,15 @@ def run(ctx):
                 "needs_user",
                 snapshot,
                 state,
-                str(worker_result.get("needs_user_reason", "manual validation required")),
+                str(
+                    worker_result.get("needs_user_reason", "manual validation required")
+                ),
             )
         if worker_status == "changed":
             if re.fullmatch(r"[0-9a-f]{7,40}", worker_commit) is None:
-                state["same_issue_failures"] = int(
-                    state.get("same_issue_failures", 0)
-                ) + 1
+                state["same_issue_failures"] = (
+                    int(state.get("same_issue_failures", 0)) + 1
+                )
                 state["last_worker_error"] = (
                     "worker reported changed without a valid commit SHA"
                 )

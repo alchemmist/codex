@@ -211,7 +211,9 @@ fn summarize_items(items: &[ResponseItem]) -> ContextCounts {
             ResponseItem::Compaction { .. }
             | ResponseItem::CompactionTrigger { .. }
             | ResponseItem::ContextCompaction { .. } => counts.compaction_items += 1,
-            ResponseItem::AdditionalTools { .. } | ResponseItem::Other => {}
+            ResponseItem::ConfigurationUpdate { .. }
+            | ResponseItem::AdditionalTools { .. }
+            | ResponseItem::Other => {}
         }
     }
     counts

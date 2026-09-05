@@ -7,6 +7,7 @@ use crate::exec_output::ExecToolCallOutput;
 use crate::network_policy::NetworkPolicyDecisionPayload;
 use crate::protocol::CodexErrorInfo;
 use crate::protocol::ErrorEvent;
+use crate::protocol::MisalignmentErrorDetails;
 use crate::protocol::RateLimitReachedType;
 use crate::protocol::RateLimitSnapshot;
 use crate::protocol::TruncationPolicy;
@@ -136,7 +137,10 @@ pub enum CodexErrorDetails {
     #[error("{message}")]
     CyberPolicy { message: String },
     #[error("{message}")]
-    MisalignmentPolicyViolation { message: String },
+    MisalignmentPolicyViolation {
+        message: String,
+        misalignment: Option<MisalignmentErrorDetails>,
+    },
     #[error("{0}")]
     ResponseStreamFailed(ResponseStreamFailed),
     #[error("{0}")]
@@ -469,6 +473,12 @@ impl CodexErr {
         ErrorEvent {
             message,
             codex_error_info: Some(self.to_codex_protocol_error()),
+            misalignment: match &self.details {
+                CodexErrorDetails::MisalignmentPolicyViolation { misalignment, .. } => {
+                    misalignment.clone()
+                }
+                _ => None,
+            },
         }
     }
 
@@ -640,6 +650,8 @@ pub struct UsageLimitReachedError {
 
 impl std::fmt::Display for UsageLimitReachedError {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // Reserve is a fallback for exhausted ordinary usage, so keep the standard
+        // promo/plan recovery copy below instead of suggesting another model.
         if let Some(limit_name) = self
             .rate_limits
             .as_ref()
@@ -647,6 +659,7 @@ impl std::fmt::Display for UsageLimitReachedError {
             .map(str::trim)
             .filter(|name| !name.is_empty())
             && !limit_name.eq_ignore_ascii_case("codex")
+            && !limit_name.eq_ignore_ascii_case("gpt-reserve")
         {
             return write!(
                 f,

@@ -710,6 +710,7 @@ async fn plan_implementation_popup_skips_replayed_turn_complete() {
                 phase: Some(MessagePhase::FinalAnswer),
                 memory_citation: None,
                 delivery: None,
+                questions: None,
             }],
             status: AppServerTurnStatus::Completed,
             error: None,
@@ -749,6 +750,7 @@ async fn plan_implementation_popup_stays_hidden_after_replay_and_live_completion
                 phase: Some(MessagePhase::FinalAnswer),
                 memory_citation: None,
                 delivery: None,
+                questions: None,
             }],
             status: AppServerTurnStatus::Completed,
             error: None,
@@ -1515,14 +1517,17 @@ async fn make_startup_chat_with_cli_overrides(
         .expect("config");
     let resolved_model = get_model_offline_for_tests(cfg.model.as_deref());
     let session_telemetry = test_session_telemetry(&cfg, resolved_model.as_str());
+    let local_settings = crate::local_settings::LocalSettings::from(&cfg);
     let init = ChatWidgetInit {
         config: cfg.clone(),
+        local_settings,
         frame_requester: FrameRequester::test_dummy(),
         app_event_tx: AppEventSender::new(unbounded_channel::<AppEvent>().0),
         workspace_command_runner: None,
         initial_user_message: None,
         enhanced_keys_supported: false,
         has_chatgpt_account: false,
+        requires_openai_auth: false,
         has_codex_backend_auth: false,
         model_catalog: test_model_catalog(&cfg),
         feedback: codex_feedback::CodexFeedback::new(),
