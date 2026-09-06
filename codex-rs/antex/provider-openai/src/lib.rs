@@ -8,3 +8,7 @@ mod storage;
 mod wire;
 
 pub use provider::OpenAiProvider;
+
+#[cfg(test)]
+#[path = "provider_tests.rs"]
+mod tests;
