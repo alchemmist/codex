@@ -348,6 +348,13 @@ surface, and legacy UI branding remains a Phase 1 task.
 
 ### Phase 2 — Create the provider-neutral kernel
 
+During extraction the new crates live in the Cargo-only workspace at
+`codex-rs/antex/`, independent of the legacy Cargo/Bazel dependency graph.
+After the legacy production paths are removed, promote this workspace to the
+repository's Rust root and flatten its crate paths as part of Phases 8–9 using
+`git mv`. This staging arrangement does not relax the kernel or TUI isolation
+criteria.
+
 #### Work
 
 - Create `antex-core` with provider-neutral message, tool, event, command, usage, and error types.

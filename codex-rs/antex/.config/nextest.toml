@@ -1,0 +1,2 @@
+[profile.local]
+slow-timeout = { period = "15s", terminate-after = 2 }

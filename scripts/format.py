@@ -44,8 +44,11 @@ def rust_formatter_group(*, check: bool) -> FormatterGroup:
     args = ["cargo", "fmt", "--", "--config", "imports_granularity=Item"]
     if check:
         args.append("--check")
-    command = Command(tuple(args), REPO_ROOT / "codex-rs")
-    return FormatterGroup("Rust", (command,))
+    workspace = REPO_ROOT / "codex-rs"
+    commands = [Command(tuple(args), workspace)]
+    if (workspace / "antex" / "Cargo.toml").is_file():
+        commands.append(Command(tuple(args), workspace / "antex"))
+    return FormatterGroup("Rust", tuple(commands))
 
 
 def buildifier_formatter_group(*, check: bool) -> FormatterGroup:
