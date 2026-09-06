@@ -10,8 +10,11 @@ use antex_core::InteractionAnswer;
 use antex_core::ModelProvider;
 use antex_core::TurnInput;
 use antex_provider_openai::OpenAiProvider;
+use antex_runtime::Config;
 use antex_runtime::LocalRuntime;
 use antex_runtime::PermissionProfile;
+use antex_runtime::ProjectContext;
+use antex_runtime::SessionStore;
 use clap::Parser;
 use clap::Subcommand;
 use tokio_util::sync::CancellationToken;
@@ -23,8 +26,8 @@ struct Args {
     home: Option<PathBuf>,
     #[arg(short = 'C', long = "cd", global = true)]
     cwd: Option<PathBuf>,
-    #[arg(long,default_value="workspace",value_parser=["read-only","workspace","full"],global=true)]
-    permissions: String,
+    #[arg(long,value_parser=["read-only","workspace","full"],global=true)]
+    permissions: Option<String>,
     #[arg(long, env = "ANTEX_BWRAP", global = true)]
     bubblewrap: Option<PathBuf>,
     #[command(subcommand)]
@@ -47,11 +50,16 @@ enum Action {
         name: String,
     },
     Models,
+    Sessions,
     Exec {
         #[arg(long)]
         model: Option<String>,
         #[arg(long)]
         reasoning: Option<String>,
+        #[arg(long)]
+        resume: Option<String>,
+        #[arg(long, requires = "resume")]
+        fork_at: Option<String>,
         prompt: String,
     },
 }
@@ -94,6 +102,11 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         return Err("Antex home must not be inside the legacy .codex directory".into());
     }
     let provider = OpenAiProvider::new(&home)?;
+    let loaded = Config::load(&home)?;
+    for warning in loaded.warnings {
+        eprintln!("antex: {warning}");
+    }
+    let config = loaded.config;
     match action {
         Action::Login {
             device_code,
@@ -140,26 +153,44 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 println!("{}\t{}", model.id, model.display_name);
             }
         }
+        Action::Sessions => {
+            let workspace = args
+                .cwd
+                .unwrap_or(std::env::current_dir()?)
+                .canonicalize()?;
+            for id in SessionStore::new(&home, &workspace)?.list()? {
+                println!("{id}");
+            }
+        }
         Action::Exec {
             model,
             reasoning,
+            resume,
+            fork_at,
             prompt,
         } => {
             let workspace = args
                 .cwd
                 .unwrap_or(std::env::current_dir()?)
                 .canonicalize()?;
-            let profile = match args.permissions.as_str() {
-                "read-only" => PermissionProfile::ReadOnly,
-                "workspace" => PermissionProfile::Workspace,
-                "full" => PermissionProfile::Full,
-                _ => return Err("invalid permission profile".into()),
+            let profile = match args.permissions.as_deref() {
+                Some("read-only") => PermissionProfile::ReadOnly,
+                Some("workspace") => PermissionProfile::Workspace,
+                Some("full") => PermissionProfile::Full,
+                None => config.permissions,
+                Some(_) => return Err("invalid permission profile".into()),
             };
-            let mut runtime = LocalRuntime::new(&workspace, profile)?;
+            let context = ProjectContext::load(&home, &workspace)?;
+            for warning in &context.warnings {
+                eprintln!("antex: {warning}");
+            }
+            let mut runtime = LocalRuntime::new(&workspace, profile)?
+                .with_read_roots(&context.read_roots)?
+                .with_shell_timeout(std::time::Duration::from_secs(config.shell_timeout_seconds));
             if let Some(program) = args.bubblewrap {
                 runtime = runtime.with_bubblewrap(program);
             }
-            let model = match model {
+            let model = match model.or(config.model) {
                 Some(model) => model,
                 None => {
                     provider
@@ -171,11 +202,30 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                         .id
                 }
             };
-            let mut agent = Agent::new(provider, Arc::new(runtime));
+            let store = SessionStore::new(&home, &workspace)?;
+            let mut session = match resume {
+                Some(id) => store.open(id.parse()?)?,
+                None => store.create()?,
+            };
+            if let Some(parent) = fork_at {
+                session.branch(parent.parse()?)?;
+            }
+            let recovered = session.recover_pending_tools()?;
+            if recovered > 0 {
+                eprintln!("antex: recovered {recovered} interrupted tool calls");
+            }
+            let history = session
+                .active_path()?
+                .into_iter()
+                .map(|entry| entry.message)
+                .collect();
+            eprintln!("Session: {}", session.id());
+            let mut agent =
+                Agent::new(provider, Arc::new(runtime)).with_context_hook(Arc::new(context));
             let mut run = agent.start(TurnInput {
                 model,
-                reasoning,
-                history: Vec::new(),
+                reasoning: reasoning.or(config.model_reasoning_effort),
+                history,
                 input: prompt.into(),
             });
             let commands = run.commands.clone();
@@ -196,13 +246,16 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                     AgentEvent::Error(error) => eprintln!("\nantex: {error}"),
                     AgentEvent::Finished { reason, .. } => {
                         signal.abort();
+                        session.finish_turn()?;
                         println!();
                         if reason != FinishReason::Completed {
                             return Err(format!("run ended: {reason:?}").into());
                         }
                     }
-                    AgentEvent::MessageCommitted(_)
-                    | AgentEvent::ReasoningDelta(_)
+                    AgentEvent::MessageCommitted(message) => {
+                        session.append(&message)?;
+                    }
+                    AgentEvent::ReasoningDelta(_)
                     | AgentEvent::Quota(_)
                     | AgentEvent::ToolStarted(_)
                     | AgentEvent::ToolProgress { .. }
