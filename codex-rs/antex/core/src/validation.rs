@@ -11,7 +11,10 @@ use crate::ToolScope;
 use crate::UserInput;
 
 pub(crate) fn error(kind: ErrorKind, message: &str) -> ProviderError {
-    ProviderError { kind, message: message.into() }
+    ProviderError {
+        kind,
+        message: message.into(),
+    }
 }
 
 fn limit(message: &str) -> ProviderError {

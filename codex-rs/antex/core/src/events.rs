@@ -29,7 +29,10 @@ pub enum AgentEvent {
     Usage(Usage),
     TurnCompleted,
     Error(ProviderError),
-    Finished { reason: FinishReason, pending: Vec<AgentCommand> },
+    Finished {
+        reason: FinishReason,
+        pending: Vec<AgentCommand>,
+    },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,5 +59,8 @@ pub trait ToolHost: Send + Sync {
 
 /// Prepares bounded request context without modifying the committed transcript or enabled tools.
 pub trait ContextHook: Send + Sync {
-    fn prepare<'a>(&'a self, history: &'a [Message]) -> BoxFuture<'a, Result<Vec<Message>, ProviderError>>;
+    fn prepare<'a>(
+        &'a self,
+        history: &'a [Message],
+    ) -> BoxFuture<'a, Result<Vec<Message>, ProviderError>>;
 }

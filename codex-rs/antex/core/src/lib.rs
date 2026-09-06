@@ -1,13 +1,14 @@
+mod agent;
 mod context;
 mod control;
 mod events;
 mod model;
+mod response;
+mod run;
 mod toolset;
 mod validation;
 
-pub use control::AgentCommand;
-pub use control::CommandError;
-pub use control::CommandSender;
+pub use agent::Agent;
 pub use events::AgentEvent;
 pub use events::AgentRun;
 pub use events::ContextHook;
@@ -21,6 +22,9 @@ pub use context::ContextKind;
 pub use context::ContextualUserFragment;
 pub use context::ToolOutcome;
 pub use context::ToolOutput;
+pub use control::AgentCommand;
+pub use control::CommandError;
+pub use control::CommandSender;
 pub use model::Content;
 pub use model::ErrorKind;
 pub use model::MAX_IMAGE_BYTES;
