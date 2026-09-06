@@ -329,7 +329,14 @@ re-execs with internal legacy home variables pointing to that directory before
 any runtime initialization. `CODEX_HOME` is not an Antex user override. Remove this
 bridge in Phase 5 when the composition root connects directly to the new kernel
 and no legacy runtime reads these variables. This adapter is not the final CLI
-surface, and legacy UI branding remains a Phase 1 task.
+surface. Terminal headers, status cards, startup identity, and the default title
+now use Antex; remaining command/help/log surfaces still require the Phase 1 audit.
+
+Remote validation on deimos: 4,340 TUI tests passed (2 existing skips), 295 config
+tests passed, config schema regenerated, and scoped TUI Clippy passed. The narrow
+startup snapshot exercises a 32-column terminal after the shorter title changed
+the mascot fit boundary. Validation uses an isolated checkout and private toolchain
+through `scripts/antex-remote.py`; no local compilation or installation is needed.
 
 #### Work
 
@@ -354,6 +361,14 @@ After the legacy production paths are removed, promote this workspace to the
 repository's Rust root and flatten its crate paths as part of Phases 8–9 using
 `git mv`. This staging arrangement does not relax the kernel or TUI isolation
 criteria.
+
+Kernel progress: the standalone `Agent::start` now drives validated sequential
+tool calls, bounded steering/follow-up queues, interruption, pre-stream retries,
+an immutable context hook, and terminal events. Eleven tests passed on deimos,
+including malformed/unknown tools, truncated streams, multi-tool cancellation,
+scope reset on follow-up, and rejection of overlapping runs; scoped Clippy passed.
+The legacy adapter and application cutover remain incomplete, so Phase 2 is not
+marked complete.
 
 #### Work
 
