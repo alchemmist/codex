@@ -25,7 +25,13 @@ pub(crate) fn encode(request: ModelRequest) -> Result<Value, ProviderError> {
     let mut input = Vec::new();
     for message in request.messages {
         match message {
-            Message::Context(fragment) => input.push(json!({"role":"developer","content":[{"type":"input_text","text":fragment.text()}]})),
+            Message::Context(fragment) => {
+                let role = match fragment.kind() {
+                    antex_core::ContextKind::System => "developer",
+                    antex_core::ContextKind::Project | antex_core::ContextKind::Skill | antex_core::ContextKind::Summary => "user",
+                };
+                input.push(json!({"role":role,"content":[{"type":"input_text","text":fragment.text()}]}));
+            }
             Message::User(user) => {
                 let mut content = Vec::new();
                 for block in user.content {

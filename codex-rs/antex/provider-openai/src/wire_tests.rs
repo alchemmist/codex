@@ -124,3 +124,34 @@ fn quota_events_keep_subscription_metadata_out_of_text_content() {
         })]
     );
 }
+
+#[test]
+fn project_and_skill_content_is_not_promoted_to_developer_authority() {
+    use antex_core::ContextFragment;
+    use antex_core::ContextKind;
+    let messages = [
+        ContextKind::System,
+        ContextKind::Project,
+        ContextKind::Skill,
+        ContextKind::Summary,
+    ]
+    .into_iter()
+    .map(|kind| Message::Context(ContextFragment::new(kind, "instructions".into()).unwrap()))
+    .collect();
+    let body = encode(ModelRequest {
+        model: "fake".into(),
+        reasoning: None,
+        messages,
+        tools: Vec::new(),
+    })
+    .unwrap();
+    assert_eq!(
+        body["input"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|item| item["role"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        vec!["developer", "user", "user", "user"]
+    );
+}
