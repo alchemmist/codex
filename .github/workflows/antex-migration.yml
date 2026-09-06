@@ -1,0 +1,47 @@
+name: antex-migration
+
+on:
+  push:
+    branches: [antex]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: antex-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  identity:
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [macos-15, ubuntu-24.04]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    env:
+      CARGO_INCREMENTAL: "0"
+      CARGO_PROFILE_DEV_DEBUG: "0"
+      CARGO_PROFILE_TEST_DEBUG: "0"
+      STABLE_GIT_COMMIT: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: dtolnay/rust-toolchain@e081816240890017053eacbb1bdf337761dc5582
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y pkg-config libssl-dev libcap-dev libseccomp-dev
+      - name: Install test commands
+        run: cargo install --locked just cargo-nextest
+      - name: Build Antex development binary
+        working-directory: codex-rs
+        run: cargo build --locked --bin antex
+      - name: Check Antex identity and data isolation
+        working-directory: codex-rs
+        run: just test -p codex-cli --test antex_identity
+      - name: Check migration inventory scripts
+        run: make test-migration

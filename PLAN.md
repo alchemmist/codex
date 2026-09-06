@@ -323,6 +323,14 @@ The baseline report is reproducible from one command, all fixtures pass against 
 
 ### Phase 1 — Establish Antex identity without releasing
 
+Temporary adapter: `cli/src/antex_entry.rs` and `cli/src/antex.rs` reuse the current
+CLI/runtime during extraction. The entry point resolves only `ANTEX_HOME`, then
+re-execs with internal legacy home variables pointing to that directory before
+any runtime initialization. `CODEX_HOME` is not an Antex user override. Remove this
+bridge in Phase 5 when the composition root connects directly to the new kernel
+and no legacy runtime reads these variables. This adapter is not the final CLI
+surface, and legacy UI branding remains a Phase 1 task.
+
 #### Work
 
 - Rename user-facing copy, package metadata, default terminal title, logs, temporary-file prefixes, and documentation from alchemmist Codex to Antex.

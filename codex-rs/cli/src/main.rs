@@ -1,5 +1,6 @@
 use clap::Args;
 use clap::CommandFactory;
+use clap::FromArgMatches;
 use clap::Parser;
 use clap_complete::Shell;
 use clap_complete::generate;
@@ -54,6 +55,7 @@ use supports_color::Stream;
 #[global_allocator]
 static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
+mod antex_entry;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod app_cmd;
 mod cloud_config;
@@ -1133,6 +1135,17 @@ fn stage_str(stage: Stage) -> &'static str {
 }
 
 fn main() -> anyhow::Result<()> {
+    if antex_entry::is_antex() {
+        let args = std::env::args_os().skip(1).collect::<Vec<_>>();
+        if args.len() == 1 && (args[0] == "--version" || args[0] == "-V") {
+            let commit = option_env!("STABLE_GIT_COMMIT")
+                .unwrap_or("dev")
+                .replace('+', ".");
+            println!("antex 0.0.0+{commit}");
+            return Ok(());
+        }
+        antex_entry::prepare()?;
+    }
     codex_build_info::initialize!();
     let remote_control_disabled = codex_app_server::take_remote_control_disabled_env();
     arg0_dispatch_or_else(move |arg0_paths: Arg0DispatchPaths| async move {
@@ -1145,13 +1158,20 @@ async fn cli_main(
     arg0_paths: Arg0DispatchPaths,
     remote_control_disabled: bool,
 ) -> anyhow::Result<()> {
+    let mut command = MultitoolCli::command();
+    if antex_entry::is_antex() {
+        command = command
+            .bin_name("antex")
+            .version("0.0.0")
+            .override_usage("antex [OPTIONS] [PROMPT]\n       antex [OPTIONS] <COMMAND> [ARGS]");
+    }
     let MultitoolCli {
         config_overrides: mut root_config_overrides,
         feature_toggles,
         remote,
         mut interactive,
         subcommand,
-    } = MultitoolCli::parse();
+    } = MultitoolCli::from_arg_matches(&command.get_matches())?;
     reject_unsupported_worktree_for_subcommand(interactive.shared.worktree, &subcommand)?;
     // Fold --enable/--disable into config overrides so they flow to all subcommands.
     let toggle_overrides = feature_toggles.to_overrides()?;

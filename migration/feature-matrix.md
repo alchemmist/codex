@@ -120,3 +120,10 @@ still needs to satisfy Phase 0; later phases retain their own completion gates.
 
 Documentation reflects the current implementation; the existing install targets
 still install the legacy runtime and must not overwrite the accepted fallback.
+
+The first identity slice adds an `antex` binary target, independent development
+version output, and a temporary entry adapter that isolates both config and SQLite
+state from the fallback. CLI integration tests cover version output without state
+creation, MCP config writes with conflicting legacy overrides, and rejection of
+home aliases into `.codex`. These compiled tests await the `antex-migration`
+GitHub Actions workflow; no local build or test compilation was run for this slice.
