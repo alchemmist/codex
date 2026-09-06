@@ -79,17 +79,23 @@ just test -p codex-tui --lib -E 'test(startup_panel_mascot_skins_and_narrow_fall
 GitHub MCP found the remote annotated tag `alchemmist-v0.0.14` pointing at the
 baseline commit, but `get_release_by_tag` returned 404. `list_releases` reported
 `alchemmist-v0.0.13` as the newest published release. Thus the plan's assumption
-that a published `0.0.14` fallback exists is not verified. The installed binary
-is retained without modification; its fingerprint is in `baseline-macos.json`.
+that a published `0.0.14` fallback exists was not verified. The maintainer has
+explicitly accepted the current local `0.0.14` as the fallback; publication is
+not a migration prerequisite. The installed binary is retained without
+modification; its fingerprint is in `baseline-macos.json`.
 
 The current Mac has approximately 11–14 GiB available and an existing 133 GiB
-Cargo target directory. A separate clean-build destination and a Linux x86_64
-validation environment have been requested. Existing target data is not removed.
+Cargo target directory. The maintainer deferred clean platform builds and
+quantitative measurements to Phase 10 GitHub Actions release preflight. A local
+clean-build destination and Linux host are no longer migration prerequisites.
+Existing target data is not removed.
 The known `deimos.vla.yp-c.yandex.net` host was checked with noninteractive SSH;
 the connection failed with `No route to host` before authentication.
 
-`make build` was started against the existing target directory. Until that process
-completes, no successful rebuilt release or build-duration measurement is claimed.
+The earlier `make build` process is no longer running and its completion result
+was not recovered. No successful rebuilt release or build-duration measurement
+is claimed. The maintainer subsequently prohibited local builds and tests that
+trigger compilation; subsequent compiled validation belongs in GitHub Actions.
 
 ## Phase 0 work remaining
 
@@ -97,8 +103,20 @@ completes, no successful rebuilt release or build-duration measurement is claime
 - [x] Synchronize the phase checklist with PLAN.md.
 - [x] Map every current README feature to one disposition and owner phase.
 - [x] Add reproducible workspace, dependency, source, binary inventory.
-- [ ] Measure clean/warm builds, editable prompt startup, idle memory on both targets.
+- [ ] Phase 10: measure clean/warm builds, editable prompt startup, idle memory on both targets in GitHub Actions; deferred by the maintainer.
 - [ ] Complete and pass all required black-box fixtures.
-- [ ] Confirm the fallback binary is the published release on both targets.
+- [x] Retain the current local `0.0.14` fallback, explicitly accepted by the maintainer without a published release.
 
-No Phase 0 completion or later phase completion is asserted until these gates pass.
+The deferred Phase 10 measurements do not block migration work. Fixture coverage
+still needs to satisfy Phase 0; later phases retain their own completion gates.
+
+## Phase 1 progress
+
+- [x] State the independent Antex identity and migration status in README.
+- [x] Record Codex ancestry in NOTICE while preserving existing attribution.
+- [ ] Introduce the Antex composition root and isolated data home.
+- [ ] Implement explicit, non-destructive Codex data import.
+- [ ] Complete runtime/UI branding and product environment-variable changes.
+
+Documentation reflects the current implementation; the existing install targets
+still install the legacy runtime and must not overwrite the accepted fallback.

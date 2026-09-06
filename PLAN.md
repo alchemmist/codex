@@ -18,7 +18,7 @@ The migration is complete only when the repository builds and releases Antex wit
 6. **Release independence:** Antex versions never derive from an upstream Codex version. The first public Antex release is `0.0.1` with tag `antex-v0.0.1`.
 7. **Upstream history:** retain all existing `rust-v*` and `alchemmist-v*` tags. Never rewrite or delete them. Stop automated upstream synchronization.
 8. **Platforms for 0.x:** officially support Apple Silicon macOS and x86_64 GNU/Linux. Other targets are out of scope until the kernel is stable.
-9. **Daily-driver safety:** keep the already released `alchemmist-v0.0.14` binary available as the fallback until Antex passes the cutover criteria.
+9. **Daily-driver safety:** keep the current local `0.0.14` binary installed as `codex` as the fallback until Antex passes the cutover criteria. A published GitHub Release for this fallback is not required.
 10. **Migration style:** extraction-and-deletion in vertical slices. Every migration commit leaves the active Antex path buildable and tested.
 
 ## 3. Success criteria and budgets
@@ -275,8 +275,9 @@ The implementing agent must:
 6. Prefer replacement tests at the new interface over tests that reach into old internals.
 7. Delete legacy code in the same commit that removes its final caller, or in the immediately following mechanical deletion commit.
 8. Avoid permanent `legacy`, `compat`, or boolean feature branches in the new architecture. Temporary adapters must carry a removal phase and completion criterion in this plan.
-9. Keep the released `alchemmist-v0.0.14` binary installed separately while developing; do not publish an Antex tag before Phase 10.
+9. Keep the current local `0.0.14` binary installed separately while developing; do not publish an Antex tag before Phase 10.
 10. Stop and repair the current phase if the Antex binary, its focused tests, or the migration fixtures fail. Do not accumulate broken phases.
+11. Do not run local builds or tests that trigger compilation. The maintainer requires compiled validation through GitHub Actions. Local source inspection and non-compiling checks remain available; record unexecuted compiled checks explicitly.
 
 ## 8. Migration phases
 
@@ -301,7 +302,7 @@ the presence of implementation files. Evidence is tracked in `migration/`.
 
 #### Work
 
-- Record the current commit, upstream base `0.153.4`, fork release `0.0.14`, supported release targets, binary sizes, clean/warm build times, startup time, and idle memory.
+- Record the current commit, upstream base `0.153.4`, local fork version `0.0.14`, supported release targets, and available binary sizes. Clean platform builds and build-time/startup/memory measurements are deferred to Phase 10 GitHub Actions release preflight by the maintainer's decision; they do not block migration work.
 - Add black-box fixtures covering:
   - ChatGPT login token loading and refresh with a fake OAuth server;
   - one assistant response without tools;
@@ -567,6 +568,11 @@ Replace fork installer naming and behavior:
 
 Before creating `antex-v0.0.1`:
 
+The maintainer deferred Phase 0 clean platform builds and quantitative measurements
+to this preflight. Run them through GitHub Actions on both supported platforms and
+retain the measured results as workflow artifacts. Missing measurements must not
+be interpreted as passing budgets.
+
 1. fresh-clone build on both supported platforms;
 2. complete tests, Clippy, format, schema, and extension conformance;
 3. manual ChatGPT Plus/Pro login and model turn;
@@ -686,7 +692,7 @@ Control: no `antex-v*` tag exists before all Phase 10 preflight checks pass. Dev
 
 Risk: the migration interrupts daily use.
 
-Control: develop on branch `antex`, keep `alchemmist-v0.0.14` installed as `codex`, install development Antex as `antex`, and keep their data homes separate.
+Control: develop on branch `antex`, keep the current local `0.0.14` installed as `codex`, install development Antex as `antex`, and keep their data homes separate. The maintainer explicitly accepted this local fallback without a published `0.0.14` GitHub Release.
 
 ## 12. Final definition of done
 

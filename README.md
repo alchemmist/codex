@@ -1,11 +1,20 @@
-# alchemmist codex
+# Antex
 
-A terminal-native coding agent built on [OpenAI Codex](https://github.com/openai/codex) and kept in sync with upstream.
+Antex is an independent, terminal-first coding agent written in Rust. It grew from
+an [OpenAI Codex](https://github.com/openai/codex) fork and preserves that history
+and the Apache-2.0 license. Its target architecture is a small provider-neutral
+kernel with local tools and out-of-process extensions. The first provider will
+support ChatGPT subscriptions through the OpenAI adapter.
 
-## What's included
+Antex is currently being extracted from the existing runtime. The migration is
+tracked in [PLAN.md](PLAN.md), with verified baseline behavior and remaining gates
+in the [migration matrix](migration/feature-matrix.md). Antex `0.0.1` has not been
+released. The current local `0.0.14` binary remains the daily-driver fallback.
+
+## Current runtime behavior to preserve
 
 - The TUI uses the terminal palette and updates the composer, conversation history, plans, and diffs immediately when the terminal theme changes.
-- The configurable startup cockpit identifies alchemmist codex, shows its exact build commit, rotates fork-specific feature tips, and includes two animated ant mascot skins.
+- The configurable startup cockpit shows its exact build commit, rotates feature tips, and includes two animated ant mascot skins. Its legacy branding will change during extraction.
 - `Ctrl+S` stashes the current prompt draft, persists it across restarts, and restores it on the next press.
 - `/subagents <prompt>` explicitly enables subagents for one request; `/subagents` arms them for the next prompt.
 - `/statusline` can show the number of active subagents, while `/agents` opens an overview of their work.
@@ -23,12 +32,23 @@ A terminal-native coding agent built on [OpenAI Codex](https://github.com/openai
 - Fixes include tmux pane resize redraws, focus-related flickering, and a stable `Working` animation.
 - The root `Makefile` installs a local build or downloads ready-made macOS and Linux releases.
 
-## Build and install
+## Development
+
+The repository still contains the legacy runtime during migration. Compiled
+validation runs through GitHub Actions; local builds are paused. Local inventory
+and script checks are available without compiling:
 
 ```shell
-make install-local
-make install-mac
-make install-linux
+make migration-baseline
+make test-migration
+make migration-smoke BASELINE_BINARY=/absolute/path/to/codex
 ```
 
-Upstream documentation: [developers.openai.com/codex](https://developers.openai.com/codex).
+The existing `make install-local`, `make install-mac`, and `make install-linux`
+targets still install Codex-derived binaries. In particular, `install-local`
+overwrites the installed `codex`; keep the accepted local `0.0.14` fallback intact
+while migrating. These targets will install only `antex` at cutover.
+
+Clean macOS arm64 and Linux x86_64 builds and performance gates will run through
+GitHub Actions in release preflight. The first Antex release will be `0.0.1`, tagged
+`antex-v0.0.1`, with an independent version cycle.
