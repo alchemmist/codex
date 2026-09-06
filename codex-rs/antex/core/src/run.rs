@@ -169,6 +169,8 @@ async fn drive<P: ModelProvider>(
                             emit(events, cancel, AgentEvent::ToolStarted(validated.clone())).await;
                         let context = ToolContext {
                             cancellation: cancel.clone(),
+                            events: events.clone(),
+                            call_id: call.id.clone(),
                         };
                         let mut output = tokio::select! {
                             biased;

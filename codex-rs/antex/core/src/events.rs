@@ -1,12 +1,12 @@
 use futures::future::BoxFuture;
 use tokio::sync::mpsc;
-use tokio_util::sync::CancellationToken;
 
 use crate::AgentCommand;
 use crate::CommandSender;
 use crate::Message;
 use crate::ProviderError;
 use crate::ToolCall;
+use crate::ToolContext;
 use crate::ToolDefinition;
 use crate::ToolOutput;
 use crate::ToolScope;
@@ -22,6 +22,14 @@ pub struct TurnInput {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentEvent {
+    Interaction {
+        call_id: String,
+        request: crate::Interaction,
+    },
+    ToolProgress {
+        call_id: String,
+        text: String,
+    },
     Quota(crate::Quota),
     MessageCommitted(Message),
     TextDelta(String),
@@ -46,10 +54,6 @@ pub enum FinishReason {
 pub struct AgentRun {
     pub events: mpsc::Receiver<AgentEvent>,
     pub commands: CommandSender,
-}
-
-pub struct ToolContext {
-    pub cancellation: CancellationToken,
 }
 
 /// Resolves the enabled tool set and executes validated calls; implementations enforce permissions and cancellation.

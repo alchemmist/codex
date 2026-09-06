@@ -7,6 +7,9 @@ use futures::future::BoxFuture;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 
+#[path = "agent/interaction.rs"]
+mod interactions;
+
 #[derive(Clone)]
 struct Provider {
     responses: Arc<Mutex<VecDeque<Vec<ModelEvent>>>>,
