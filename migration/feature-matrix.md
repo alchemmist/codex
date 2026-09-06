@@ -89,16 +89,22 @@ Cargo target directory. The maintainer deferred clean platform builds and
 quantitative measurements to Phase 10 GitHub Actions release preflight. A local
 clean-build destination and Linux host are no longer migration prerequisites.
 Existing target data is not removed.
-The known `deimos.vla.yp-c.yandex.net` host was checked with noninteractive SSH;
-the connection failed with `No route to host` before authentication.
-The maintainer confirmed corporate VPN is currently disconnected. Remote builds
-on deimos are authorized but deferred until VPN availability is announced;
-GitHub Actions remains the active compiled-validation path.
+The maintainer subsequently restored VPN access. The isolated checkout at
+`deimos.vla.yp-c.yandex.net:/home/antonmoss/antex-work/codex` is now the primary
+compiled-validation executor. It uses a private Rust 1.95 toolchain, Clang 17,
+Git 2.55, and 16 build jobs through `scripts/antex-remote.py`. Iterative heavy
+GitHub Actions checks are disabled; the migration workflow is manual-only.
 
 The earlier `make build` process is no longer running and its completion result
 was not recovered. No successful rebuilt release or build-duration measurement
 is claimed. The maintainer subsequently prohibited local builds and tests that
-trigger compilation; subsequent compiled validation belongs in GitHub Actions.
+trigger compilation; subsequent compiled validation runs on deimos.
+
+Current remote evidence: 4,340 TUI tests (2 existing skips), 295 config tests,
+9 identity/import tests, and 26 independent kernel/provider tests passed.
+The provider fixtures use only fabricated credentials and local mock servers.
+TUI, kernel, and provider scoped Clippy checks passed. Config schema generation
+and the legacy Bazel lock refresh completed successfully; the latter had no drift.
 
 ## Phase 0 work remaining
 

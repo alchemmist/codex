@@ -364,7 +364,7 @@ criteria.
 
 Kernel progress: the standalone `Agent::start` now drives validated sequential
 tool calls, bounded steering/follow-up queues, interruption, pre-stream retries,
-an immutable context hook, and terminal events. Eleven tests passed on deimos,
+an immutable context hook, and terminal events. Twelve tests passed on deimos,
 including malformed/unknown tools, truncated streams, multi-tool cancellation,
 scope reset on follow-up, and rejection of overlapping runs; scoped Clippy passed.
 The legacy adapter and application cutover remain incomplete, so Phase 2 is not
@@ -385,6 +385,14 @@ marked complete.
 Integration tests drive the same `Agent::start` interface used by the application and cover the complete fake-provider loop. `antex-core` has no dependency on Codex core, app-server, TUI, config, HTTP, filesystem, or session crates.
 
 ### Phase 3 — Extract the OpenAI provider adapter
+
+Progress: the independent adapter now provides HTTP/SSE Responses, bounded replay
+of reasoning/message items, quota events, dynamic model discovery, private atomic
+credential storage, serialized refresh, account selection/logout, browser PKCE,
+and device-code login. Fourteen provider tests and twelve kernel tests passed on
+deimos with fake credentials; scoped Clippy passed. Live subscription acceptance,
+identification probing, and the remaining transport failure/reconnect fixtures
+are still required. No live credential has been used in automated validation.
 
 #### Work
 
