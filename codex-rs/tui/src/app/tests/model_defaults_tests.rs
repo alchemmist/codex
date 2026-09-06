@@ -76,10 +76,6 @@ async fn model_default_saves_report_server_outcomes_and_target_server_profile() 
             AppEvent::PersistServiceTierSelection {
                 service_tier: Some(ServiceTier::Fast.request_value().into()),
             },
-            AppEvent::ApplyAdvancedReasoning {
-                model: "gpt-5.4".into(),
-                effort: ReasoningEffortConfig::Ultra,
-            },
         ] {
             Box::pin(app.handle_event(&mut tui, &mut server, event)).await?;
         }
@@ -94,11 +90,11 @@ async fn model_default_saves_report_server_outcomes_and_target_server_profile() 
             .join("\n");
         assert_eq!(
             messages.matches("higher-priority").count(),
-            if outcome == "overridden" { 4 } else { 0 }
+            if outcome == "overridden" { 3 } else { 0 }
         );
         assert_eq!(
             messages.matches("Failed to save").count(),
-            if outcome == "rejected" { 4 } else { 0 }
+            if outcome == "rejected" { 3 } else { 0 }
         );
         if outcome == "overridden" {
             insta::assert_snapshot!("overridden_model_defaults", messages);
@@ -113,7 +109,7 @@ async fn model_default_saves_report_server_outcomes_and_target_server_profile() 
                 toml::from_str::<toml::Value>(&persisted)?,
                 toml::Value::Table(toml::toml! {
                     model = "gpt-5.4"
-                    model_reasoning_effort = "medium"
+                    model_reasoning_effort = "high"
                     plan_mode_reasoning_effort = "high"
                     service_tier = "fast"
                 })

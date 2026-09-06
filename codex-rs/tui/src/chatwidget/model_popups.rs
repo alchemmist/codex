@@ -297,10 +297,6 @@ impl ChatWidget {
             } else {
                 tx.send(AppEvent::UpdateModel(model_for_action.clone()));
                 tx.send(AppEvent::UpdateReasoningEffort(effort_for_action.clone()));
-                tx.send(AppEvent::PersistModelSelection {
-                    model: model_for_action.clone(),
-                    effort: effort_for_action.clone(),
-                });
             }
             if let Some(warning) = warning.clone() {
                 tx.send(AppEvent::InsertHistoryCell(Box::new(
@@ -323,9 +319,8 @@ impl ChatWidget {
             return false;
         }
 
-        // Prompt whenever the selection is not a true no-op for both:
-        // 1) the active Plan-mode effective reasoning, and
-        // 2) the stored global defaults that would be updated by the fallback path.
+        // Prompt whenever the selection is not a true no-op for both the active Plan-mode
+        // reasoning and the current conversation settings.
         selected_effort != self.effective_reasoning_effort()
             || selected_model != self.current_collaboration_mode.model()
             || selected_effort != self.current_collaboration_mode.reasoning_effort()
@@ -370,9 +365,7 @@ impl ChatWidget {
         } else {
             "built-in Plan default".to_string()
         };
-        let all_modes_description = format!(
-            "Set the global default reasoning level and the Plan mode override. This replaces the current {plan_reasoning_source}."
-        );
+        let all_modes_description = format!("Replace {plan_reasoning_source}.");
         let subtitle = format!("Choose where to apply {reasoning_phrase}.");
         let warning = effort
             .as_ref()
@@ -398,10 +391,6 @@ impl ChatWidget {
             tx.send(AppEvent::UpdateReasoningEffort(effort.clone()));
             tx.send(AppEvent::UpdatePlanModeReasoningEffort(effort.clone()));
             tx.send(AppEvent::PersistPlanModeReasoningEffort(effort.clone()));
-            tx.send(AppEvent::PersistModelSelection {
-                model: model.clone(),
-                effort: effort.clone(),
-            });
             if let Some(warning) = warning.clone() {
                 tx.send(AppEvent::InsertHistoryCell(Box::new(
                     history_cell::new_warning_event(warning),

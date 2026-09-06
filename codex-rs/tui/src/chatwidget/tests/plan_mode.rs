@@ -403,7 +403,7 @@ async fn reasoning_selection_in_plan_mode_model_switch_does_not_open_scope_promp
 }
 
 #[tokio::test]
-async fn plan_reasoning_scope_popup_all_modes_persists_global_and_plan_override() {
+async fn plan_reasoning_scope_popup_all_modes_keeps_model_selection_session_local() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
     chat.open_plan_reasoning_scope_prompt("gpt-5.4".to_string(), Some(ReasoningEffortConfig::High));
 
@@ -426,12 +426,10 @@ async fn plan_reasoning_scope_popup_all_modes_persists_global_and_plan_override(
         "expected updated plan override to be persisted; events: {events:?}"
     );
     assert!(
-        events.iter().any(|event| matches!(
-            event,
-            AppEvent::PersistModelSelection { model, effort: Some(ReasoningEffortConfig::High) }
-                if model == "gpt-5.4"
-        )),
-        "expected global model reasoning selection persistence; events: {events:?}"
+        events
+            .iter()
+            .all(|event| !matches!(event, AppEvent::PersistModelSelection { .. })),
+        "did not expect global model persistence; events: {events:?}"
     );
 }
 
@@ -543,7 +541,7 @@ async fn plan_reasoning_scope_popup_mentions_selected_reasoning() {
     assert!(popup.contains("Choose where to apply medium reasoning."));
     assert!(popup.contains("Always use medium reasoning in Plan mode."));
     assert!(popup.contains("Apply to Plan mode override"));
-    assert!(popup.contains("Apply to global default and Plan mode override"));
+    assert!(popup.contains("Apply to conversation and Plan override"));
     assert!(popup.contains("user-chosen Plan override (low)"));
 }
 

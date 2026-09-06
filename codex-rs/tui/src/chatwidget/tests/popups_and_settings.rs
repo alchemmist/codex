@@ -3718,19 +3718,18 @@ async fn model_reasoning_selection_popup_applies_custom_effort() {
     chat.handle_key_event(KeyEvent::from(KeyCode::Down));
     chat.handle_key_event(KeyEvent::from(KeyCode::Enter));
 
-    let selected_effort_events = std::iter::from_fn(|| rx.try_recv().ok())
-        .filter_map(|event| match event {
-            AppEvent::UpdateReasoningEffort(effort) => Some((None, effort)),
-            AppEvent::PersistModelSelection { model, effort } => Some((Some(model), effort)),
-            _ => None,
-        })
-        .collect::<Vec<_>>();
+    let events = std::iter::from_fn(|| rx.try_recv().ok()).collect::<Vec<_>>();
     assert_eq!(
-        selected_effort_events,
-        vec![
-            (None, Some(custom_effort.clone())),
-            (Some("gpt-5.4".to_string()), Some(custom_effort)),
-        ]
+        events.iter().find_map(|event| match event {
+            AppEvent::UpdateReasoningEffort(effort) => Some(effort.clone()),
+            _ => None,
+        }),
+        Some(Some(custom_effort))
+    );
+    assert!(
+        events
+            .iter()
+            .all(|event| !matches!(event, AppEvent::PersistModelSelection { .. }))
     );
 }
 
@@ -3807,7 +3806,7 @@ async fn ultra_reasoning_selection_skips_warning_below_threshold() {
 }
 
 #[tokio::test]
-async fn max_reasoning_selection_persists_model_selection() {
+async fn max_reasoning_selection_is_local_to_the_current_session() {
     let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
     chat.set_reasoning_effort(Some(ReasoningEffortConfig::High));
 
@@ -3824,13 +3823,11 @@ async fn max_reasoning_selection_persists_model_selection() {
         event,
         AppEvent::UpdateReasoningEffort(Some(ReasoningEffortConfig::Max))
     )));
-    assert!(events.iter().any(|event| matches!(
-        event,
-        AppEvent::PersistModelSelection {
-            model,
-            effort: Some(ReasoningEffortConfig::Max),
-        } if model == "gpt-5.4"
-    )));
+    assert!(
+        events
+            .iter()
+            .all(|event| !matches!(event, AppEvent::PersistModelSelection { .. }))
+    );
     assert!(
         events
             .iter()
