@@ -132,7 +132,10 @@ async fn drive<P: ModelProvider>(
         };
         history.push(message.clone());
         validation::messages(&history)?;
-        emit(events, cancel, AgentEvent::MessageCommitted(message)).await?;
+        events
+            .send(AgentEvent::MessageCommitted(message))
+            .await
+            .map_err(|_| error(ErrorKind::Cancelled, "event receiver closed"))?;
         let _ = emit(events, cancel, AgentEvent::Usage(response.usage)).await;
         if response.calls.is_empty() {
             emit(events, cancel, AgentEvent::TurnCompleted).await?;

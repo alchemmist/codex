@@ -10,6 +10,9 @@ use serde_json::json;
 #[path = "agent/interaction.rs"]
 mod interactions;
 
+#[path = "agent/completion.rs"]
+mod completion;
+
 #[derive(Clone)]
 struct Provider {
     responses: Arc<Mutex<VecDeque<Vec<ModelEvent>>>>,

@@ -2,7 +2,6 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc;
 use tokio::task::JoinHandle;
-use tokio_util::sync::CancellationToken;
 
 use crate::AgentCommand;
 use crate::AgentEvent;
@@ -18,7 +17,7 @@ pub struct Agent<P> {
     provider: Arc<P>,
     tools: Arc<dyn ToolHost>,
     hook: Option<Arc<dyn ContextHook>>,
-    active: Option<(CancellationToken, JoinHandle<()>)>,
+    active: Option<(CommandSender, JoinHandle<()>)>,
 }
 
 impl<P: ModelProvider + 'static> Agent<P> {
@@ -42,7 +41,7 @@ impl<P: ModelProvider + 'static> Agent<P> {
         if self
             .active
             .as_ref()
-            .is_some_and(|(_, task)| !task.is_finished())
+            .is_some_and(|(commands, _)| commands.is_open())
         {
             commands.close();
             let _ = sender.try_send(AgentEvent::Error(crate::response::error(
@@ -62,15 +61,15 @@ impl<P: ModelProvider + 'static> Agent<P> {
         let task = tokio::spawn(async move {
             crate::run::run(provider, tools, hook, input, sender, control).await;
         });
-        self.active = Some((commands.cancel.clone(), task));
+        self.active = Some((commands.clone(), task));
         AgentRun { events, commands }
     }
 }
 
 impl<P> Drop for Agent<P> {
     fn drop(&mut self) {
-        if let Some((cancel, _)) = &self.active {
-            cancel.cancel();
+        if let Some((commands, _)) = &self.active {
+            commands.cancel.cancel();
         }
     }
 }

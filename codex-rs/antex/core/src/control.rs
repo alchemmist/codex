@@ -44,6 +44,13 @@ pub(crate) enum NextInput {
 }
 
 impl CommandSender {
+    pub(crate) fn is_open(&self) -> bool {
+        self.state
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .open
+    }
+
     pub(crate) fn new() -> Self {
         Self {
             state: Arc::new(Mutex::new(State {
