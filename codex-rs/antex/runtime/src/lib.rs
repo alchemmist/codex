@@ -1,6 +1,7 @@
 mod config;
 mod files;
 mod permissions;
+mod project_context;
 mod sandbox;
 #[cfg(target_os = "linux")]
 mod seccomp;
@@ -9,10 +10,11 @@ mod sessions;
 mod shell;
 mod tools;
 
-pub use files::WorkspaceFiles;
 pub use config::Config;
 pub use config::LoadedConfig;
+pub use files::WorkspaceFiles;
 pub use permissions::PermissionProfile;
+pub use project_context::ProjectContext;
 pub use sessions::Session;
 pub use sessions::SessionMessage;
 pub use sessions::SessionStore;
