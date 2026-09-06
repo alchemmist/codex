@@ -6,15 +6,18 @@ license.workspace = true
 
 [dependencies]
 antex-core = { path = "../core" }
+base64 = "0.22"
 cap-std = "4"
 futures.workspace = true
 serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
 shlex = "1"
+sha2 = "0.10"
 thiserror.workspace = true
 tempfile = "3"
 tokio = { workspace = true, features = ["process", "io-util", "fs"] }
 tokio-util.workspace = true
+toml = "1"
 uuid = { version = "1", features = ["v4", "serde"] }
 
 [target.'cfg(unix)'.dependencies]

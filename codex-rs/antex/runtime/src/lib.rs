@@ -3,6 +3,7 @@ mod permissions;
 mod sandbox;
 #[cfg(target_os = "linux")]
 mod seccomp;
+mod session_codec;
 mod shell;
 mod tools;
 
