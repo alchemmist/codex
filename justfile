@@ -17,6 +17,9 @@ alias c := codex
 codex *args:
     cargo run --bin codex -- {args}
 
+antex *args:
+    cargo run --manifest-path antex/Cargo.toml -p antex-cli -- "$@"
+
 # `codex exec`
 exec *args:
     cargo run --bin codex -- exec {args}

@@ -1,5 +1,5 @@
 [workspace]
-members = ["core", "provider-openai", "runtime"]
+members = ["cli", "core", "provider-openai", "runtime"]
 resolver = "2"
 
 [workspace.package]

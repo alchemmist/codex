@@ -1,0 +1,21 @@
+[package]
+name = "antex-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "antex"
+path = "src/main.rs"
+
+[dependencies]
+antex-core = { path = "../core" }
+antex-provider-openai = { path = "../provider-openai" }
+antex-runtime = { path = "../runtime" }
+clap = { version = "4", features = ["derive", "env"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "signal"] }
+tokio-util.workspace = true
+
+[dev-dependencies]
+tempfile = "3"
+pretty_assertions = "1"
