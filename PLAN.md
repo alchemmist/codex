@@ -277,7 +277,7 @@ The implementing agent must:
 8. Avoid permanent `legacy`, `compat`, or boolean feature branches in the new architecture. Temporary adapters must carry a removal phase and completion criterion in this plan.
 9. Keep the current local `0.0.14` binary installed separately while developing; do not publish an Antex tag before Phase 10.
 10. Stop and repair the current phase if the Antex binary, its focused tests, or the migration fixtures fail. Do not accumulate broken phases.
-11. Do not run builds or tests that trigger compilation on the maintainer's Mac. Use GitHub Actions for compiled validation. The maintainer also authorized an isolated `antex` checkout on `deimos.vla.yp-c.yandex.net`, but access is deferred until they announce corporate VPN availability. Do not block migration work on that host. Local source inspection and non-compiling checks remain available; record unexecuted compiled checks explicitly.
+11. Do not compile on the maintainer's Mac. The maintainer's remote Linux build host is now available and is the primary executor for builds, tests, Clippy, and generation. Use an isolated checkout of `antex` there. Do not run iterative heavy validation through GitHub Actions; the migration workflow is manual-only. Retain the final platform/release gates. Continue until the complete definition of done is met, recording evidence rather than treating intermediate slices as completion.
 
 ## 8. Migration phases
 

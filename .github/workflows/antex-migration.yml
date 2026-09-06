@@ -1,8 +1,6 @@
 name: antex-migration
 
 on:
-  push:
-    branches: [antex]
   workflow_dispatch:
 
 permissions:
