@@ -109,6 +109,7 @@ pub struct Usage {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum ModelEvent {
+    Quota(crate::Quota),
     Text(String),
     Reasoning(String),
     Continuation { provider: String, data: Arc<[u8]> },

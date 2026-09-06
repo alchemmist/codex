@@ -360,3 +360,41 @@ async fn a_second_start_does_not_overlap_or_destroy_an_active_run() {
         })
     );
 }
+
+#[tokio::test]
+async fn quota_events_are_presented_without_becoming_model_history() {
+    let quota = Quota {
+        primary: Some(QuotaWindow {
+            used_basis_points: 5000,
+            window_seconds: Some(3600),
+            resets_at: Some(10000),
+        }),
+        secondary: None,
+        credits: None,
+    };
+    let provider = provider(vec![
+        vec![
+            ModelEvent::Quota(quota.clone()),
+            ModelEvent::Finished(Usage::default()),
+        ],
+        vec![ModelEvent::Finished(Usage::default())],
+    ]);
+    let mut agent = Agent::new(provider.clone(), Arc::new(Tools::default()));
+    let run = agent.start(input());
+    run.commands
+        .try_send(AgentCommand::FollowUp("next".into()))
+        .unwrap();
+    let events = drain(run).await;
+    assert!(events.contains(&AgentEvent::Quota(quota)));
+    assert_eq!(
+        provider.requests.lock().unwrap()[1].messages,
+        vec![
+            Message::User("hello".into()),
+            Message::Assistant {
+                content: Vec::new(),
+                tool_calls: Vec::new()
+            },
+            Message::User("next".into())
+        ]
+    );
+}

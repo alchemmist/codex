@@ -76,6 +76,20 @@ pub(crate) async fn collect<P: ModelProvider>(
             .ok_or_else(|| error(ErrorKind::Protocol, "model stream ended without completion"))??;
         let previous_content = response.content.clone();
         let event = match item {
+            ModelEvent::Quota(quota) => {
+                if quota
+                    .credits
+                    .as_ref()
+                    .and_then(|credits| credits.balance.as_ref())
+                    .is_some_and(|balance| balance.len() > 64)
+                {
+                    return Err(error(
+                        ErrorKind::Limit,
+                        "quota metadata exceeds its byte budget",
+                    ));
+                }
+                Some(AgentEvent::Quota(quota))
+            }
             ModelEvent::Text(text) => {
                 if let Some(Content::Text(previous)) = response.content.last_mut() {
                     if previous.len() + text.len() > crate::MAX_TEXT_BYTES {

@@ -22,6 +22,7 @@ pub struct TurnInput {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentEvent {
+    Quota(crate::Quota),
     MessageCommitted(Message),
     TextDelta(String),
     ReasoningDelta(String),
