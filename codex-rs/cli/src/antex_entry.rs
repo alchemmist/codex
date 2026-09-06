@@ -11,7 +11,7 @@ pub(super) fn is_antex() -> bool {
         .is_some_and(|name| name == "antex")
 }
 
-pub(super) fn prepare() -> anyhow::Result<()> {
+pub(super) fn home() -> anyhow::Result<PathBuf> {
     let user_home = std::env::var_os("HOME")
         .or_else(|| std::env::var_os("USERPROFILE"))
         .map(PathBuf::from)
@@ -37,6 +37,11 @@ pub(super) fn prepare() -> anyhow::Result<()> {
         !antex_home.starts_with(&codex_home),
         "Antex home must not be inside the legacy .codex directory"
     );
+    Ok(antex_home)
+}
+
+pub(super) fn prepare() -> anyhow::Result<()> {
+    let antex_home = home()?;
     std::fs::create_dir_all(&antex_home).context("cannot create the Antex home directory")?;
     anyhow::ensure!(antex_home.is_dir(), "ANTEX_HOME must point to a directory");
 

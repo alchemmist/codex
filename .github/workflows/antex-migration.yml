@@ -44,7 +44,7 @@ jobs:
         working-directory: codex-rs
         shell: bash
         run: |
-          if just test -p codex-cli --test antex_identity > "${RUNNER_TEMP}/antex-tests.log" 2>&1; then
+          if just test -p codex-cli --test antex_identity --test antex_migration > "${RUNNER_TEMP}/antex-tests.log" 2>&1; then
             cat "${RUNNER_TEMP}/antex-tests.log"
           else
             cat "${RUNNER_TEMP}/antex-tests.log"

@@ -56,6 +56,7 @@ use supports_color::Stream;
 static ALLOCATOR: tikv_jemallocator::Jemalloc = tikv_jemallocator::Jemalloc;
 
 mod antex_entry;
+mod antex_migrate;
 #[cfg(any(target_os = "macos", target_os = "windows"))]
 mod app_cmd;
 mod cloud_config;
@@ -1137,6 +1138,9 @@ fn stage_str(stage: Stage) -> &'static str {
 fn main() -> anyhow::Result<()> {
     if antex_entry::is_antex() {
         let args = std::env::args_os().skip(1).collect::<Vec<_>>();
+        if args.first().is_some_and(|arg| arg == "migrate") {
+            return antex_migrate::run();
+        }
         if args.len() == 1 && (args[0] == "--version" || args[0] == "-V") {
             let commit = option_env!("STABLE_GIT_COMMIT")
                 .unwrap_or("dev")
@@ -1163,7 +1167,8 @@ async fn cli_main(
         command = command
             .bin_name("antex")
             .version("0.0.0")
-            .override_usage("antex [OPTIONS] [PROMPT]\n       antex [OPTIONS] <COMMAND> [ARGS]");
+            .override_usage("antex [OPTIONS] [PROMPT]\n       antex [OPTIONS] <COMMAND> [ARGS]")
+            .after_help("Import Codex data: antex migrate codex [--dry-run]");
     }
     let MultitoolCli {
         config_overrides: mut root_config_overrides,
