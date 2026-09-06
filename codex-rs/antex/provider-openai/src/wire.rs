@@ -48,6 +48,7 @@ pub(crate) fn encode(request: ModelRequest) -> Result<Value, ProviderError> {
                         Content::Text(value) => text.push(json!({"type":"output_text","text":value})),
                         Content::Continuation { provider, data } if provider == PROVIDER => {
                             let item: Value = serde_json::from_slice(&data).map_err(|_| error(ErrorKind::Protocol, "invalid OpenAI continuation"))?;
+                            let item = crate::continuation::normalize(&item)?;
                             match item["type"].as_str() {
                                 Some("message") if item["role"] == "assistant" => replayed_message = true,
                                 Some("reasoning") => {},
@@ -83,6 +84,7 @@ pub(crate) fn encode(request: ModelRequest) -> Result<Value, ProviderError> {
 pub(crate) fn decode(value: Value) -> Result<Vec<ModelEvent>, ProviderError> {
     let mut events = Vec::new();
     match value["type"].as_str() {
+        Some("codex.rate_limits") => events.push(ModelEvent::Quota(crate::limits::event(&value))),
         Some("response.output_text.delta") => {
             events.push(ModelEvent::Text(field(&value, "delta")?))
         }
@@ -98,7 +100,7 @@ pub(crate) fn decode(value: Value) -> Result<Vec<ModelEvent>, ProviderError> {
                     arguments: field(item, "arguments")?,
                 })),
                 Some("reasoning" | "message") => {
-                    let data = serde_json::to_vec(item)
+                    let data = serde_json::to_vec(&crate::continuation::normalize(item)?)
                         .map_err(|_| error(ErrorKind::Protocol, "cannot encode continuation"))?;
                     if data.len() > antex_core::MAX_STATE_BYTES {
                         return Err(error(

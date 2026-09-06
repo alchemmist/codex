@@ -89,3 +89,38 @@ fn completion_reports_usage_and_failure_never_becomes_completion() {
         assert_eq!(decode(event).unwrap_err().kind, ErrorKind::Protocol);
     }
 }
+
+#[test]
+fn opaque_replay_cannot_bypass_text_budgets_or_forward_unknown_metadata() {
+    let oversized = json!({"type":"response.output_item.done","item":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"x".repeat(antex_core::MAX_TEXT_BYTES+1)}]}});
+    assert_eq!(decode(oversized).unwrap_err().kind, ErrorKind::Limit);
+    let events = decode(json!({"type":"response.output_item.done","item":{"type":"reasoning","summary":[],"encrypted_content":"opaque","unrelated":"not model context"}})).unwrap();
+    let ModelEvent::Continuation { data, .. } = &events[0] else {
+        panic!("expected continuation")
+    };
+    assert_eq!(
+        serde_json::from_slice::<serde_json::Value>(data).unwrap(),
+        json!({"type":"reasoning","summary":[],"encrypted_content":"opaque"})
+    );
+}
+
+#[test]
+fn quota_events_keep_subscription_metadata_out_of_text_content() {
+    let event = decode(json!({"type":"codex.rate_limits","rate_limits":{"primary":{"used_percent":42.25,"window_minutes":300,"reset_at":1700000000}},"credits":{"has_credits":true,"unlimited":false,"balance":"12.5"}})).unwrap();
+    assert_eq!(
+        event,
+        vec![ModelEvent::Quota(antex_core::Quota {
+            primary: Some(antex_core::QuotaWindow {
+                used_basis_points: 4225,
+                window_seconds: Some(18000),
+                resets_at: Some(1700000000)
+            }),
+            secondary: None,
+            credits: Some(antex_core::Credits {
+                available: true,
+                unlimited: false,
+                balance: Some("12.5".into())
+            }),
+        })]
+    );
+}
