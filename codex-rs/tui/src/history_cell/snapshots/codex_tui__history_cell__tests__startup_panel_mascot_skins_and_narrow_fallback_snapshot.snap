@@ -4,30 +4,30 @@ expression: rendered
 ---
 Ant01:
 wide:
-  ▀▄     ▄▀    ╭─ alchemmist codex · unknown ─────╮
-   ▄▀▄▄▄▀▄     │  gpt-5.6-sol · low               │
- ▄█▀▀███▀▀█▄   │  /tmp/project                    │
- ▀▀▄▄▀▀▀▄▄▀▀   │  YOLO · context 1M               │
-  ▄█▀   ▀█▄    ╰──────────────────────────────────╯
+  ▀▄     ▄▀    ╭─ Antex · unknown ─────╮
+   ▄▀▄▄▄▀▄     │  gpt-5.6-sol · low    │
+ ▄█▀▀███▀▀█▄   │  /tmp/project         │
+ ▀▀▄▄▀▀▀▄▄▀▀   │  YOLO · context 1M    │
+  ▄█▀   ▀█▄    ╰───────────────────────╯
  ▀▀       ▀▀
 narrow:
-╭─ alchemmist codex · unknown ─────╮
-│  gpt-5.6-sol · low               │
-│  /tmp/project                    │
-│  YOLO · context 1M               │
-╰──────────────────────────────────╯
+╭─ Antex · unknown ─────╮
+│  gpt-5.6-sol · low    │
+│  /tmp/project         │
+│  YOLO · context 1M    │
+╰───────────────────────╯
 ---
 Ant03:
 wide:
- ▀▄       ▄▀   ╭─ alchemmist codex · unknown ─────╮
-  ▄▀█████▀▄    │  gpt-5.6-sol · low               │
-▄█▀▀█████▀▀█▄  │  /tmp/project                    │
-▀▀▄▄▀▀▀▀▀▄▄▀▀  │  YOLO · context 1M               │
-  ██  ▄  ██    ╰──────────────────────────────────╯
+ ▀▄       ▄▀   ╭─ Antex · unknown ─────╮
+  ▄▀█████▀▄    │  gpt-5.6-sol · low    │
+▄█▀▀█████▀▀█▄  │  /tmp/project         │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  YOLO · context 1M    │
+  ██  ▄  ██    ╰───────────────────────╯
    ▀▀▀ ▀▀▀
 narrow:
-╭─ alchemmist codex · unknown ─────╮
-│  gpt-5.6-sol · low               │
-│  /tmp/project                    │
-│  YOLO · context 1M               │
-╰──────────────────────────────────╯
+╭─ Antex · unknown ─────╮
+│  gpt-5.6-sol · low    │
+│  /tmp/project         │
+│  YOLO · context 1M    │
+╰───────────────────────╯

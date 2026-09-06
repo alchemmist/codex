@@ -115,7 +115,7 @@ struct FeatureTipHistoryCell {
 
 impl HistoryCell for FeatureTipHistoryCell {
     fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        let text = format!("✦ alchemmist feature: {}", self.tip);
+        let text = format!("✦ Antex feature: {}", self.tip);
         let wrap_width = usize::from(width.max(1)).saturating_sub(2).max(1);
         textwrap::wrap(&text, wrap_width)
             .into_iter()
@@ -124,7 +124,7 @@ impl HistoryCell for FeatureTipHistoryCell {
     }
 
     fn raw_lines(&self) -> Vec<Line<'static>> {
-        vec![Line::from(format!("alchemmist feature: {}", self.tip))]
+        vec![Line::from(format!("Antex feature: {}", self.tip))]
     }
 }
 
@@ -169,7 +169,7 @@ pub(crate) fn new_session_info(
         session.reasoning_effort.clone(),
         show_fast_status,
         config.cwd.to_path_buf(),
-        CODEX_CLI_VERSION,
+        ANTEX_VERSION,
     )
     .with_startup_panel(
         config.tui_startup_panel.clone(),
@@ -195,7 +195,7 @@ pub(crate) fn new_session_info(
             Line::from(vec![
                 "  ".into(),
                 "/init".into(),
-                " - create an AGENTS.md file with instructions for Codex".dim(),
+                " - create an AGENTS.md file with instructions for Antex".dim(),
             ]),
             Line::from(vec![
                 "  ".into(),
@@ -205,7 +205,7 @@ pub(crate) fn new_session_info(
             Line::from(vec![
                 "  ".into(),
                 "/permissions".into(),
-                " - choose what Codex is allowed to do".dim(),
+                " - choose what Antex is allowed to do".dim(),
             ]),
             Line::from(vec![
                 "  ".into(),
@@ -420,10 +420,9 @@ impl HistoryCell for SessionHeaderHistoryCell {
 
         let make_row = |spans: Vec<Span<'static>>| Line::from(spans);
 
-        // Title line rendered inside the box: ">_ OpenAI Codex (vX)"
         let title_spans: Vec<Span<'static>> = vec![
             Span::from(">_ ").dim(),
-            Span::from("OpenAI Codex").bold(),
+            Span::from("Antex").bold(),
             Span::from(" ").dim(),
             Span::from(format!("(v{})", self.version)).dim(),
         ];

@@ -3690,7 +3690,7 @@
           "default": "cockpit"
         },
         "title": {
-          "default": "alchemmist codex",
+          "default": "Antex",
           "type": "string"
         }
       },
@@ -4216,7 +4216,7 @@
             "show_model": true,
             "show_permissions": true,
             "style": "cockpit",
-            "title": "alchemmist codex"
+            "title": "Antex"
           }
         },
         "status_line": {

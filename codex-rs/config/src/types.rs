@@ -784,7 +784,7 @@ impl Default for StartupPanelConfig {
 }
 
 fn default_startup_panel_title() -> String {
-    "alchemmist codex".to_string()
+    "Antex".to_string()
 }
 
 #[derive(Serialize, Deserialize, Debug, Default, Copy, Clone, PartialEq, Eq, JsonSchema)]

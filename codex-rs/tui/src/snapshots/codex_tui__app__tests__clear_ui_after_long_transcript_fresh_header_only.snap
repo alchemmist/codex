@@ -3,8 +3,8 @@ source: tui/src/app/tests.rs
 expression: rendered
 ---
  ▀▄       ▄▀
-  ▄▀█████▀▄    ╭─ alchemmist codex · unknown ─────╮
-▄█▀▀█████▀▀█▄  │  gpt-test · high                 │
-▀▀▄▄▀▀▀▀▀▄▄▀▀  │  /tmp/project                    │
-  ██  ▄  ██    ╰──────────────────────────────────╯
+  ▄▀█████▀▄    ╭─ Antex · unknown ─────╮
+▄█▀▀█████▀▀█▄  │  gpt-test · high      │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  /tmp/project         │
+  ██  ▄  ██    ╰───────────────────────╯
    ▀▀▀ ▀▀▀

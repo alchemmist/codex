@@ -77,7 +77,7 @@ use crate::text_formatting::proper_join;
 use crate::tmux_command_log::TmuxCommandLog;
 use crate::token_usage::TokenUsage;
 use crate::token_usage::TokenUsageInfo;
-use crate::version::CODEX_CLI_VERSION;
+use crate::version::ANTEX_VERSION;
 use codex_app_server_protocol::AddCreditsNudgeCreditType;
 use codex_app_server_protocol::AddCreditsNudgeEmailStatus;
 use codex_app_server_protocol::AppSummary;
@@ -1516,7 +1516,7 @@ impl ChatWidget {
                 /*reasoning_effort*/ None,
                 /*show_fast_status*/ false,
                 config.cwd.to_path_buf(),
-                CODEX_CLI_VERSION,
+                ANTEX_VERSION,
             )
             .with_startup_panel(
                 config.tui_startup_panel.clone(),

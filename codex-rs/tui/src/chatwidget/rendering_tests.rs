@@ -162,16 +162,18 @@ async fn initial_session_header_starts_at_the_top_of_the_viewport() {
         })
         .collect::<Vec<_>>()
         .join("\n")
-        .replace(crate::version::CODEX_CLI_VERSION, "<VERSION>");
+        .replace(crate::version::ANTEX_VERSION, "<VERSION>");
 
     let cwd = widget.config.cwd.as_path().display().to_string();
     let normalized_cwd = format!("{:<width$}", "/tmp/project", width = cwd.len());
 
     insta::assert_snapshot!(header.replace(&cwd, &normalized_cwd), @"
-    ╭─ alchemmist codex · unknown ─────╮
-    │  loading                         │
-    │  /tmp/project                    │
-    ╰──────────────────────────────────╯
+     ▀▄       ▄▀
+      ▄▀█████▀▄    ╭─ Antex · unknown ─────╮
+    ▄█▀▀█████▀▀█▄  │  loading              │
+    ▀▀▄▄▀▀▀▀▀▄▄▀▀  │  /tmp/project         │
+      ██  ▄  ██    ╰───────────────────────╯
+       ▀▀▀ ▀▀▀
     ");
 }
 

@@ -23,10 +23,10 @@ use std::path::Path;
 
 use crate::history_cell::StartupUpdates;
 use crate::history_cell::VersionUpdate;
-use crate::version::CODEX_CLI_VERSION;
+use crate::version::ANTEX_VERSION;
 
 pub fn get_upgrade_version(config: &Config) -> Option<String> {
-    if !config.check_for_update_on_startup || is_source_build_version(CODEX_CLI_VERSION) {
+    if !config.check_for_update_on_startup || is_source_build_version(ANTEX_VERSION) {
         return None;
     }
 
@@ -50,7 +50,7 @@ pub fn get_upgrade_version(config: &Config) -> Option<String> {
     }
 
     info.and_then(|info| {
-        if is_newer(&info.latest_version, CODEX_CLI_VERSION).unwrap_or(false) {
+        if is_newer(&info.latest_version, ANTEX_VERSION).unwrap_or(false) {
             Some(info.latest_version)
         } else {
             None
@@ -83,7 +83,7 @@ pub fn get_startup_updates(config: &Config) -> StartupUpdates {
         fork: get_fork_upgrade_version(config)
             .map(|latest| VersionUpdate::new(FORK_VERSION, latest)),
         upstream: get_upgrade_version(config)
-            .map(|latest| VersionUpdate::new(CODEX_CLI_VERSION, latest)),
+            .map(|latest| VersionUpdate::new(ANTEX_VERSION, latest)),
     }
 }
 

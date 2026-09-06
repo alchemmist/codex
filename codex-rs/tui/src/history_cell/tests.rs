@@ -731,7 +731,7 @@ async fn session_info_availability_nux_tooltip_snapshot() {
     target_os = "windows",
     ignore = "snapshot path rendering differs on Windows"
 )]
-async fn alchemmist_startup_panel_snapshot() {
+async fn antex_startup_panel_snapshot() {
     let mut config = test_config().await;
     config.cwd = test_path_buf("/tmp/project").abs();
     config.model_context_window = Some(1_000_000);
@@ -837,7 +837,7 @@ fn startup_panel_mascot_skins_and_narrow_fallback_snapshot() {
             format!(
                 "{mascot_skin:?}:\nwide:\n{}\nnarrow:\n{}",
                 render_lines(&cell.display_lines(/*width*/ 60)).join("\n"),
-                render_lines(&cell.display_lines(/*width*/ 40)).join("\n")
+                render_lines(&cell.display_lines(/*width*/ 32)).join("\n")
             )
         })
         .collect::<Vec<_>>()

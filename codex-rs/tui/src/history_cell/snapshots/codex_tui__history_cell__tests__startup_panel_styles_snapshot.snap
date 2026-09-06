@@ -3,23 +3,23 @@ source: tui/src/history_cell/tests.rs
 expression: rendered
 ---
 Cockpit:
- ▀▄       ▄▀   ╭─ alchemmist codex · unknown ─────╮
-  ▄▀█████▀▄    │  gpt-5.6-sol · low               │
-▄█▀▀█████▀▀█▄  │  /tmp/project                    │
-▀▀▄▄▀▀▀▀▀▄▄▀▀  │  YOLO · context 1M               │
-  ██  ▄  ██    ╰──────────────────────────────────╯
+ ▀▄       ▄▀   ╭─ Antex · unknown ─────╮
+  ▄▀█████▀▄    │  gpt-5.6-sol · low    │
+▄█▀▀█████▀▀█▄  │  /tmp/project         │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  YOLO · context 1M    │
+  ██  ▄  ██    ╰───────────────────────╯
    ▀▀▀ ▀▀▀
 ---
 Hacker:
- ▀▄       ▄▀   ╭─[alchemmist codex · unknown]─────╮
-  ▄▀█████▀▄    │  model  gpt-5.6-sol · low        │
-▄█▀▀█████▀▀█▄  │  cwd    /tmp/project             │
-▀▀▄▄▀▀▀▀▀▄▄▀▀  │  mode   YOLO · context 1M        │
-  ██  ▄  ██    ╰──────────────────────────────────╯
+ ▀▄       ▄▀   ╭─[Antex · unknown]──────────╮
+  ▄▀█████▀▄    │  model  gpt-5.6-sol · low  │
+▄█▀▀█████▀▀█▄  │  cwd    /tmp/project       │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  mode   YOLO · context 1M  │
+  ██  ▄  ██    ╰────────────────────────────╯
    ▀▀▀ ▀▀▀
 ---
 Minimal:
- ▀▄       ▄▀   alchemmist codex · unknown
+ ▀▄       ▄▀   Antex · unknown
   ▄▀█████▀▄
 ▄█▀▀█████▀▀█▄  gpt-5.6-sol · low
 ▀▀▄▄▀▀▀▀▀▄▄▀▀  /tmp/project
@@ -28,7 +28,7 @@ Minimal:
 ---
 Classic:
 ╭─────────────────────────────────────────────────╮
-│ >_ OpenAI Codex (vtest)                         │
+│ >_ Antex (vtest)                                │
 │                                                 │
 │ model:       gpt-5.6-sol low   /model to change │
 │ directory:   /tmp/project                       │
