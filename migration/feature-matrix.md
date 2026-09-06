@@ -91,6 +91,9 @@ clean-build destination and Linux host are no longer migration prerequisites.
 Existing target data is not removed.
 The known `deimos.vla.yp-c.yandex.net` host was checked with noninteractive SSH;
 the connection failed with `No route to host` before authentication.
+The maintainer confirmed corporate VPN is currently disconnected. Remote builds
+on deimos are authorized but deferred until VPN availability is announced;
+GitHub Actions remains the active compiled-validation path.
 
 The earlier `make build` process is no longer running and its completion result
 was not recovered. No successful rebuilt release or build-duration measurement
@@ -127,3 +130,13 @@ state from the fallback. CLI integration tests cover version output without stat
 creation, MCP config writes with conflicting legacy overrides, and rejection of
 home aliases into `.codex`. These compiled tests await the `antex-migration`
 GitHub Actions workflow; no local build or test compilation was run for this slice.
+
+The first Linux workflow built the Antex binary and passed three identity tests.
+The fourth failed because the test parsed a complete TOML document through
+`Value::from_str`, which parses a value. It now uses `toml::from_str`. The same
+correction is applied to the import implementation and its tests. A new workflow
+run must validate the fix and import behavior before Phase 1 is complete.
+
+The explicit import command and its pending CI coverage are described in
+[`import.md`](import.md). The maintainer authorized `gh` as well as GitHub MCP;
+workflow logs can now be read directly without browser automation.
