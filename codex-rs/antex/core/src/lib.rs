@@ -1,5 +1,20 @@
 mod context;
+mod control;
+mod events;
 mod model;
+mod toolset;
+mod validation;
+
+pub use control::AgentCommand;
+pub use control::CommandError;
+pub use control::CommandSender;
+pub use events::AgentEvent;
+pub use events::AgentRun;
+pub use events::ContextHook;
+pub use events::FinishReason;
+pub use events::ToolContext;
+pub use events::ToolHost;
+pub use events::TurnInput;
 
 pub use context::ContextFragment;
 pub use context::ContextKind;
