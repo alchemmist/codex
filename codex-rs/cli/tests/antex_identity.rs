@@ -36,7 +36,8 @@ fn mcp_config_writes_use_antex_home_and_ignore_legacy_home_override() -> Result<
         "{}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let config: toml::Value = fs::read_to_string(antex_home.path().join("config.toml"))?.parse()?;
+    let config: toml::Value =
+        toml::from_str(&fs::read_to_string(antex_home.path().join("config.toml"))?)?;
     assert_eq!(
         config["mcp_servers"]["fixture"]["command"].as_str(),
         Some("echo")
