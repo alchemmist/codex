@@ -79,6 +79,13 @@ fn import_copies_supported_data_and_rerun_preserves_destination_changes() -> Res
     fs::write(source.path().join("auth.json"), "private-credential")?;
     fs::create_dir_all(source.path().join("skills/example"))?;
     fs::write(&skill_path, "fixture skill")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        let source_mode = 0o755;
+        fs::set_permissions(&skill_path, fs::Permissions::from_mode(source_mode))?;
+    }
     fs::create_dir(source.path().join("prompt-stashes"))?;
     fs::write(source.path().join("prompt-stashes/fixture.json"), "{}")?;
     fs::create_dir(source.path().join("sessions"))?;
@@ -111,7 +118,16 @@ fn import_copies_supported_data_and_rerun_preserves_destination_changes() -> Res
         fs::read(destination.path().join("sessions/fixture.jsonl"))?,
         fs::read(source.path().join("sessions/fixture.jsonl"))?
     );
-    assert_eq!(fs::read(imported_skill)?, fs::read(skill_path)?);
+    assert_eq!(fs::read(&imported_skill)?, fs::read(skill_path)?);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+
+        assert_eq!(
+            fs::metadata(imported_skill)?.permissions().mode() & 0o777,
+            0o700
+        );
+    }
     assert_eq!(
         fs::read_to_string(destination.path().join("prompt-stashes/fixture.json"))?,
         "{}"

@@ -24,6 +24,8 @@ Source symlinks are skipped and reported; destination symlinks are rejected.
 Existing destination files are skipped, including config.toml. Importing again
 therefore preserves changes already made in Antex. Each new file is published
 without overwriting an existing file, after writing and syncing a temporary file.
+On macOS and Linux, imported files are owner-private and retain owner execution
+permission so executable skill scripts remain executable.
 If copying fails, already imported files remain; retrying preserves them.
 
 Limits are 10,000 visited entries, 1 MiB of configuration, and 64 MiB per copied

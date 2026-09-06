@@ -238,10 +238,17 @@ pub(super) fn run() -> anyhow::Result<()> {
         let mut temporary = tempfile::NamedTempFile::new_in(parent)?;
         match import.content {
             Content::File(source) => {
-                let copied = std::io::copy(
-                    &mut File::open(source)?.take(MAX_FILE_BYTES + 1),
-                    &mut temporary,
-                )?;
+                let source = File::open(source)?;
+                #[cfg(unix)]
+                {
+                    use std::os::unix::fs::PermissionsExt;
+
+                    let mode = 0o600 | (source.metadata()?.permissions().mode() & 0o100);
+                    temporary
+                        .as_file()
+                        .set_permissions(fs::Permissions::from_mode(mode))?;
+                }
+                let copied = std::io::copy(&mut source.take(MAX_FILE_BYTES + 1), &mut temporary)?;
                 anyhow::ensure!(copied <= MAX_FILE_BYTES, "import file grew beyond 64 MiB");
             }
             Content::Config(bytes) => temporary.write_all(&bytes)?,
