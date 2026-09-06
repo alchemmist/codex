@@ -1,0 +1,12 @@
+[
+  "v8",
+  "rusty_v8",
+  "deno_core",
+  "codex-app-server",
+  "codex-cloud-tasks",
+  "codex-connectors",
+  "codex-otel",
+  "codex-realtime-webrtc",
+  "codex-voice-host",
+  "codex-windows-sandbox"
+]

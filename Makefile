@@ -6,6 +6,7 @@ INSTALL ?= install
 CODEX_RS_DIR := $(CURDIR)/codex-rs
 CODEX_TARGET_DIR := $(CODEX_RS_DIR)/target
 CODEX_BINARY := $(CODEX_TARGET_DIR)/release/codex
+BASELINE_BINARY ?= $(CODEX_BINARY)
 CODEX_CODE_MODE_HOST_BINARY := $(CODEX_TARGET_DIR)/release/codex-code-mode-host
 CODEX_INSTALL_DIR ?= $(HOME)/.local/bin
 CODEX_RELEASE_REPOSITORY ?= alchemmist/codex
@@ -15,6 +16,19 @@ CODEX_BUILD_COMMIT := $(CODEX_GIT_COMMIT)$(CODEX_GIT_DIRTY)
 CODEX_FORK_VERSION := $(shell tr -d '[:space:]' < "$(CURDIR)/FORK_VERSION")
 
 .PHONY: build install-local install-mac install-linux release-patch release-minor release-major
+
+.PHONY: migration-baseline test-migration
+
+migration-baseline:
+	python3 scripts/antex-baseline.py $(BASELINE_ARGS)
+
+test-migration:
+	python3 -m unittest discover -s scripts -p 'test_antex_*.py'
+
+.PHONY: migration-smoke
+
+migration-smoke:
+	python3 scripts/antex-smoke.py --binary "$(BASELINE_BINARY)" $(SMOKE_ARGS)
 
 build:
 	CODEX_REPO_ROOT="$(CURDIR)" CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" python3 scripts/build-fork-local.py "$(CARGO)"

@@ -1,0 +1,32 @@
+{
+  "baseline_commit": "c6ca7fe8a7e6eb9bc7dad2904c92b3b824a36a82",
+  "upstream_baseline": "0.153.4",
+  "fork_release": "0.0.14",
+  "host": "aarch64-apple-darwin",
+  "binary": {
+    "bytes": 295895736,
+    "sha256": "be16a880b76ea5c6d4a38e61ff1f4fa86de15306078513d639cc1716df3528b2",
+    "version": "codex-cli 0.153.4",
+    "stripped": "not verified"
+  },
+  "dependency_roots": ["codex-cli", "codex-code-mode-host"],
+  "dependency_nodes": 1340,
+  "production_source_lines_upper_bound": 901172,
+  "source_count_method": "src/**/*.rs excluding dedicated tests; includes inline tests and comments",
+  "dependency_scope": "resolved normal and build edges, all targets; dev edges excluded",
+  "forbidden_dependencies": [
+    "codex-app-server",
+    "codex-cloud-tasks",
+    "codex-connectors",
+    "codex-otel",
+    "codex-windows-sandbox",
+    "v8"
+  ],
+  "measurements": {
+    "clean_build_seconds": null,
+    "warm_build_seconds": null,
+    "editable_prompt_seconds": null,
+    "idle_rss_bytes": null
+  },
+  "measurement_note": "null means unmeasured; --version latency is not prompt startup"
+}
