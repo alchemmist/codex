@@ -1,8 +1,9 @@
 # Codex import during extraction
 
 The development CLI adds `antex migrate codex --dry-run` and
-`antex migrate codex`. Compiled validation is pending in GitHub Actions; this is
-not a released Antex migration tool.
+`antex migrate codex`. Focused build and integration checks passed on macOS and
+Linux in [GitHub Actions](https://github.com/alchemmist/codex/actions/runs/34043222890).
+This is not a released Antex migration tool.
 
 The source is `CODEX_HOME`, or `~/.codex` when unset. The destination is
 `ANTEX_HOME` (an existing directory), or `~/.antex`. Source and destination must

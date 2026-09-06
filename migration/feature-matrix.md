@@ -117,26 +117,22 @@ still needs to satisfy Phase 0; later phases retain their own completion gates.
 
 - [x] State the independent Antex identity and migration status in README.
 - [x] Record Codex ancestry in NOTICE while preserving existing attribution.
-- [ ] Introduce the Antex composition root and isolated data home.
-- [ ] Implement explicit, non-destructive Codex data import.
+- [x] Introduce the Antex composition root and isolated data home.
+- [x] Implement explicit, non-destructive Codex data import.
 - [ ] Complete runtime/UI branding and product environment-variable changes.
 
 Documentation reflects the current implementation; the existing install targets
 still install the legacy runtime and must not overwrite the accepted fallback.
 
-The first identity slice adds an `antex` binary target, independent development
-version output, and a temporary entry adapter that isolates both config and SQLite
-state from the fallback. CLI integration tests cover version output without state
-creation, MCP config writes with conflicting legacy overrides, and rejection of
-home aliases into `.codex`. These compiled tests await the `antex-migration`
-GitHub Actions workflow; no local build or test compilation was run for this slice.
+The identity slice adds an `antex` binary target, independent development version
+output, and a temporary entry adapter that isolates config and SQLite state from
+the fallback. Code commit `ed8e0835968af7f07725ccad25ca7e270efa0b57` passed the
+[macOS/Linux workflow](https://github.com/alchemmist/codex/actions/runs/34043222890):
+the development build, all nine identity/import integration tests, and three
+inventory script tests passed on both platforms. No local compilation was run.
+Coverage includes home isolation, symlink rejection, deterministic dry-run,
+preservation of existing files, skill path translation, and executable permissions.
 
-The first Linux workflow built the Antex binary and passed three identity tests.
-The fourth failed because the test parsed a complete TOML document through
-`Value::from_str`, which parses a value. It now uses `toml::from_str`. The same
-correction is applied to the import implementation and its tests. A new workflow
-run must validate the fix and import behavior before Phase 1 is complete.
-
-The explicit import command and its pending CI coverage are described in
+The explicit import command and its limits are described in
 [`import.md`](import.md). The maintainer authorized `gh` as well as GitHub MCP;
 workflow logs can now be read directly without browser automation.
