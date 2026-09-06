@@ -36,6 +36,9 @@ pub fn indexed_color(index: u8) -> Color {
 /// Chromatic RGB and extended-palette colors are reduced to one of the six ANSI accent slots.
 /// System ANSI colors are preserved, except for neutral slots which also become the default.
 pub(crate) fn terminal_foreground(color: Color) -> Color {
+    if crate::mascot_palette::is_preserved_mascot_color(color) {
+        return color;
+    }
     match color {
         Color::Reset | Color::Black | Color::Gray | Color::DarkGray | Color::White => Color::Reset,
         Color::Rgb(r, g, b) => terminal_accent_for_rgb((r, g, b)),
@@ -64,6 +67,9 @@ pub(crate) fn terminal_foreground(color: Color) -> Color {
 /// Dark gray remains available for transient selections, while explicit chromatic ANSI backgrounds
 /// remain available for warnings.
 pub(crate) fn terminal_background(color: Color) -> Color {
+    if crate::mascot_palette::is_preserved_mascot_color(color) {
+        return color;
+    }
     match color {
         Color::Reset | Color::Black | Color::Gray | Color::White | Color::Rgb(..) => Color::Reset,
         Color::DarkGray => Color::DarkGray,
@@ -739,6 +745,14 @@ mod tests {
     #[test]
     fn terminal_background_preserves_visual_selection_gray() {
         assert_eq!(terminal_background(Color::DarkGray), Color::DarkGray);
+    }
+
+    #[test]
+    fn terminal_output_preserves_mascot_palette_colors() {
+        for color in [rgb_color((177, 108, 70)), indexed_color(137)] {
+            assert_eq!(terminal_foreground(color), color);
+            assert_eq!(terminal_background(color), color);
+        }
     }
 
     #[test]

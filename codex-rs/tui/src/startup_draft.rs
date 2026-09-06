@@ -88,6 +88,7 @@ pub(crate) struct StartupDraft {
 /// Keeps the existing terminal responsive without owning it or permitting startup submission.
 pub(crate) struct StartupDraftPump {
     header: Box<dyn HistoryCell>,
+    mascot_frame_requester: FrameRequester,
     bottom_pane: BottomPane,
     events: Pin<Box<dyn Stream<Item = TuiEvent> + Send>>,
     app_event_rx: UnboundedReceiver<AppEvent>,
@@ -118,11 +119,16 @@ impl StartupDraft {
             tui.enhanced_keys_supported(),
         );
         let events = tui.event_stream();
+        let startup_frame_requester = tui.frame_requester();
         let mut draft = Self {
             tui,
             terminal_restore_guard,
             pump: StartupDraftPump {
-                header: startup_session_header(/*config*/ None),
+                header: startup_session_header(
+                    /*config*/ None,
+                    Some(startup_frame_requester.clone()),
+                ),
+                mascot_frame_requester: startup_frame_requester,
                 bottom_pane,
                 events,
                 app_event_rx,
@@ -168,7 +174,12 @@ impl StartupDraftPump {
     /// Refresh the session header and safe editor shortcuts without enabling modal editing.
     pub(crate) fn apply_config(&mut self, config: &Config) {
         let local_settings = crate::local_settings::LocalSettings::from(config);
-        self.header = startup_session_header(Some(config));
+        self.header = startup_session_header(
+            Some(config),
+            config
+                .animations
+                .then(|| self.mascot_frame_requester.clone()),
+        );
         self.bottom_pane
             .set_disable_paste_burst(local_settings.tui.disable_paste_burst.unwrap_or(false));
         self.bottom_pane.request_redraw();
@@ -450,29 +461,34 @@ fn handle_startup_draft_key(bottom_pane: &mut BottomPane, key: KeyEvent) -> io::
     Ok(())
 }
 
-fn startup_session_header(config: Option<&Config>) -> Box<dyn HistoryCell> {
+fn startup_session_header(
+    config: Option<&Config>,
+    mascot_animation: Option<FrameRequester>,
+) -> Box<dyn HistoryCell> {
     let placeholder_style = Style::default().add_modifier(Modifier::DIM | Modifier::ITALIC);
     let directory = config.map_or_else(
         || PathBuf::from("loading"),
         |config| config.cwd.to_path_buf(),
     );
-    Box::new(
-        history_cell::SessionHeaderHistoryCell::new_with_style(
-            "loading".to_string(),
-            placeholder_style,
-            /*reasoning_effort*/ None,
-            /*show_fast_status*/ false,
-            directory,
-            CODEX_CLI_VERSION,
-        )
-        .with_startup_panel(
-            config
-                .map(|config| config.tui_startup_panel.clone())
-                .unwrap_or_default(),
-            config.and_then(|config| config.model_context_window),
-        )
-        .with_yolo_mode(config.is_some_and(history_cell::is_yolo_mode)),
+    let mut header = history_cell::SessionHeaderHistoryCell::new_with_style(
+        "loading".to_string(),
+        placeholder_style,
+        /*reasoning_effort*/ None,
+        /*show_fast_status*/ false,
+        directory,
+        CODEX_CLI_VERSION,
     )
+    .with_startup_panel(
+        config
+            .map(|config| config.tui_startup_panel.clone())
+            .unwrap_or_default(),
+        config.and_then(|config| config.model_context_window),
+    )
+    .with_yolo_mode(config.is_some_and(history_cell::is_yolo_mode));
+    if let Some(frame_requester) = mascot_animation {
+        header = header.with_startup_mascot_animation(frame_requester);
+    }
+    Box::new(header)
 }
 
 fn startup_draft_renderable<'a>(

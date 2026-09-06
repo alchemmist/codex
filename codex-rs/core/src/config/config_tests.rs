@@ -12889,6 +12889,7 @@ fn test_tui_startup_panel_config() {
             show_context = false
             show_feature_tip = true
             feature_tips = ["One", "Two"]
+            mascot_skin = "ant-01"
         "#,
     )
     .expect("deserialize startup panel");
@@ -12905,6 +12906,7 @@ fn test_tui_startup_panel_config() {
             show_context: false,
             show_feature_tip: true,
             feature_tips: Some(vec!["One".to_string(), "Two".to_string()]),
+            mascot_skin: codex_config::types::StartupMascotSkin::Ant01,
         }
     );
 }

@@ -3631,6 +3631,14 @@
         }
       ]
     },
+    "StartupMascotSkin": {
+      "enum": [
+        "none",
+        "ant-01",
+        "ant-03"
+      ],
+      "type": "string"
+    },
     "StartupPanelConfig": {
       "additionalProperties": false,
       "properties": {
@@ -3640,6 +3648,14 @@
             "type": "string"
           },
           "type": "array"
+        },
+        "mascot_skin": {
+          "allOf": [
+            {
+              "$ref": "#/definitions/StartupMascotSkin"
+            }
+          ],
+          "default": "ant-03"
         },
         "show_commit": {
           "default": true,
@@ -4192,6 +4208,7 @@
           ],
           "default": {
             "feature_tips": null,
+            "mascot_skin": "ant-03",
             "show_commit": true,
             "show_context": true,
             "show_directory": true,

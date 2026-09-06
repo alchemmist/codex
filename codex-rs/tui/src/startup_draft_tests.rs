@@ -27,11 +27,13 @@ where
     I: Iterator<Item = TuiEvent> + Send + 'static,
 {
     let (tx, rx) = unbounded_channel();
+    let frame_requester = FrameRequester::test_dummy();
     StartupDraftPump {
-        header: startup_session_header(/*config*/ None),
+        header: startup_session_header(/*config*/ None, Some(frame_requester.clone())),
+        mascot_frame_requester: frame_requester.clone(),
         bottom_pane: startup_draft_bottom_pane(
             AppEventSender::new(tx),
-            FrameRequester::test_dummy(),
+            frame_requester,
             /*enhanced_keys_supported*/ false,
         ),
         events: Box::pin(futures::stream::iter(events)),

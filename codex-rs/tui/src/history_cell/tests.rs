@@ -13,6 +13,7 @@ use crate::wrapping::word_wrap_lines;
 use codex_app_server_protocol::AskForApproval;
 use codex_app_server_protocol::McpAuthStatus;
 use codex_config::types::McpServerConfig;
+use codex_config::types::StartupMascotSkin;
 use codex_config::types::StartupPanelConfig;
 use codex_config::types::StartupPanelStyle;
 use codex_otel::RuntimeMetricTotals;
@@ -812,6 +813,37 @@ fn startup_panel_updates_snapshot() {
     .with_yolo_mode(true);
 
     insta::assert_snapshot!(render_lines(&cell.display_lines(/*width*/ 68)).join("\n"));
+}
+
+#[test]
+fn startup_panel_mascot_skins_and_narrow_fallback_snapshot() {
+    let rendered = [StartupMascotSkin::Ant01, StartupMascotSkin::Ant03]
+        .into_iter()
+        .map(|mascot_skin| {
+            let config = StartupPanelConfig {
+                mascot_skin,
+                show_feature_tip: false,
+                ..StartupPanelConfig::default()
+            };
+            let cell = SessionHeaderHistoryCell::new(
+                "gpt-5.6-sol".to_string(),
+                Some(ReasoningEffortConfig::Low),
+                /*show_fast_status*/ false,
+                test_path_buf("/tmp/project"),
+                "test",
+            )
+            .with_startup_panel(config, Some(1_000_000))
+            .with_yolo_mode(true);
+            format!(
+                "{mascot_skin:?}:\nwide:\n{}\nnarrow:\n{}",
+                render_lines(&cell.display_lines(/*width*/ 60)).join("\n"),
+                render_lines(&cell.display_lines(/*width*/ 40)).join("\n")
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n---\n");
+
+    insta::assert_snapshot!(rendered);
 }
 
 #[tokio::test]

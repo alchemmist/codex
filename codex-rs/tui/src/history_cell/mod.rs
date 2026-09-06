@@ -114,6 +114,7 @@ mod request_user_input;
 mod search;
 mod separators;
 mod session;
+mod startup_mascot;
 mod startup_panel;
 
 #[cfg(any(not(debug_assertions), test))]

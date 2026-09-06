@@ -1,5 +1,8 @@
 use super::SESSION_HEADER_MAX_INNER_WIDTH;
 use super::card_inner_width;
+use super::startup_mascot::MASCOT_WIDTH;
+use super::startup_mascot::MascotFrame;
+use super::startup_mascot::render_mascot;
 use crate::exec_command::relativize_to_home;
 use crate::line_truncation::line_width;
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
@@ -79,16 +82,60 @@ pub(super) struct StartupPanelView<'a> {
     pub yolo_mode: bool,
     pub context_window: Option<i64>,
     pub updates: Option<&'a StartupUpdates>,
+    pub mascot_frame: MascotFrame,
 }
 
 impl StartupPanelView<'_> {
     pub(super) fn display_lines(&self, width: u16) -> Vec<Line<'static>> {
-        match self.config.style {
+        let panel = match self.config.style {
             StartupPanelStyle::Cockpit => self.framed_lines(width, FrameStyle::Cockpit),
             StartupPanelStyle::Hacker => self.framed_lines(width, FrameStyle::Hacker),
             StartupPanelStyle::Minimal => self.minimal_lines(width),
             StartupPanelStyle::Classic | StartupPanelStyle::Hidden => Vec::new(),
+        };
+        self.with_mascot(panel, width)
+    }
+
+    fn with_mascot(&self, panel: Vec<Line<'static>>, width: u16) -> Vec<Line<'static>> {
+        let mascot = render_mascot(self.config.mascot_skin, self.mascot_frame);
+        if panel.is_empty() || mascot.is_empty() {
+            return panel;
         }
+        const GAP: usize = 2;
+        let panel_width = panel.iter().map(line_width).max().unwrap_or(0);
+        if MASCOT_WIDTH + GAP + panel_width > usize::from(width) {
+            return panel;
+        }
+
+        let height = mascot.len().max(panel.len());
+        let mascot_top = height.saturating_sub(mascot.len()) / 2;
+        let panel_top = height.saturating_sub(panel.len()) / 2;
+        (0..height)
+            .map(|row| {
+                let mascot_line = mascot
+                    .get(row.saturating_sub(mascot_top))
+                    .filter(|_| row >= mascot_top);
+                let panel_line = panel
+                    .get(row.saturating_sub(panel_top))
+                    .filter(|_| row >= panel_top);
+                let mut spans = mascot_line
+                    .map(|line| line.spans.clone())
+                    .unwrap_or_default();
+                match (mascot_line, panel_line) {
+                    (Some(mascot_line), Some(line)) if line_width(line) > 0 => {
+                        let mascot_width = line_width(mascot_line);
+                        spans.push(" ".repeat(MASCOT_WIDTH - mascot_width + GAP).into());
+                        spans.extend(line.spans.clone());
+                    }
+                    (None, Some(line)) if line_width(line) > 0 => {
+                        spans.push(" ".repeat(MASCOT_WIDTH + GAP).into());
+                        spans.extend(line.spans.clone());
+                    }
+                    (Some(_), Some(_)) | (Some(_), None) | (None, Some(_)) | (None, None) => {}
+                }
+                Line::from(spans)
+            })
+            .collect()
     }
 
     pub(super) fn raw_lines(&self) -> Vec<Line<'static>> {

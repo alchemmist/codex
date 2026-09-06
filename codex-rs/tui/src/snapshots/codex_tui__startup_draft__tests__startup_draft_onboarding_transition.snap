@@ -5,10 +5,12 @@ expression: frames
 before onboarding: hidden (0x0 viewport)
 ---
 after onboarding:
-╭─ alchemmist codex · unknown ─────╮
-│  loading                         │
-│  loading                         │
-╰──────────────────────────────────╯
+ ▀▄       ▄▀
+  ▄▀█████▀▄    ╭─ alchemmist codex · unknown ─────╮
+▄█▀▀█████▀▀█▄  │  loading                         │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  loading                         │
+  ██  ▄  ██    ╰──────────────────────────────────╯
+   ▀▀▀ ▀▀▀
 
 
  ┃ Ask Codex to do anything

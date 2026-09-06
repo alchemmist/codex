@@ -4,8 +4,13 @@ use super::*;
 use crate::line_truncation::line_width;
 use crate::line_truncation::truncate_line_with_ellipsis_if_overflow;
 use crate::width::display_width;
+use codex_config::types::StartupMascotSkin;
 use codex_config::types::StartupPanelConfig;
 use codex_config::types::StartupPanelStyle;
+
+use super::startup_mascot::MascotFrame;
+use super::startup_mascot::StartupMascotMotion;
+use crate::tui::FrameRequester;
 
 pub(crate) const SESSION_HEADER_MAX_INNER_WIDTH: usize = 56; // Just an eyeballed value
 
@@ -270,6 +275,7 @@ pub(crate) struct SessionHeaderHistoryCell {
     startup_panel: Option<StartupPanelConfig>,
     context_window: Option<i64>,
     startup_updates: Option<super::startup_panel::StartupUpdates>,
+    startup_mascot_motion: Option<StartupMascotMotion>,
 }
 
 impl SessionHeaderHistoryCell {
@@ -309,6 +315,7 @@ impl SessionHeaderHistoryCell {
             startup_panel: None,
             context_window: None,
             startup_updates: None,
+            startup_mascot_motion: None,
         }
     }
 
@@ -324,6 +331,11 @@ impl SessionHeaderHistoryCell {
 
     pub(crate) fn with_yolo_mode(mut self, yolo_mode: bool) -> Self {
         self.yolo_mode = yolo_mode;
+        self
+    }
+
+    pub(crate) fn with_startup_mascot_animation(mut self, request_frame: FrameRequester) -> Self {
+        self.startup_mascot_motion = Some(StartupMascotMotion::new(request_frame));
         self
     }
 
@@ -385,6 +397,20 @@ impl HistoryCell for SessionHeaderHistoryCell {
                 yolo_mode: self.yolo_mode,
                 context_window: self.context_window,
                 updates: self.startup_updates.as_ref(),
+                mascot_frame: if startup_panel.mascot_skin != StartupMascotSkin::None
+                    && matches!(
+                        startup_panel.style,
+                        StartupPanelStyle::Cockpit
+                            | StartupPanelStyle::Hacker
+                            | StartupPanelStyle::Minimal
+                    ) {
+                    self.startup_mascot_motion
+                        .as_ref()
+                        .map(StartupMascotMotion::current_frame)
+                        .unwrap_or(MascotFrame::Rest)
+                } else {
+                    MascotFrame::Rest
+                },
             }
             .display_lines(width);
         }
@@ -480,6 +506,7 @@ impl HistoryCell for SessionHeaderHistoryCell {
                 yolo_mode: self.yolo_mode,
                 context_window: self.context_window,
                 updates: self.startup_updates.as_ref(),
+                mascot_frame: MascotFrame::Rest,
             }
             .raw_lines();
         }

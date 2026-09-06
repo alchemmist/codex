@@ -730,6 +730,17 @@ pub enum StartupPanelStyle {
     Hidden,
 }
 
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq, Default, JsonSchema)]
+#[serde(rename_all = "kebab-case")]
+pub enum StartupMascotSkin {
+    None,
+    #[serde(rename = "ant-01")]
+    Ant01,
+    #[default]
+    #[serde(rename = "ant-03")]
+    Ant03,
+}
+
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, JsonSchema)]
 #[schemars(deny_unknown_fields)]
 pub struct StartupPanelConfig {
@@ -751,6 +762,8 @@ pub struct StartupPanelConfig {
     pub show_feature_tip: bool,
     #[serde(default)]
     pub feature_tips: Option<Vec<String>>,
+    #[serde(default)]
+    pub mascot_skin: StartupMascotSkin,
 }
 
 impl Default for StartupPanelConfig {
@@ -765,6 +778,7 @@ impl Default for StartupPanelConfig {
             show_context: true,
             show_feature_tip: true,
             feature_tips: None,
+            mascot_skin: StartupMascotSkin::default(),
         }
     }
 }
