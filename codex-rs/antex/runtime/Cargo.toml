@@ -1,0 +1,25 @@
+[package]
+name = "antex-runtime"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+antex-core = { path = "../core" }
+cap-std = "4"
+futures.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json.workspace = true
+shlex = "1"
+thiserror.workspace = true
+tempfile = "3"
+tokio = { workspace = true, features = ["process", "io-util", "fs"] }
+tokio-util.workspace = true
+uuid = { version = "1", features = ["v4", "serde"] }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+pretty_assertions = "1"
