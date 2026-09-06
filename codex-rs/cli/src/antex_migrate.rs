@@ -101,7 +101,7 @@ pub(super) fn run() -> anyhow::Result<()> {
                 let mut skipped = Vec::new();
                 config.retain(|key, _| {
                     let keep = matches!(
-                        key.as_str(),
+                        key,
                         "model"
                             | "model_reasoning_effort"
                             | "model_reasoning_summary"
@@ -115,7 +115,7 @@ pub(super) fn run() -> anyhow::Result<()> {
                             | "tui"
                     );
                     if !keep {
-                        skipped.push(key.clone());
+                        skipped.push(key.to_owned());
                     }
                     keep
                 });
@@ -129,7 +129,7 @@ pub(super) fn run() -> anyhow::Result<()> {
                     if let Some(table) = config.get_mut(section).and_then(toml::Value::as_table_mut)
                     {
                         table.retain(|key, _| {
-                            let keep = allowed.contains(&key.as_str());
+                            let keep = allowed.contains(&key);
                             if !keep {
                                 skipped.push(format!("{section}.{key}"));
                             }
@@ -145,7 +145,7 @@ pub(super) fn run() -> anyhow::Result<()> {
                         if let Some(fields) = server.as_table_mut() {
                             fields.retain(|key, _| {
                                 let keep = matches!(
-                                    key.as_str(),
+                                    key,
                                     "command"
                                         | "args"
                                         | "env"
@@ -179,7 +179,7 @@ pub(super) fn run() -> anyhow::Result<()> {
                     for (index, rule) in rules.iter_mut().enumerate() {
                         if let Some(fields) = rule.as_table_mut() {
                             fields.retain(|key, _| {
-                                let keep = matches!(key.as_str(), "path" | "name" | "enabled");
+                                let keep = matches!(key, "path" | "name" | "enabled");
                                 if !keep {
                                     skipped.push(format!("skills.config.{index}.{key}"));
                                 }
