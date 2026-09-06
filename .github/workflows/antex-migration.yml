@@ -42,6 +42,20 @@ jobs:
         run: cargo build --locked --bin antex
       - name: Check Antex identity and data isolation
         working-directory: codex-rs
-        run: just test -p codex-cli --test antex_identity
+        shell: bash
+        run: |
+          if just test -p codex-cli --test antex_identity > "${RUNNER_TEMP}/antex-tests.log" 2>&1; then
+            cat "${RUNNER_TEMP}/antex-tests.log"
+          else
+            cat "${RUNNER_TEMP}/antex-tests.log"
+            python3 - <<'PY'
+          import os
+          from pathlib import Path
+          output = (Path(os.environ["RUNNER_TEMP"]) / "antex-tests.log").read_text(errors="replace")[-16000:]
+          output = output.replace("%", "%25").replace("\r", "%0D").replace("\n", "%0A")
+          print(f"::error title=Antex identity test output::{output}")
+          PY
+            exit 1
+          fi
       - name: Check migration inventory scripts
         run: make test-migration
