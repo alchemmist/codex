@@ -1,3 +1,4 @@
+mod config;
 mod files;
 mod permissions;
 mod sandbox;
@@ -9,6 +10,8 @@ mod shell;
 mod tools;
 
 pub use files::WorkspaceFiles;
+pub use config::Config;
+pub use config::LoadedConfig;
 pub use permissions::PermissionProfile;
 pub use sessions::Session;
 pub use sessions::SessionMessage;

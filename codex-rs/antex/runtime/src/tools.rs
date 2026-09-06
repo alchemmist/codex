@@ -19,7 +19,6 @@ use crate::Shell;
 use crate::WorkspaceFiles;
 
 pub struct LocalRuntime {
-    workspace: PathBuf,
     profile: PermissionProfile,
     files: WorkspaceFiles,
     shell: Shell,
@@ -28,7 +27,6 @@ pub struct LocalRuntime {
 impl LocalRuntime {
     pub fn new(workspace: &Path, profile: PermissionProfile) -> std::io::Result<Self> {
         Ok(Self {
-            workspace: workspace.canonicalize()?,
             profile,
             files: WorkspaceFiles::new(workspace, profile)?,
             shell: Shell::new(workspace, profile)?,
@@ -38,6 +36,17 @@ impl LocalRuntime {
     pub fn with_bubblewrap(mut self, program: PathBuf) -> Self {
         self.shell = self.shell.with_bubblewrap(program);
         self
+    }
+
+    pub fn with_shell_timeout(mut self, timeout: std::time::Duration) -> Self {
+        self.shell = self.shell.with_timeout(timeout);
+        self
+    }
+
+    pub fn with_read_roots(mut self, roots: &[PathBuf]) -> std::io::Result<Self> {
+        self.files = self.files.with_read_roots(roots)?;
+        self.shell = self.shell.with_read_roots(roots)?;
+        Ok(self)
     }
 }
 
@@ -183,9 +192,8 @@ impl ToolHost for LocalRuntime {
                             }
                         }
                         let output = if elevated {
-                            Shell::new(&self.workspace, PermissionProfile::Full)
-                                .map_err(|error| error.to_string())?
-                                .run(&input.command, context.cancellation.clone())
+                            self.shell
+                                .run_approved(&input.command, context.cancellation.clone())
                                 .await
                         } else {
                             self.shell

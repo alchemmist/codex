@@ -17,6 +17,7 @@ pub struct WorkspaceFiles {
     root: PathBuf,
     directory: Dir,
     profile: PermissionProfile,
+    read_roots: Vec<(PathBuf, Dir)>,
 }
 
 impl WorkspaceFiles {
@@ -36,11 +37,33 @@ impl WorkspaceFiles {
             root,
             directory,
             profile,
+            read_roots: Vec::new(),
         })
     }
 
     pub fn read(&self, path: &str) -> io::Result<Vec<u8>> {
-        let path = self.relative(path)?;
+        if path.is_empty() || path.len() > 4096 {
+            return Err(io::Error::other("invalid file path length"));
+        }
+        let absolute = self.workspace.join(path);
+        let (directory, path) = match absolute.strip_prefix(&self.root) {
+            Ok(path) => (&self.directory, path),
+            Err(_) => self
+                .read_roots
+                .iter()
+                .find_map(|(root, directory)| {
+                    absolute
+                        .strip_prefix(root)
+                        .ok()
+                        .map(|path| (directory, path))
+                })
+                .ok_or_else(|| {
+                    io::Error::new(
+                        io::ErrorKind::PermissionDenied,
+                        "path is outside the allowed read roots",
+                    )
+                })?,
+        };
         let mut options = OpenOptions::new();
         options.read(true);
         #[cfg(unix)]
@@ -48,7 +71,7 @@ impl WorkspaceFiles {
             use cap_std::fs::OpenOptionsExt;
             options.custom_flags(libc::O_NONBLOCK);
         }
-        let file = self.directory.open_with(path, &options)?;
+        let file = directory.open_with(path, &options)?;
         if !file.metadata()?.is_file() {
             return Err(io::Error::other("read requires a regular file"));
         }
@@ -58,6 +81,21 @@ impl WorkspaceFiles {
             return Err(io::Error::other("file exceeds the read budget"));
         }
         Ok(bytes)
+    }
+
+    pub fn with_read_roots(mut self, roots: &[PathBuf]) -> io::Result<Self> {
+        if roots.len() > 16 {
+            return Err(io::Error::other("too many additional read roots"));
+        }
+        self.read_roots = roots
+            .iter()
+            .map(|root| {
+                let root = root.canonicalize()?;
+                let directory = Dir::open_ambient_dir(&root, ambient_authority())?;
+                Ok((root, directory))
+            })
+            .collect::<io::Result<_>>()?;
+        Ok(self)
     }
 
     pub fn write(&self, path: &str, bytes: &[u8]) -> io::Result<()> {

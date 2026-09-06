@@ -27,6 +27,7 @@ impl Sandbox {
         profile: PermissionProfile,
         script: &str,
         temporary: &Path,
+        read_roots: &[PathBuf],
     ) -> io::Result<Command> {
         if profile == PermissionProfile::Full {
             let mut command = Command::new("/bin/sh");
@@ -64,6 +65,9 @@ impl Sandbox {
             }
             command.args(["--proc", "/proc", "--dev", "/dev", "--tmpfs", "/tmp"]);
             command.arg("--bind").arg(temporary).arg(temporary);
+            for root in read_roots {
+                command.arg("--ro-bind").arg(root).arg(root);
+            }
             let binding = match profile {
                 PermissionProfile::ReadOnly => "--ro-bind",
                 PermissionProfile::Workspace => "--bind",
@@ -92,7 +96,10 @@ impl Sandbox {
                 Path::new("/private/etc"),
                 Path::new("/Library/Apple"),
                 workspace,
-            ] {
+            ]
+            .into_iter()
+            .chain(read_roots.iter().map(PathBuf::as_path))
+            {
                 let root = root
                     .to_str()
                     .ok_or_else(|| io::Error::other("sandbox path is not UTF-8"))?;

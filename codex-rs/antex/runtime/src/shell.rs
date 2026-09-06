@@ -17,6 +17,7 @@ pub struct Shell {
     profile: PermissionProfile,
     sandbox: Sandbox,
     timeout: Duration,
+    read_roots: Vec<PathBuf>,
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -33,6 +34,7 @@ impl Shell {
             profile,
             sandbox: Sandbox::new("/usr/bin/bwrap".into()),
             timeout: Duration::from_secs(120),
+            read_roots: Vec::new(),
         })
     }
 
@@ -46,10 +48,39 @@ impl Shell {
         self
     }
 
+    pub fn with_read_roots(mut self, roots: &[PathBuf]) -> io::Result<Self> {
+        if roots.len() > 16 {
+            return Err(io::Error::other("too many additional read roots"));
+        }
+        self.read_roots = roots
+            .iter()
+            .map(|root| root.canonicalize())
+            .collect::<io::Result<_>>()?;
+        Ok(self)
+    }
+
     pub async fn run(
         &self,
         script: &str,
         cancellation: CancellationToken,
+    ) -> io::Result<ShellResult> {
+        self.execute(script, cancellation, self.profile).await
+    }
+
+    pub(crate) async fn run_approved(
+        &self,
+        script: &str,
+        cancellation: CancellationToken,
+    ) -> io::Result<ShellResult> {
+        self.execute(script, cancellation, PermissionProfile::Full)
+            .await
+    }
+
+    async fn execute(
+        &self,
+        script: &str,
+        cancellation: CancellationToken,
+        profile: PermissionProfile,
     ) -> io::Result<ShellResult> {
         if script.len() > MAX_TEXT_BYTES || cancellation.is_cancelled() {
             return Err(io::Error::other("shell command is too large or cancelled"));
@@ -58,7 +89,13 @@ impl Shell {
         let temporary_path = temporary.path().canonicalize()?;
         let mut command = self
             .sandbox
-            .command(&self.workspace, self.profile, script, &temporary_path)
+            .command(
+                &self.workspace,
+                profile,
+                script,
+                &temporary_path,
+                &self.read_roots,
+            )
             .await?;
         command
             .current_dir(&self.workspace)
@@ -71,7 +108,7 @@ impl Shell {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .kill_on_drop(true);
-        if self.profile == PermissionProfile::Full
+        if profile == PermissionProfile::Full
             && let Some(home) = std::env::var_os("HOME")
         {
             command.env("HOME", home);
