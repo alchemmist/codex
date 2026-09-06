@@ -1,4 +1,4 @@
-SHELL := /bin/zsh
+SHELL := /bin/sh
 .DEFAULT_GOAL := install-local
 
 CARGO ?= cargo
@@ -37,7 +37,6 @@ install-local: build
 	$(INSTALL) -d "$(CODEX_INSTALL_DIR)"
 	$(INSTALL) -m 755 "$(CODEX_BINARY)" "$(CODEX_INSTALL_DIR)/codex"
 	$(INSTALL) -m 755 "$(CODEX_CODE_MODE_HOST_BINARY)" "$(CODEX_INSTALL_DIR)/codex-code-mode-host"
-	@/bin/zsh -fc 'rehash'
 	@echo "Installed $(CODEX_INSTALL_DIR)/codex"
 
 install-mac:
