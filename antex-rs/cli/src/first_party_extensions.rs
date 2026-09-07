@@ -8,6 +8,8 @@ const TMUX_LOG_DEFINITION: &[u8] = include_bytes!("../../extensions/tmux-log/ext
 const DIAGNOSTICS_PROGRAM: &[u8] =
     include_bytes!("../../extensions/diagnostics/antex_ext_diagnostics.py");
 const DIAGNOSTICS_DEFINITION: &[u8] = include_bytes!("../../extensions/diagnostics/extension.json");
+const AGENTS_PROGRAM: &[u8] = include_bytes!("../../extensions/agents/antex_ext_agents.py");
+const AGENTS_DEFINITION: &[u8] = include_bytes!("../../extensions/agents/extension.json");
 const WORKFLOWS_PROGRAM: &[u8] =
     include_bytes!("../../extensions/workflows/antex_ext_workflows.py");
 const WORKFLOWS_DEFINITION: &[u8] = include_bytes!("../../extensions/workflows/extension.json");
@@ -20,6 +22,12 @@ struct Extension {
 }
 
 const EXTENSIONS: &[Extension] = &[
+    Extension {
+        name: "agents",
+        program_name: "antex_ext_agents.py",
+        program: AGENTS_PROGRAM,
+        definition: AGENTS_DEFINITION,
+    },
     Extension {
         name: "diagnostics",
         program_name: "antex_ext_diagnostics.py",
