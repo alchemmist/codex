@@ -80,7 +80,7 @@ def main():
     parser.add_argument("--binary", type=Path)
     parser.add_argument("--check", action="store_true")
     args = parser.parse_args()
-    workspace = ROOT / ("antex-rs" if (ROOT / "antex-rs").exists() else "codex-rs")
+    workspace = ROOT / "antex-rs"
     metadata = json.loads(
         run(
             "cargo",
@@ -93,11 +93,7 @@ def main():
             str(workspace / "Cargo.toml"),
         )
     )
-    root_name = (
-        ["antex-cli"]
-        if workspace.name == "antex-rs"
-        else ["codex-cli", "codex-code-mode-host"]
-    )
+    root_name = ["antex-cli"]
     forbidden = json.loads((ROOT / "migration/forbidden-dependencies.json").read_text())
     report = inventory(metadata, root_name, forbidden)
     report.update(

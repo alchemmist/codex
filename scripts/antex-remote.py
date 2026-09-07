@@ -19,7 +19,7 @@ def main():
     args = parser.parse_args()
     if not args.host or not args.command or args.jobs < 1:
         parser.error("a build host, command, and positive job count are required")
-    workspace = "antex-rs" if (ROOT / "antex-rs").exists() else "codex-rs"
+    workspace = "antex-rs"
     command = args.command[1:] if args.command[0] == "--" else args.command
     if not command:
         parser.error("a command is required")
