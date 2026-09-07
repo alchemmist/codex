@@ -13,7 +13,8 @@ fn config_loads_supported_fields_and_reports_unknown_names_without_values() {
             model: Some("fake".into()),
             model_reasoning_effort: Some("high".into()),
             permissions: PermissionProfile::ReadOnly,
-            shell_timeout_seconds: 600
+            shell_timeout_seconds: 600,
+            context_token_limit: 64_000,
         }
     );
     assert_eq!(

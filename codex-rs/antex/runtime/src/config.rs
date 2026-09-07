@@ -13,6 +13,7 @@ pub struct Config {
     pub model_reasoning_effort: Option<String>,
     pub permissions: PermissionProfile,
     pub shell_timeout_seconds: u64,
+    pub context_token_limit: usize,
 }
 
 impl Default for Config {
@@ -22,6 +23,7 @@ impl Default for Config {
             model_reasoning_effort: None,
             permissions: PermissionProfile::Workspace,
             shell_timeout_seconds: 120,
+            context_token_limit: 64_000,
         }
     }
 }
@@ -67,6 +69,7 @@ impl Config {
         }) || config.model_reasoning_effort.as_ref().is_some_and(|value| {
             value.is_empty() || value.len() > 64 || value.chars().any(char::is_control)
         }) || !(1..=900).contains(&config.shell_timeout_seconds)
+            || !(1024..=1_000_000).contains(&config.context_token_limit)
         {
             return Err(io::Error::other(
                 "Antex configuration contains invalid values",
@@ -77,6 +80,7 @@ impl Config {
             "model_reasoning_effort",
             "permissions",
             "shell_timeout_seconds",
+            "context_token_limit",
         ];
         let warnings = table
             .keys()

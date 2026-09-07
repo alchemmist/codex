@@ -10,7 +10,9 @@ use antex_core::InteractionAnswer;
 use antex_core::ModelProvider;
 use antex_core::TurnInput;
 use antex_provider_openai::OpenAiProvider;
+use antex_runtime::Compaction;
 use antex_runtime::Config;
+use antex_runtime::ImageAttachment;
 use antex_runtime::LocalRuntime;
 use antex_runtime::PermissionProfile;
 use antex_runtime::ProjectContext;
@@ -51,11 +53,18 @@ enum Action {
     },
     Models,
     Sessions,
+    Compact {
+        session: String,
+        #[arg(long)]
+        model: Option<String>,
+    },
     Exec {
         #[arg(long)]
         model: Option<String>,
         #[arg(long)]
         reasoning: Option<String>,
+        #[arg(long = "image", value_name = "PATH")]
+        images: Vec<PathBuf>,
         #[arg(long)]
         resume: Option<String>,
         #[arg(long, requires = "resume")]
@@ -162,9 +171,62 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 println!("{id}");
             }
         }
+        Action::Compact { session, model } => {
+            let workspace = args
+                .cwd
+                .unwrap_or(std::env::current_dir()?)
+                .canonicalize()?;
+            let store = SessionStore::new(&home, &workspace)?;
+            let mut session = store.open(session.parse()?)?;
+            session.recover_pending_tools()?;
+            let entries = session.active_path()?;
+            let ids = entries
+                .iter()
+                .map(|entry| entry.record_id)
+                .collect::<Vec<_>>();
+            let history = entries
+                .into_iter()
+                .map(|entry| entry.message)
+                .collect::<Vec<_>>();
+            if history.len() <= 8 {
+                println!("Session is already small; no compaction needed.");
+                return Ok(());
+            }
+            let model = match model.or(config.model) {
+                Some(model) => model,
+                None => {
+                    provider
+                        .models()
+                        .await?
+                        .into_iter()
+                        .next()
+                        .ok_or("no models available")?
+                        .id
+                }
+            };
+            let compaction = Compaction::new(
+                Arc::new(provider),
+                ProjectContext::load(&home, &workspace)?,
+                model,
+                config.context_token_limit,
+            );
+            let checkpoint = tokio::select! {
+                result=compaction.compact(&history)=>result?,
+                _=tokio::signal::ctrl_c()=>return Err("compaction cancelled".into()),
+            };
+            let retained = checkpoint
+                .retained
+                .iter()
+                .map(|index| ids[*index])
+                .collect::<Vec<_>>();
+            session.checkpoint(checkpoint.summary, &retained, ids[checkpoint.tail_start])?;
+            session.finish_turn()?;
+            println!("Compacted session {}", session.id());
+        }
         Action::Exec {
             model,
             reasoning,
+            images,
             resume,
             fork_at,
             prompt,
@@ -173,6 +235,19 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 .cwd
                 .unwrap_or(std::env::current_dir()?)
                 .canonicalize()?;
+            if images.len() > 4 {
+                return Err("at most four images may be attached to one input".into());
+            }
+            let mut content = Vec::new();
+            if !prompt.is_empty() {
+                content.push(antex_core::Content::Text(prompt));
+            }
+            for path in images {
+                content.push(ImageAttachment::load(&workspace.join(path))?.content);
+            }
+            if content.is_empty() {
+                return Err("input must contain text or an image".into());
+            }
             let profile = match args.permissions.as_deref() {
                 Some("read-only") => PermissionProfile::ReadOnly,
                 Some("workspace") => PermissionProfile::Workspace,
@@ -214,19 +289,30 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             if recovered > 0 {
                 eprintln!("antex: recovered {recovered} interrupted tool calls");
             }
-            let history = session
-                .active_path()?
-                .into_iter()
-                .map(|entry| entry.message)
-                .collect();
+            let entries = session.active_path()?;
+            let mut record_ids = entries
+                .iter()
+                .map(|entry| entry.record_id)
+                .collect::<Vec<_>>();
+            let history = entries.into_iter().map(|entry| entry.message).collect();
             eprintln!("Session: {}", session.id());
+            let provider = Arc::new(provider);
+            let compaction = Compaction::new(
+                provider.clone(),
+                context,
+                model.clone(),
+                config.context_token_limit,
+            );
             let mut agent =
-                Agent::new(provider, Arc::new(runtime)).with_context_hook(Arc::new(context));
+                Agent::new(provider, Arc::new(runtime)).with_context_hook(Arc::new(compaction));
             let mut run = agent.start(TurnInput {
                 model,
                 reasoning: reasoning.or(config.model_reasoning_effort),
                 history,
-                input: prompt.into(),
+                input: antex_core::UserInput {
+                    content,
+                    tool_scope: antex_core::ToolScope::Default,
+                },
             });
             let commands = run.commands.clone();
             let signal = tokio::spawn(async move {
@@ -235,6 +321,27 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             });
             while let Some(event) = run.events.recv().await {
                 match event {
+                    AgentEvent::ContextCheckpoint(checkpoint) => {
+                        let retained = checkpoint
+                            .retained
+                            .iter()
+                            .map(|index| {
+                                record_ids
+                                    .get(*index)
+                                    .copied()
+                                    .ok_or("missing retained session record")
+                            })
+                            .collect::<Result<Vec<_>, _>>()?;
+                        let tail = *record_ids
+                            .get(checkpoint.tail_start)
+                            .ok_or("missing session checkpoint tail")?;
+                        if session
+                            .checkpoint(checkpoint.summary, &retained, tail)?
+                            .is_some()
+                        {
+                            eprintln!("antex: context compacted");
+                        }
+                    }
                     AgentEvent::TextDelta(text) => {
                         print!("{text}");
                         std::io::stdout().flush()?;
@@ -253,7 +360,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                         }
                     }
                     AgentEvent::MessageCommitted(message) => {
-                        session.append(&message)?;
+                        record_ids.push(session.append(&message)?);
                     }
                     AgentEvent::ReasoningDelta(_)
                     | AgentEvent::Quota(_)

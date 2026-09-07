@@ -90,7 +90,7 @@ async fn drive<P: ModelProvider>(
             emit(events, cancel, AgentEvent::MessageCommitted(message)).await?;
         }
         let toolset = ToolSet::new(tools.definitions(&scope))?;
-        let messages = if let Some(hook) = hook {
+        let prepared = if let Some(hook) = hook {
             tokio::select! {
                 biased;
                 _ = cancel.cancelled() => return Err(error(ErrorKind::Cancelled, "run interrupted")),
@@ -98,8 +98,40 @@ async fn drive<P: ModelProvider>(
                 result = hook.prepare(&history) => result?,
             }
         } else {
-            history.clone()
+            history.clone().into()
         };
+        if let Some(checkpoint) = prepared.checkpoint {
+            if checkpoint.summary.kind() != crate::ContextKind::Summary
+                || checkpoint.retained.len() > 8
+                || checkpoint.tail_start >= history.len()
+                || checkpoint
+                    .retained
+                    .iter()
+                    .any(|index| *index >= checkpoint.tail_start)
+                || checkpoint
+                    .retained
+                    .windows(2)
+                    .any(|pair| pair[0] >= pair[1])
+            {
+                return Err(error(ErrorKind::Protocol, "invalid context checkpoint"));
+            }
+            if checkpoint
+                .retained
+                .iter()
+                .any(|index| !matches!(history[*index], Message::User(_)))
+                || matches!(history[checkpoint.tail_start], Message::Tool(_))
+            {
+                return Err(error(
+                    ErrorKind::Protocol,
+                    "checkpoint splits a tool exchange or retains an invalid request",
+                ));
+            }
+            if checkpoint.usage != Usage::default() {
+                emit(events, cancel, AgentEvent::Usage(checkpoint.usage)).await?;
+            }
+            emit(events, cancel, AgentEvent::ContextCheckpoint(checkpoint)).await?;
+        }
+        let messages = prepared.messages;
         validation::messages(&messages)?;
         let request = ModelRequest {
             model: input.model.clone(),

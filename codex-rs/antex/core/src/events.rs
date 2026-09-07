@@ -22,6 +22,7 @@ pub struct TurnInput {
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum AgentEvent {
+    ContextCheckpoint(crate::ContextCheckpoint),
     Interaction {
         call_id: String,
         request: crate::Interaction,
@@ -67,5 +68,5 @@ pub trait ContextHook: Send + Sync {
     fn prepare<'a>(
         &'a self,
         history: &'a [Message],
-    ) -> BoxFuture<'a, Result<Vec<Message>, ProviderError>>;
+    ) -> BoxFuture<'a, Result<crate::PreparedContext, ProviderError>>;
 }

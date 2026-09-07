@@ -1,3 +1,4 @@
+mod compaction;
 mod config;
 mod edit;
 mod files;
@@ -12,6 +13,7 @@ mod sessions;
 mod shell;
 mod tools;
 
+pub use compaction::Compaction;
 pub use config::Config;
 pub use config::LoadedConfig;
 pub use files::WorkspaceFiles;

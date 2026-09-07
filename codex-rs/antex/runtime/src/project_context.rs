@@ -197,14 +197,15 @@ impl ContextHook for ProjectContext {
     fn prepare<'a>(
         &'a self,
         history: &'a [Message],
-    ) -> BoxFuture<'a, Result<Vec<Message>, ProviderError>> {
+    ) -> BoxFuture<'a, Result<antex_core::PreparedContext, ProviderError>> {
         Box::pin(async move {
             Ok(self
                 .fragments
                 .iter()
                 .map(ContextualUserFragment::to_message)
                 .chain(history.iter().cloned())
-                .collect())
+                .collect::<Vec<_>>()
+                .into())
         })
     }
 }

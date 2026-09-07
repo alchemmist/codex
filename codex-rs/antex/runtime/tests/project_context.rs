@@ -18,7 +18,7 @@ async fn nested_instructions_are_ordered_bounded_and_leave_history_unchanged() {
     std::fs::write(workspace.join("AGENTS.md"), &nested).unwrap();
     let context = ProjectContext::load(home.path(), &workspace).unwrap();
     let history = vec![Message::User("request".into())];
-    let prepared = context.prepare(&history).await.unwrap();
+    let prepared = context.prepare(&history).await.unwrap().messages;
     let projects: Vec<_> = prepared
         .iter()
         .filter_map(|message| match message {
@@ -40,7 +40,7 @@ async fn nested_instructions_are_ordered_bounded_and_leave_history_unchanged() {
         nested
     );
     assert_eq!(&prepared[prepared.len() - 1..], history.as_slice());
-    assert_eq!(context.prepare(&history).await.unwrap(), prepared);
+    assert_eq!(context.prepare(&history).await.unwrap().messages, prepared);
 }
 
 #[tokio::test]
@@ -52,7 +52,7 @@ async fn global_skills_are_advertised_and_readable_but_not_writable() {
     let text = "---\nname: example\ndescription: >\n  Useful for testing\n  bounded context.\n---\nInstructions\n";
     std::fs::write(skill.join("SKILL.md"), text).unwrap();
     let context = ProjectContext::load(home.path(), workspace.path()).unwrap();
-    let prepared = context.prepare(&[]).await.unwrap();
+    let prepared = context.prepare(&[]).await.unwrap().messages;
     assert!(prepared.iter().any(|message|matches!(message,Message::Context(fragment) if fragment.kind()==ContextKind::Skill && fragment.text().contains("Useful for testing bounded context."))));
     let files = WorkspaceFiles::new(workspace.path(), PermissionProfile::Workspace)
         .unwrap()
