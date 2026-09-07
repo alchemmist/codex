@@ -107,10 +107,12 @@ name = "antex-cli"
 version = "0.0.0"
 dependencies = [
  "antex-core",
+ "antex-extension-host",
  "antex-provider-openai",
  "antex-runtime",
  "antex-tui",
  "clap",
+ "insta",
  "pretty_assertions",
  "serde_json",
  "tempfile",
@@ -135,7 +137,9 @@ dependencies = [
 name = "antex-extension-host"
 version = "0.0.0"
 dependencies = [
+ "antex-core",
  "antex-extension-protocol",
+ "futures",
  "pretty_assertions",
  "serde",
  "serde_json",

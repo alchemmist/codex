@@ -79,6 +79,8 @@ pub enum ExtensionError {
     Cancelled,
     #[error("agent actions require an explicit user command")]
     AgentOrigin,
+    #[error("extension restart limit reached")]
+    RestartLimit,
     #[error("extension exited unexpectedly: {stderr}")]
     Exited { stderr: String },
 }
@@ -275,10 +277,7 @@ impl Extension {
                 result.map_err(|_| ExtensionError::Timeout)?
             }
         };
-        if matches!(
-            result,
-            Err(ExtensionError::Cancelled | ExtensionError::Timeout)
-        ) {
+        if result.as_ref().is_err_and(|error| error.is_fatal()) {
             self.terminate().await;
         }
         result
@@ -296,6 +295,20 @@ impl Extension {
         if let Some(mut transport) = guard.take() {
             let _ = transport.child.kill().await;
             let _ = transport.child.wait().await;
+        }
+    }
+}
+
+impl ExtensionError {
+    pub(crate) fn is_fatal(&self) -> bool {
+        match self {
+            Self::Start(_) | Self::AgentOrigin | Self::RestartLimit => false,
+            Self::Protocol(ProtocolError::Remote { .. }) => false,
+            Self::Transport(_)
+            | Self::Protocol(_)
+            | Self::Timeout
+            | Self::Cancelled
+            | Self::Exited { .. } => true,
         }
     }
 }

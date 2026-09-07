@@ -56,6 +56,10 @@ impl Conversation {
         self.session.save_ui_state(name, value)
     }
 
+    pub fn append_extension(&mut self, name: &str, value: serde_json::Value) -> io::Result<Uuid> {
+        self.session.append_extension(name, value)
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
         self.session.branch(parent)?;
         self.entries = self.session.active_path()?;

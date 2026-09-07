@@ -44,3 +44,22 @@ async fn image_commands_normalize_selected_files_without_contacting_the_provider
     assert_eq!(actual, expected);
     assert!(session.history().is_empty());
 }
+
+#[tokio::test]
+async fn help_page_covers_the_direct_frontend_commands() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let provider = OpenAiProvider::new(home.path()).unwrap();
+    let mut session = InteractiveSession::new(
+        home.path().into(),
+        workspace.path().into(),
+        Config::default(),
+        /*bubblewrap*/ None,
+        provider,
+    )
+    .unwrap();
+    let CommandEffect::Page(page) = session.command("/help").await.unwrap() else {
+        panic!("expected help page");
+    };
+    insta::assert_snapshot!(page.body);
+}

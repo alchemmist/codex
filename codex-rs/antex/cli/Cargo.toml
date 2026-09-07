@@ -10,6 +10,7 @@ path = "src/main.rs"
 
 [dependencies]
 antex-core = { path = "../core" }
+antex-extension-host = { path = "../extension-host" }
 antex-provider-openai = { path = "../provider-openai" }
 antex-runtime = { path = "../runtime" }
 antex-tui = { path = "../tui" }
@@ -19,5 +20,6 @@ tokio-util.workspace = true
 serde_json.workspace = true
 
 [dev-dependencies]
+insta = "1"
 tempfile = "3"
 pretty_assertions = "1"

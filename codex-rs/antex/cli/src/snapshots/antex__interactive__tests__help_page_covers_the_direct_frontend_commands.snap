@@ -1,0 +1,26 @@
+---
+source: cli/src/interactive_tests.rs
+assertion_line: 64
+expression: page.body
+---
+# Conversation
+
+- `/model` — choose a model
+- `/sessions` or `/resume` — choose a session
+- `/fork` — branch from a user message
+- `/cd <path>` — change workspace
+- `/compact` — summarize active context
+- `/transcript` — inspect original messages, tools, and reasoning summaries
+- `/extensions` — list extension commands
+- `/status` — show session identity
+
+# Input and appearance
+
+- Ctrl+S — stash or append the saved draft
+- Ctrl+V or `/image <path>` — attach an image
+- Ctrl+O or `/copy` — copy the last response
+- Ctrl+T — open the transcript
+- Ctrl+L — clear the visible screen
+- `/theme` — choose a syntax theme
+- Enter — send or steer; Tab — queue a follow-up
+- Ctrl+C — interrupt; `/quit` — exit

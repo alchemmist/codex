@@ -1,4 +1,5 @@
 import json
+import os
 import sys
 import time
 
@@ -44,6 +45,14 @@ for line in sys.stdin:
         arguments = request["params"]["arguments"]
         if arguments.get("text") == "stall":
             time.sleep(60)
+        if arguments.get("text") == "crash":
+            os._exit(9)
+        if arguments.get("text") == "malformed":
+            print("not-json", flush=True)
+            continue
+        if arguments.get("text") == "oversized":
+            print("x" * (256 * 1024 + 1), flush=True)
+            continue
         actions = []
         if arguments.get("text") == "agent":
             actions = [

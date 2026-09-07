@@ -1,11 +1,22 @@
 mod discovery;
+mod managed;
 mod process;
+mod registry;
+mod tool_host;
 
 pub use discovery::DiscoveredExtension;
 pub use discovery::DiscoveryError;
 pub use discovery::discover;
+pub use managed::ManagedExtension;
 pub use process::Extension;
 pub use process::ExtensionConfig;
 pub use process::ExtensionError;
 pub use process::ExtensionRequest;
 pub use process::ExtensionResponse;
+pub use registry::ExtensionRegistry;
+pub use registry::RegistryCommand;
+pub use registry::RegistryError;
+pub use registry::RegistryLoad;
+pub use tool_host::ExtensionToolHost;
+pub use tool_host::HostedExtension;
+pub use tool_host::ToolHostError;

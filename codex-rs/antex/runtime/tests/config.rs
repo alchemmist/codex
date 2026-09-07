@@ -15,6 +15,8 @@ fn config_loads_supported_fields_and_reports_unknown_names_without_values() {
             permissions: PermissionProfile::ReadOnly,
             shell_timeout_seconds: 600,
             context_token_limit: 64_000,
+            extensions: true,
+            trust_project_extensions: false,
             tui: serde_json::json!({}),
         }
     );

@@ -6,8 +6,10 @@ use antex_core::AgentEvent;
 use antex_core::AgentRun;
 use antex_core::Message;
 use antex_core::ModelProvider;
+use antex_core::ToolHost;
 use antex_core::TurnInput;
 use antex_core::UserInput;
+use antex_extension_host::ExtensionRegistry;
 use antex_provider_openai::OpenAiProvider;
 use antex_runtime::Compaction;
 use antex_runtime::Config;
@@ -29,6 +31,7 @@ pub(crate) struct InteractiveSession {
     conversation: Conversation,
     agent: Option<Agent<Arc<OpenAiProvider>>>,
     compaction: Option<Arc<Compaction<OpenAiProvider>>>,
+    extensions: Option<ExtensionRegistry>,
 }
 
 impl InteractiveSession {
@@ -53,12 +56,56 @@ impl InteractiveSession {
             conversation,
             agent: None,
             compaction: None,
+            extensions: None,
         })
     }
 
     fn reset_agent(&mut self) {
         self.agent = None;
         self.compaction = None;
+        self.extensions = None;
+    }
+
+    fn local_runtime(&self) -> Result<Arc<dyn ToolHost>, String> {
+        let mut runtime = LocalRuntime::new(&self.workspace, self.config.permissions)
+            .map_err(|error| error.to_string())?
+            .with_read_roots(&self.context.read_roots)
+            .map_err(|error| error.to_string())?
+            .with_shell_timeout(std::time::Duration::from_secs(
+                self.config.shell_timeout_seconds,
+            ));
+        if let Some(program) = &self.bubblewrap {
+            runtime = runtime.with_bubblewrap(program.clone());
+        }
+        Ok(Arc::new(runtime))
+    }
+
+    async fn tools(&mut self) -> Result<Arc<dyn ToolHost>, String> {
+        let runtime = self.local_runtime()?;
+        if !self.config.extensions {
+            return Ok(runtime);
+        }
+        if self.extensions.is_none() {
+            let loaded = ExtensionRegistry::load(
+                &self.home,
+                &self.workspace,
+                self.config.trust_project_extensions,
+                runtime,
+                env!("ANTEX_BUILD_VERSION"),
+                &self.conversation.id().to_string(),
+            )
+            .await
+            .map_err(|error| error.to_string())?;
+            for failure in loaded.failures {
+                eprintln!("antex: extension failed: {failure}");
+            }
+            self.extensions = Some(loaded.registry);
+        }
+        Ok(self
+            .extensions
+            .as_ref()
+            .ok_or("Extension registry is unavailable")?
+            .tool_host())
     }
 }
 
@@ -136,16 +183,7 @@ impl Session for InteractiveSession {
             }
         };
         if self.agent.is_none() {
-            let mut runtime = LocalRuntime::new(&self.workspace, self.config.permissions)
-                .map_err(|error| error.to_string())?
-                .with_read_roots(&self.context.read_roots)
-                .map_err(|error| error.to_string())?
-                .with_shell_timeout(std::time::Duration::from_secs(
-                    self.config.shell_timeout_seconds,
-                ));
-            if let Some(program) = &self.bubblewrap {
-                runtime = runtime.with_bubblewrap(program.clone());
-            }
+            let tools = self.tools().await?;
             let compaction = Arc::new(Compaction::new(
                 self.provider.clone(),
                 self.context.clone(),
@@ -153,8 +191,7 @@ impl Session for InteractiveSession {
                 self.config.context_token_limit,
             ));
             self.agent = Some(
-                Agent::new(self.provider.clone(), Arc::new(runtime))
-                    .with_context_hook(compaction.clone()),
+                Agent::new(self.provider.clone(), tools).with_context_hook(compaction.clone()),
             );
             self.compaction = Some(compaction);
         }
@@ -194,7 +231,7 @@ impl Session for InteractiveSession {
                 let image = self.prepare_image(antex_tui::ImageSource::File(path)).await?;
                 Ok(CommandEffect::Image(image))
             }
-            "/help" => Ok(CommandEffect::Page(antex_tui::TextPage { title: "Antex commands".into(), body: "# Conversation\n\n- `/model` — choose a model\n- `/sessions` or `/resume` — choose a session\n- `/fork` — branch from a user message\n- `/cd <path>` — change workspace\n- `/compact` — summarize active context\n- `/transcript` — inspect original messages, tools, and reasoning summaries\n- `/status` — show session identity\n\n# Input and appearance\n\n- Ctrl+S — stash or append the saved draft\n- Ctrl+V or `/image <path>` — attach an image\n- Ctrl+O or `/copy` — copy the last response\n- Ctrl+T — open the transcript\n- Ctrl+L — clear the visible screen\n- `/theme` — choose a syntax theme\n- Enter — send or steer; Tab — queue a follow-up\n- Ctrl+C — interrupt; `/quit` — exit\n".into(), older_command: None })),
+            "/help" => Ok(CommandEffect::Page(antex_tui::TextPage { title: "Antex commands".into(), body: "# Conversation\n\n- `/model` — choose a model\n- `/sessions` or `/resume` — choose a session\n- `/fork` — branch from a user message\n- `/cd <path>` — change workspace\n- `/compact` — summarize active context\n- `/transcript` — inspect original messages, tools, and reasoning summaries\n- `/extensions` — list extension commands\n- `/status` — show session identity\n\n# Input and appearance\n\n- Ctrl+S — stash or append the saved draft\n- Ctrl+V or `/image <path>` — attach an image\n- Ctrl+O or `/copy` — copy the last response\n- Ctrl+T — open the transcript\n- Ctrl+L — clear the visible screen\n- `/theme` — choose a syntax theme\n- Enter — send or steer; Tab — queue a follow-up\n- Ctrl+C — interrupt; `/quit` — exit\n".into(), older_command: None })),
             "/transcript" => {
                 let cursor = if argument.is_empty() { None } else { Some(argument.parse().map_err(|_| "Invalid transcript cursor.")?) };
                 let page = self.conversation.transcript_page(cursor).map_err(|error| error.to_string())?;
@@ -255,7 +292,22 @@ impl Session for InteractiveSession {
                 Ok(CommandEffect::Notice("Context compacted; original records retained.".into()))
             }
             "/status" => Ok(CommandEffect::Notice(format!("Session {} · {} records", self.conversation.id(), self.conversation.entries().len()))),
-            _ => Err("Unknown command. Use /help.".into()),
+            "/extensions" => {
+                self.tools().await?;
+                let body = self.extensions.as_ref().map(|extensions| extensions.commands().iter().map(|command| format!("- `/{} {}` — {}", command.name, "[arguments]", command.description)).collect::<Vec<_>>().join("\n")).filter(|body| !body.is_empty()).unwrap_or_else(|| "No extension commands enabled.".into());
+                Ok(CommandEffect::Page(antex_tui::TextPage { title: "Extensions".into(), body, older_command: None }))
+            }
+            _ => {
+                self.tools().await?;
+                let extension_name = name.strip_prefix('/').unwrap_or(name);
+                let Some(extensions) = self.extensions.as_ref() else { return Err("Unknown command. Use /help.".into()); };
+                if !extensions.commands().iter().any(|command| command.name == extension_name) { return Err("Unknown command. Use /help.".into()); }
+                let output = extensions.run_command(extension_name, argument.into(), tokio_util::sync::CancellationToken::new()).await.map_err(|error| error.to_string())?;
+                if !output.actions.is_empty() { return Err("Extension command actions are not connected yet.".into()); }
+                for record in output.records { self.conversation.append_extension(extension_name, record).map_err(|error| error.to_string())?; }
+                if let Some(panel) = output.panel { return Ok(CommandEffect::Page(antex_tui::TextPage { title: panel.title, body: panel.text, older_command: None })); }
+                Ok(CommandEffect::Notice(output.status.unwrap_or(output.text)))
+            }
         }
     }
 }
