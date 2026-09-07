@@ -135,3 +135,6 @@ async fn real_kernel_events_reach_inline_terminal_and_persistence() {
     assert!(visible.contains("Hello from the kernel."), "{visible}");
     insta::assert_snapshot!(visible);
 }
+
+#[path = "frontend_interaction_tests.rs"]
+mod interactions;
