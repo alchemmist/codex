@@ -139,6 +139,7 @@ impl Composer {
         &mut self,
         persist: impl FnOnce(&Value) -> Result<(), String>,
     ) -> Result<(), String> {
+        self.flush_all_input();
         let current = self.draft();
         if let Some(stashed) = &self.stashed {
             if current.text.len() + stashed.text.len() > MAX_DRAFT_BYTES

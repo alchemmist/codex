@@ -16,6 +16,7 @@ pub struct Settings {
     pub(crate) vim_start: VimModeStart,
     pub(crate) show_vim_mode: bool,
     pub(crate) animations: bool,
+    pub(crate) disable_paste_burst: bool,
     pub(crate) title: String,
     pub(crate) mascot: StartupMascotSkin,
     pub(crate) theme: Option<String>,
@@ -27,6 +28,7 @@ pub struct Settings {
 #[serde(default)]
 struct RawSettings {
     animations: bool,
+    disable_paste_burst: bool,
     vim_mode_default: bool,
     vim_mode_start: VimModeStart,
     show_vim_mode_indicator: bool,
@@ -39,6 +41,7 @@ impl Default for RawSettings {
     fn default() -> Self {
         Self {
             animations: true,
+            disable_paste_burst: false,
             vim_mode_default: false,
             vim_mode_start: VimModeStart::Normal,
             show_vim_mode_indicator: false,
@@ -73,6 +76,7 @@ impl Default for Settings {
             vim_start: VimModeStart::Normal,
             show_vim_mode: false,
             animations: true,
+            disable_paste_burst: false,
             title: "Antex".into(),
             mascot: StartupMascotSkin::default(),
             theme: None,
@@ -97,6 +101,7 @@ impl Settings {
         }
         let known = [
             "animations",
+            "disable_paste_burst",
             "vim_mode_default",
             "vim_mode_start",
             "show_vim_mode_indicator",
@@ -125,6 +130,7 @@ impl Settings {
             vim_start: raw.vim_mode_start,
             show_vim_mode: raw.show_vim_mode_indicator,
             animations: raw.animations,
+            disable_paste_burst: raw.disable_paste_burst,
             title: raw.startup_panel.title,
             mascot: raw.startup_panel.mascot_skin,
             theme: raw.theme,

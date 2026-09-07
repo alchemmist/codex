@@ -126,6 +126,12 @@ where
     let mut force_draw = true;
     let mut ui_command: Option<(String, CommandOrigin)> = None;
     loop {
+        if composer.flush_paste(std::time::Instant::now()) {
+            force_draw = true;
+        }
+        if composer.paste_pending() {
+            frames.schedule_frame_in(crate::paste_burst::PasteBurst::recommended_flush_delay());
+        }
         if input_state == InputState::Closed && run.is_none() {
             break;
         }
@@ -164,7 +170,10 @@ where
                             session.view().directory,
                             settings.keymap.clone(),
                         ) {
-                            Ok(pager) => prompt = Some(crate::overlay::Overlay::Pager(pager)),
+                            Ok(pager) => {
+                                prompt = Some(crate::overlay::Overlay::Pager(pager));
+                                status.clear();
+                            }
                             Err(error) => status = safe_text(&error),
                         },
                         CommandEffect::Notice(notice) => status = safe_text(&notice),
@@ -177,12 +186,14 @@ where
                         CommandEffect::Picker(spec) => {
                             match crate::picker::Picker::new(spec, settings.keymap.clone()) {
                                 Ok(picker) => {
-                                    prompt = Some(crate::overlay::Overlay::Picker(picker))
+                                    prompt = Some(crate::overlay::Overlay::Picker(picker));
+                                    status.clear();
                                 }
                                 Err(error) => status = safe_text(&error),
                             }
                         }
                         CommandEffect::Reset(messages) => {
+                            status = format!("Session {}", session.view().session_id);
                             crate::presentation_commands::restore(&settings, session)
                                 .map_err(io::Error::other)?;
                             last_response.clear();
@@ -292,7 +303,7 @@ where
                     Event::Key(key) if key.kind == crossterm::event::KeyEventKind::Release => continue,
                     Event::Key(key) if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') => {
                         if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
-                        else if prompt.take().is_none() { break; }
+                        else if !composer.cancel_search() && prompt.take().is_none() { break; }
                     }
                     Event::Key(key) => {
                         if let Some(pane) = &mut prompt {
@@ -324,6 +335,7 @@ where
                             Ok(None) => {},
                             Ok(Some(ComposerAction::Transcript)) => ui_command = Some(("/transcript".into(), CommandOrigin::Picker)),
                             Ok(Some(ComposerAction::Clear)) => tui.terminal.clear_visible_screen()?,
+                            Ok(Some(ComposerAction::Interrupt)) => if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); },
                             Ok(Some(ComposerAction::Copy)) => match copy_response(&last_response) {
                                 Ok(lease) => { _clipboard_lease = lease; status = "Copied last response".into(); }
                                 Err(error) => status = safe_text(&error),
@@ -387,7 +399,7 @@ where
                         }
                     }
                     Event::Paste(text) => {
-                        if prompt.is_none() && let Some(path) = crate::clipboard_paste::pasted_image_path(&text) {
+                        if prompt.is_none() && !composer.search_active() && let Some(path) = crate::clipboard_paste::pasted_image_path(&text) {
                             match crate::foreground::wait(session.prepare_image(crate::ImageSource::File(path)), &mut input, &mut buffered_input, &mut input_state).await.and_then(|image| attach_image(&mut composer, image)) {
                                 Ok(()) => { status = "Image attached".into(); continue; }
                                 Err(error) => status = safe_text(&error),
