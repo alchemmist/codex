@@ -388,5 +388,9 @@ impl Composer {
 mod tests;
 
 #[cfg(test)]
+#[path = "composer_vim_tests.rs"]
+mod vim_tests;
+
+#[cfg(test)]
 #[path = "composer_input_tests.rs"]
 mod input_tests;

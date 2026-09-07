@@ -23,11 +23,26 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         return Ok(());
     }
     let view = session.view();
-    let header = startup
+    let input_height = prompt
         .as_ref()
-        .map(|panel| panel.lines(size.width))
-        .unwrap_or_default();
-    let header_height = header.len().min(usize::from(size.height.saturating_sub(3))) as u16;
+        .map(crate::overlay::Overlay::height)
+        .unwrap_or_else(|| composer.height(size.width).min(8));
+    let header_room = size.height.saturating_sub(input_height + 2);
+    let header = if prompt.is_some() || header_room < 2 {
+        Vec::new()
+    } else {
+        startup
+            .as_ref()
+            .map(|panel| {
+                panel.lines(if header_room < 6 {
+                    size.width.min(35)
+                } else {
+                    size.width
+                })
+            })
+            .unwrap_or_default()
+    };
+    let header_height = header.len() as u16;
     let live_lines = if live.is_empty() {
         Vec::new()
     } else {
@@ -37,12 +52,8 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
             Some(&view.directory),
         )
     };
-    let live_height =
-        (live_lines.len().min(8) as u16).min(size.height.saturating_sub(header_height + 3));
-    let input_height = prompt
-        .as_ref()
-        .map(crate::overlay::Overlay::height)
-        .unwrap_or_else(|| composer.height(size.width).min(8));
+    let live_height = (live_lines.len().min(8) as u16)
+        .min(size.height.saturating_sub(header_height + input_height + 2));
     let height = (header_height + input_height + live_height + 2).min(size.height);
     let previous = tui.terminal.viewport_area;
     let y = previous.y.min(size.height.saturating_sub(height));
