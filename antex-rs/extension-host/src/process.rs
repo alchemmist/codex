@@ -99,6 +99,7 @@ pub enum ExtensionRequest {
     Tool(antex_extension_protocol::ToolCall),
     Command(CommandRun),
     Event(Event),
+    Continuation(Event),
 }
 
 pub enum ExtensionResponse {
@@ -223,6 +224,13 @@ impl Extension {
                 true,
                 false,
                 true,
+            ),
+            ExtensionRequest::Continuation(event) => (
+                Method::EventNotify,
+                serde_json::to_value(event),
+                true,
+                true,
+                false,
             ),
         };
         let value = self

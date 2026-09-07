@@ -65,7 +65,16 @@ for line in sys.stdin:
     elif method == "command/run":
         respond(request, {"text": "hello", "records": [], "actions": []})
     elif method == "event/notify":
-        if request["params"]["data"].get("fail"):
+        if request["params"]["name"] == "actionResult":
+            respond(
+                request,
+                {
+                    "text": f"continued {request['params']['data']['id']}",
+                    "records": [],
+                    "actions": [],
+                },
+            )
+        elif request["params"]["data"].get("fail"):
             respond(request, error={"code": -32000, "message": "event failed"})
         elif request["params"]["data"].get("terminalLog"):
             respond(

@@ -6,6 +6,7 @@ use antex_extension_host::ExtensionLaunch;
 use antex_extension_host::ExtensionLauncher;
 use antex_extension_host::ExtensionRegistry;
 use antex_extension_host::ExtensionRegistryConfig;
+use antex_extension_protocol::ActionResult;
 use antex_extension_protocol::Event;
 use antex_runtime::LocalRuntime;
 use antex_runtime::PermissionProfile;
@@ -82,6 +83,23 @@ async fn registry_delivers_only_subscribed_events_and_isolates_failures() {
         })
         .await;
     assert_eq!(restored.outputs[0].output.text, "{\"enabled\": true}");
+    assert_eq!(
+        loaded
+            .registry
+            .continue_action(
+                "fixture",
+                ActionResult {
+                    id: "step-1".into(),
+                    succeeded: true,
+                    data: json!({}),
+                },
+            )
+            .await
+            .unwrap()
+            .unwrap()
+            .text,
+        "continued step-1"
+    );
     assert_eq!(
         loaded
             .registry

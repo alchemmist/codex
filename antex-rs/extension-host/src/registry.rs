@@ -3,6 +3,7 @@ use std::path::Path;
 use std::sync::Arc;
 
 use antex_core::ToolHost;
+use antex_extension_protocol::ActionResult;
 use antex_extension_protocol::CommandRun;
 use antex_extension_protocol::Event;
 use antex_extension_protocol::Output;
@@ -40,6 +41,7 @@ pub struct ExtensionRegistry {
     commands: Vec<RegistryCommand>,
     command_targets: HashMap<String, CommandTarget>,
     event_targets: HashMap<String, Vec<EventTarget>>,
+    extension_targets: HashMap<String, Arc<ManagedExtension>>,
 }
 
 pub struct RegistryLoad {
@@ -115,7 +117,12 @@ impl ExtensionRegistry {
         let mut commands = Vec::new();
         let mut command_targets = HashMap::new();
         let mut event_targets: HashMap<String, Vec<EventTarget>> = HashMap::new();
+        let mut extension_targets = HashMap::new();
         for extension in &extensions {
+            extension_targets.insert(
+                extension.manifest.name.clone(),
+                Arc::clone(&extension.process),
+            );
             for command in &extension.manifest.commands {
                 let name = command.name.clone();
                 if command_targets
@@ -152,6 +159,7 @@ impl ExtensionRegistry {
                 commands,
                 command_targets,
                 event_targets,
+                extension_targets,
             },
             failures,
         })
@@ -221,5 +229,31 @@ impl ExtensionRegistry {
             }
         }
         RegistryEventDelivery { outputs, failures }
+    }
+
+    pub async fn continue_action(
+        &self,
+        extension: &str,
+        result: ActionResult,
+    ) -> Result<Option<Output>, RegistryError> {
+        let process = self
+            .extension_targets
+            .get(extension)
+            .ok_or_else(|| RegistryError::UnknownCommand(extension.into()))?;
+        match process
+            .request(
+                ExtensionRequest::Continuation(Event {
+                    name: "actionResult".into(),
+                    data: serde_json::to_value(result).map_err(|_| {
+                        ExtensionError::Protocol(antex_extension_protocol::ProtocolError::Encoding)
+                    })?,
+                }),
+                CancellationToken::new(),
+            )
+            .await?
+        {
+            ExtensionResponse::Output(output) => Ok(Some(output)),
+            ExtensionResponse::Notified => Ok(None),
+        }
     }
 }

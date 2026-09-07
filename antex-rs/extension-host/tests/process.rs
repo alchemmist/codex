@@ -10,6 +10,7 @@ use antex_extension_host::ExtensionLauncher;
 use antex_extension_host::ExtensionRequest;
 use antex_extension_host::ExtensionResponse;
 use antex_extension_host::ManagedExtension;
+use antex_extension_protocol::ActionResult;
 use antex_extension_protocol::Capability;
 use antex_extension_protocol::CommandRun;
 use antex_extension_protocol::Event;
@@ -202,6 +203,31 @@ async fn lifecycle_events_allow_only_terminal_log_actions() {
         )
         .await;
     assert!(matches!(result, Err(ExtensionError::EventOrigin)));
+    extension.shutdown().await.unwrap();
+}
+
+#[tokio::test]
+async fn explicit_command_continuations_may_return_more_actions() {
+    let extension = Extension::launch(fixture_config()).await.unwrap();
+    let response = extension
+        .request(
+            ExtensionRequest::Continuation(Event {
+                name: "actionResult".into(),
+                data: serde_json::to_value(ActionResult {
+                    id: "step-1".into(),
+                    succeeded: true,
+                    data: json!({}),
+                })
+                .unwrap(),
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let ExtensionResponse::Output(output) = response else {
+        panic!("continuation returned no output");
+    };
+    assert_eq!(output.text, "continued step-1");
     extension.shutdown().await.unwrap();
 }
 

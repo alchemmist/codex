@@ -25,31 +25,57 @@ impl InteractiveSession {
         extension: &str,
         output: Output,
     ) -> Result<CommandEffect, String> {
-        for record in output.records {
-            self.conversation
-                .append_extension(extension, record)
-                .map_err(|error| error.to_string())?;
-        }
         let mut rendered = Vec::new();
-        for action in output.actions {
-            let result = self.execute_extension_action(action).await;
-            if let Some(text) = result.data["text"].as_str()
-                && !text.is_empty()
-            {
-                rendered.push(text.to_owned());
+        let mut text = String::new();
+        let mut panel = None;
+        let mut pending = vec![output];
+        let mut action_count = 0usize;
+        while let Some(output) = pending.pop() {
+            for record in output.records {
+                self.conversation
+                    .append_extension(extension, record)
+                    .map_err(|error| error.to_string())?;
             }
-            self.conversation
-                .append_extension(extension, serde_json::json!({"actionResult":result}))
-                .map_err(|error| error.to_string())?;
+            if let Some(status) = output.status {
+                text = status;
+            } else if !output.text.is_empty() {
+                text = output.text;
+            }
+            panel = output.panel.or(panel);
+            for action in output.actions {
+                action_count += 1;
+                if action_count > 64 {
+                    return Err("extension command exceeds its 64-action budget".into());
+                }
+                let result = self.execute_extension_action(action).await;
+                if let Some(result_text) = result.data["text"].as_str()
+                    && !result_text.is_empty()
+                {
+                    rendered.push(result_text.to_owned());
+                }
+                self.conversation
+                    .append_extension(
+                        extension,
+                        serde_json::json!({"actionResult":result.clone()}),
+                    )
+                    .map_err(|error| error.to_string())?;
+                if let Some(extensions) = &self.extensions
+                    && let Some(next) = extensions
+                        .continue_action(extension, result)
+                        .await
+                        .map_err(|error| error.to_string())?
+                {
+                    pending.push(next);
+                }
+            }
         }
-        if let Some(panel) = output.panel {
+        if let Some(panel) = panel {
             return Ok(CommandEffect::Page(antex_tui::TextPage {
                 title: panel.title,
                 body: panel.text,
                 older_command: None,
             }));
         }
-        let mut text = output.status.unwrap_or(output.text);
         if !rendered.is_empty() {
             if !text.is_empty() {
                 text.push_str("\n\n");
