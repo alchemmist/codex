@@ -1,0 +1,8 @@
+---
+source: tui/src/frontend_interaction_tests.rs
+expression: prompt.description()
+---
+[
+    Line::from(Span::from("Approval required").magenta().bold()),
+    Line::from("Run the requested privileged command?"),
+]

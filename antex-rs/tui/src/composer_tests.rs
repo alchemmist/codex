@@ -161,4 +161,5 @@ fn narrow_composer_keeps_unicode_cursor_inside_its_viewport() {
     |  next          |
     |                |
     ");
+    insta::assert_debug_snapshot!(buffer[(0, 0)].fg, @"Cyan");
 }

@@ -60,6 +60,36 @@ impl ModelProvider for WaitingProvider {
 }
 
 #[tokio::test]
+async fn approval_prompt_snapshot_uses_the_terminal_safe_accent() {
+    let mut agent = Agent::new(ApprovalProvider, Arc::new(ApprovalTool));
+    let mut run = agent.start(antex_core::TurnInput {
+        model: "test".into(),
+        reasoning: None,
+        history: Vec::new(),
+        input: "approve".into(),
+    });
+    let request = loop {
+        match run.events.recv().await.unwrap() {
+            AgentEvent::Interaction { request, .. } => break request,
+            AgentEvent::ContextCheckpoint(_)
+            | AgentEvent::MessageCommitted(_)
+            | AgentEvent::TextDelta(_)
+            | AgentEvent::ReasoningDelta(_)
+            | AgentEvent::ToolStarted(_)
+            | AgentEvent::ToolProgress { .. }
+            | AgentEvent::Quota(_)
+            | AgentEvent::Usage(_)
+            | AgentEvent::TurnCompleted
+            | AgentEvent::Error(_)
+            | AgentEvent::Finished { .. } => {}
+        }
+    };
+    let prompt = crate::prompt::Prompt::new(request.clone());
+    insta::assert_debug_snapshot!(prompt.description());
+    request.answer(InteractionAnswer::Deny).unwrap();
+}
+
+#[tokio::test]
 async fn terminal_eof_interrupts_and_drains_the_active_run() {
     let started = Arc::new(Notify::new());
     let finished = Arc::new(Notify::new());

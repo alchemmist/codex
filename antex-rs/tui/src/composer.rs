@@ -336,7 +336,7 @@ impl Composer {
         if area.width < 3 || area.height == 0 {
             return None;
         }
-        Line::from("› ".yellow()).render(Rect { width: 2, ..area }, buffer);
+        Line::from("› ".cyan()).render(Rect { width: 2, ..area }, buffer);
         let input = Rect {
             x: area.x + 2,
             width: area.width - 2,

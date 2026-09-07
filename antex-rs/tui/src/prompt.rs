@@ -39,7 +39,7 @@ impl Prompt {
                 ("Question", question, choices.clone())
             }
         };
-        let mut lines = vec![Line::from(title.yellow().bold())];
+        let mut lines = vec![Line::from(title.magenta().bold())];
         lines.extend(
             safe_text(text)
                 .lines()
@@ -127,7 +127,7 @@ impl Prompt {
                 self.selected + 1,
                 safe_text(&choices[self.selected])
             );
-            Line::from(label.yellow()).render(area, buffer);
+            Line::from(label.magenta()).render(area, buffer);
             None
         }
     }
