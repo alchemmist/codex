@@ -28,11 +28,15 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         .map(|panel| panel.lines(size.width))
         .unwrap_or_default();
     let header_height = header.len().min(usize::from(size.height.saturating_sub(3))) as u16;
-    let live_lines = crate::markdown::render_markdown_agent_with_links_and_cwd(
-        live,
-        Some(usize::from(size.width)),
-        Some(&view.directory),
-    );
+    let live_lines = if live.is_empty() {
+        Vec::new()
+    } else {
+        crate::markdown::render_markdown_agent_with_links_and_cwd(
+            live,
+            Some(usize::from(size.width)),
+            Some(&view.directory),
+        )
+    };
     let live_height =
         (live_lines.len().min(8) as u16).min(size.height.saturating_sub(header_height + 3));
     let height =
@@ -97,6 +101,9 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         ));
         if let Some(mode) = composer.mode_label() {
             footer.push_str(&format!(" · {mode}"));
+        }
+        if composer.has_stash() {
+            footer.insert_str(0, "stashed · ");
         }
         if area.height >= 2 {
             Line::from(footer.dim()).render(

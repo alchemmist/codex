@@ -92,7 +92,10 @@ async fn terminal_eof_interrupts_and_drains_the_active_run() {
         finished.notified().await;
     };
     let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        tokio::join!(run_terminal(&mut tui, &mut session, input), driver)
+        tokio::join!(
+            run_terminal(&mut tui, &mut session, input, crate::Settings::default()),
+            driver
+        )
     })
     .await
     .unwrap();
@@ -156,7 +159,10 @@ async fn approval_defaults_to_denial_and_requires_explicit_allow_selection() {
                 .unwrap();
         };
         let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-            tokio::join!(run_terminal(&mut tui, &mut session, input), driver)
+            tokio::join!(
+                run_terminal(&mut tui, &mut session, input, crate::Settings::default()),
+                driver
+            )
         })
         .await
         .unwrap();

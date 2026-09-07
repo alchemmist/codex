@@ -9,19 +9,29 @@ use crate::tui::FrameRequester;
 
 pub(crate) struct Startup {
     skin: StartupMascotSkin,
-    motion: StartupMascotMotion,
+    title: String,
+    motion: Option<StartupMascotMotion>,
 }
 
 impl Startup {
-    pub(crate) fn new(skin: StartupMascotSkin, frames: FrameRequester) -> Self {
+    pub(crate) fn new(settings: &crate::Settings, frames: FrameRequester) -> Self {
         Self {
-            skin,
-            motion: StartupMascotMotion::new(frames),
+            skin: settings.mascot,
+            title: settings.title.clone(),
+            motion: settings
+                .animations
+                .then(|| StartupMascotMotion::new(frames)),
         }
     }
 
     pub(crate) fn lines(&self, width: u16) -> Vec<Line<'static>> {
-        self.render(width, self.motion.current_frame())
+        self.render(
+            width,
+            self.motion
+                .as_ref()
+                .map(StartupMascotMotion::current_frame)
+                .unwrap_or(MascotFrame::Rest),
+        )
     }
 
     pub(crate) fn final_lines(&self, width: u16) -> Vec<Line<'static>> {
@@ -30,7 +40,7 @@ impl Startup {
 
     fn render(&self, width: u16, frame: MascotFrame) -> Vec<Line<'static>> {
         let title = vec![
-            "Antex ".bold(),
+            format!("{} ", self.title).bold(),
             format!("v{}", env!("CARGO_PKG_VERSION")).dim(),
         ];
         if width < 36 || self.skin == StartupMascotSkin::None {

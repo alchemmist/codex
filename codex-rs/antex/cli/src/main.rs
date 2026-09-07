@@ -135,6 +135,8 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                     _ => return Err("invalid permission profile".into()),
                 };
             }
+            let settings = antex_tui::Settings::from_config(&config.tui, home.clone())
+                .map_err(std::io::Error::other)?;
             let mut session = interactive::InteractiveSession::new(
                 home,
                 workspace,
@@ -143,7 +145,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 provider,
             )
             .map_err(std::io::Error::other)?;
-            antex_tui::run(&mut session).await?;
+            antex_tui::run(&mut session, settings).await?;
         }
         Action::Login {
             device_code,

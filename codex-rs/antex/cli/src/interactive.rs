@@ -63,6 +63,16 @@ impl InteractiveSession {
 }
 
 impl Session for InteractiveSession {
+    fn load_ui_state(&mut self, name: &str) -> Result<Option<serde_json::Value>, String> {
+        self.conversation
+            .load_ui_state(name)
+            .map_err(|error| error.to_string())
+    }
+    fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> Result<(), String> {
+        self.conversation
+            .save_ui_state(name, value)
+            .map_err(|error| error.to_string())
+    }
     fn view(&self) -> SessionView {
         SessionView {
             model: self

@@ -24,11 +24,22 @@ use crate::transcript::safe_text;
 use crate::transcript::write_message;
 use crate::tui::Tui;
 
-pub async fn run(session: &mut impl Session) -> io::Result<()> {
+pub async fn run(session: &mut impl Session, settings: crate::Settings) -> io::Result<()> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
         return Err(io::Error::other(
             "interactive mode requires a terminal; use antex exec for pipes",
         ));
+    }
+    for warning in &settings.warnings {
+        eprintln!("antex: {warning}");
+    }
+    if settings.theme.is_some()
+        && let Some(warning) = crate::render::highlight::set_theme_override(
+            settings.theme.clone(),
+            settings.home.clone(),
+        )
+    {
+        eprintln!("antex: {warning}");
     }
     let mut guard = TerminalGuard::enter()?;
     let probe = crate::terminal_probe::startup(
@@ -46,19 +57,28 @@ pub async fn run(session: &mut impl Session) -> io::Result<()> {
         .and_then(|probe| probe.cursor_position)
         .unwrap_or_default();
     let mut tui = Tui::with_cursor(CrosstermBackend::new(io::stdout()), cursor)?;
-    run_terminal(&mut tui, session, EventStream::new()).await
+    run_terminal(&mut tui, session, EventStream::new(), settings).await
 }
 
 async fn run_terminal<B, E>(
     tui: &mut Tui<B>,
     session: &mut impl Session,
     mut input: E,
+    settings: crate::Settings,
 ) -> io::Result<()>
 where
     B: ratatui::backend::Backend<Error = io::Error> + io::Write,
     E: futures::Stream<Item = io::Result<Event>> + Unpin,
 {
     let mut composer = Composer::new(Arc::new(RuntimeKeymap::defaults()));
+    composer.configure(&settings);
+    composer
+        .load_stash(
+            session
+                .load_ui_state("promptStash")
+                .map_err(io::Error::other)?,
+        )
+        .map_err(io::Error::other)?;
     let mut run: Option<AgentRun> = None;
     let mut status = String::new();
     let mut live = String::new();
@@ -66,10 +86,7 @@ where
     let mut prompt = None;
     let mut closing = false;
     let frames = crate::tui::FrameRequester::new();
-    let mut startup = Some(crate::startup::Startup::new(
-        crate::StartupMascotSkin::default(),
-        frames.clone(),
-    ));
+    let mut startup = Some(crate::startup::Startup::new(&settings, frames.clone()));
     draw(
         tui,
         &mut composer,
@@ -185,6 +202,13 @@ where
                             }
                             continue;
                         }
+                        if crate::key_hint::ctrl(KeyCode::Char('s')).is_press(key) {
+                            match composer.toggle_stash(|value| session.save_ui_state("promptStash", value)) {
+                                Ok(()) => status = if composer.has_stash() { "Prompt stashed · Ctrl+S restores it" } else { "Prompt restored" }.into(),
+                                Err(error) => status = safe_text(&error),
+                            }
+                            continue;
+                        }
                         match composer.key(key) {
                             Err(error) => status = error.into(),
                             Ok(None) => {},
@@ -223,6 +247,7 @@ where
                                                 CommandEffect::Notice(notice) => status = safe_text(&notice),
                                                 CommandEffect::Reset(messages) => {
                                                     pending = session.pending_commands().map_err(io::Error::other)?;
+                                                    composer.load_stash(session.load_ui_state("promptStash").map_err(io::Error::other)?).map_err(io::Error::other)?;
                                                     tui.terminal.clear_visible_screen()?;
                                                     for message in messages { write_message(&mut tui.terminal, &message, &session.view().directory)?; }
                                                 }

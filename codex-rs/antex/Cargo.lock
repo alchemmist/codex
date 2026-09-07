@@ -112,6 +112,7 @@ dependencies = [
  "antex-tui",
  "clap",
  "pretty_assertions",
+ "serde_json",
  "tempfile",
  "tokio",
  "tokio-util",
@@ -180,7 +181,7 @@ name = "antex-tui"
 version = "0.0.0"
 dependencies = [
  "antex-core",
- "base64",
+ "base64 0.22.1",
  "chrono",
  "crossterm",
  "derive_more",

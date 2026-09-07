@@ -22,6 +22,8 @@ pub trait Session: Send {
     fn view(&self) -> SessionView;
     fn history(&self) -> Vec<Message>;
     fn pending_commands(&mut self) -> Result<Vec<antex_core::AgentCommand>, String>;
+    fn load_ui_state(&mut self, name: &str) -> Result<Option<serde_json::Value>, String>;
+    fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> Result<(), String>;
     fn start(&mut self, input: UserInput) -> impl Future<Output = Result<AgentRun, String>> + Send;
     fn record(&mut self, event: &AgentEvent) -> Result<(), String>;
     fn command(

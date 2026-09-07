@@ -41,6 +41,12 @@ struct TestSession<P: ModelProvider + 'static> {
 }
 
 impl<P: ModelProvider + 'static> Session for TestSession<P> {
+    fn load_ui_state(&mut self, _name: &str) -> Result<Option<serde_json::Value>, String> {
+        Ok(None)
+    }
+    fn save_ui_state(&mut self, _name: &str, _value: &serde_json::Value) -> Result<(), String> {
+        Ok(())
+    }
     fn pending_commands(&mut self) -> Result<Vec<AgentCommand>, String> {
         Ok(Vec::new())
     }
@@ -115,7 +121,10 @@ async fn real_kernel_events_reach_inline_terminal_and_persistence() {
             .unwrap();
     };
     let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(5), async {
-        tokio::join!(run_terminal(&mut tui, &mut session, input), driver)
+        tokio::join!(
+            run_terminal(&mut tui, &mut session, input, crate::Settings::default()),
+            driver
+        )
     })
     .await
     .unwrap();
