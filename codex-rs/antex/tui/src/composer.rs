@@ -78,6 +78,12 @@ pub(crate) enum SubmitMode {
     Queue,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ComposerAction {
+    Submit(SubmitMode),
+    Copy,
+}
+
 pub(crate) struct Composer {
     editor: TextArea,
     state: TextAreaState,
@@ -118,6 +124,7 @@ impl Composer {
             return Err("Draft is too large; attach a file instead.");
         }
         self.editor.insert_str(text);
+        self.chords.cancel();
         Ok(())
     }
 
@@ -164,7 +171,11 @@ impl Composer {
         self.state = TextAreaState::default();
     }
 
-    pub(crate) fn key(&mut self, event: KeyEvent) -> Result<Option<SubmitMode>, &'static str> {
+    pub(crate) fn chord_pending(&self) -> bool {
+        self.chords.is_pending()
+    }
+
+    pub(crate) fn key(&mut self, event: KeyEvent) -> Result<Option<ComposerAction>, &'static str> {
         let contexts = crate::keymap::KeymapContextSet::new(crate::keymap::KeymapContext::Global)
             .with(crate::keymap::KeymapContext::Chat)
             .with(crate::keymap::KeymapContext::Composer)
@@ -185,11 +196,14 @@ impl Composer {
             self.editor.set_vim_enabled(!self.editor.is_vim_enabled());
             return Ok(None);
         }
+        if self.keymap.app.copy.is_pressed(event) {
+            return Ok(Some(ComposerAction::Copy));
+        }
         if self.keymap.composer.submit.is_pressed(event) {
-            return Ok(Some(SubmitMode::Send));
+            return Ok(Some(ComposerAction::Submit(SubmitMode::Send)));
         }
         if self.keymap.composer.queue.is_pressed(event) {
-            return Ok(Some(SubmitMode::Queue));
+            return Ok(Some(ComposerAction::Submit(SubmitMode::Queue)));
         }
         let before = self.draft();
         let cursor = self.editor.cursor();

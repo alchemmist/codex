@@ -15,7 +15,7 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
     session: &impl Session,
     status: &str,
     live: &str,
-    prompt: &mut Option<crate::prompt::Prompt>,
+    prompt: &mut Option<crate::overlay::Overlay>,
     startup: &Option<crate::startup::Startup>,
 ) -> io::Result<()> {
     let size = tui.terminal.size()?;
@@ -39,8 +39,11 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
     };
     let live_height =
         (live_lines.len().min(8) as u16).min(size.height.saturating_sub(header_height + 3));
-    let height =
-        (header_height + composer.height(size.width).min(8) + live_height + 2).min(size.height);
+    let input_height = prompt
+        .as_ref()
+        .map(crate::overlay::Overlay::height)
+        .unwrap_or_else(|| composer.height(size.width).min(8));
+    let height = (header_height + input_height + live_height + 2).min(size.height);
     let previous = tui.terminal.viewport_area;
     let y = previous.y.min(size.height.saturating_sub(height));
     if previous.y + height > size.height {

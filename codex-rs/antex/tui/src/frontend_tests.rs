@@ -41,6 +41,9 @@ struct TestSession<P: ModelProvider + 'static> {
 }
 
 impl<P: ModelProvider + 'static> Session for TestSession<P> {
+    async fn prepare_image(&mut self, _source: crate::ImageSource) -> Result<Content, String> {
+        Err("no image requested".into())
+    }
     fn load_ui_state(&mut self, _name: &str) -> Result<Option<serde_json::Value>, String> {
         Ok(None)
     }

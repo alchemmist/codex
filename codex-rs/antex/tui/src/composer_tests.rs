@@ -107,7 +107,7 @@ fn sending_preserves_the_draft_until_acknowledged() {
         composer
             .key(KeyEvent::new(KeyCode::Enter, KeyModifiers::NONE))
             .unwrap(),
-        Some(SubmitMode::Send)
+        Some(ComposerAction::Submit(SubmitMode::Send))
     );
     assert_eq!(composer.draft(), before);
     composer.accept_submission();

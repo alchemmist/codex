@@ -45,7 +45,9 @@ pub(super) fn configured_submit_chord_preserves_the_draft_and_dispatches_once() 
         composer
             .key(KeyEvent::new(KeyCode::F(21), KeyModifiers::NONE))
             .unwrap(),
-        Some(crate::composer::SubmitMode::Send)
+        Some(crate::composer::ComposerAction::Submit(
+            crate::composer::SubmitMode::Send
+        ))
     );
     assert_eq!(
         composer.draft().input(),

@@ -15,6 +15,8 @@ pub struct SessionView {
 pub enum CommandEffect {
     Notice(String),
     Reset(Vec<Message>),
+    Image(antex_core::Content),
+    Picker(crate::PickerSpec),
 }
 
 /// Composes runtime persistence and agent runs without exposing provider or filesystem internals to the terminal.
@@ -24,6 +26,10 @@ pub trait Session: Send {
     fn pending_commands(&mut self) -> Result<Vec<antex_core::AgentCommand>, String>;
     fn load_ui_state(&mut self, name: &str) -> Result<Option<serde_json::Value>, String>;
     fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> Result<(), String>;
+    fn prepare_image(
+        &mut self,
+        source: crate::ImageSource,
+    ) -> impl Future<Output = Result<antex_core::Content, String>> + Send;
     fn start(&mut self, input: UserInput) -> impl Future<Output = Result<AgentRun, String>> + Send;
     fn record(&mut self, event: &AgentEvent) -> Result<(), String>;
     fn command(

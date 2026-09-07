@@ -15,7 +15,9 @@ use ratatui::backend::CrosstermBackend;
 use crate::CommandEffect;
 use crate::Session;
 use crate::composer::Composer;
+use crate::composer::ComposerAction;
 use crate::composer::SubmitMode;
+use crate::foreground::InputState;
 use crate::frontend_layout::draw;
 use crate::insert_history::insert_history_lines;
 use crate::keymap::RuntimeKeymap;
@@ -23,6 +25,11 @@ use crate::terminal_guard::TerminalGuard;
 use crate::transcript::safe_text;
 use crate::transcript::write_message;
 use crate::tui::Tui;
+
+enum CommandOrigin {
+    Composer,
+    Picker,
+}
 
 pub async fn run(session: &mut impl Session, settings: crate::Settings) -> io::Result<()> {
     if !io::stdin().is_terminal() || !io::stdout().is_terminal() {
@@ -82,9 +89,12 @@ where
     let mut run: Option<AgentRun> = None;
     let mut status = String::new();
     let mut live = String::new();
+    let mut last_response = String::new();
+    let mut _clipboard_lease = None;
     let mut pending = session.pending_commands().map_err(io::Error::other)?;
     let mut prompt = None;
-    let mut closing = false;
+    let mut input_state = InputState::Open;
+    let mut buffered_input = std::collections::VecDeque::new();
     let frames = crate::tui::FrameRequester::new();
     let mut startup = Some(crate::startup::Startup::new(&settings, frames.clone()));
     draw(
@@ -104,14 +114,85 @@ where
         insert_history_lines(&mut tui.terminal, panel.final_lines(width))?;
     }
     for message in history {
+        if let Some(text) = crate::transcript::assistant_text(&message) {
+            last_response = text;
+        }
         write_message(&mut tui.terminal, &message, &session.view().directory)?;
     }
     let frame_budget = std::time::Duration::from_millis(33);
     let mut last_draw = std::time::Instant::now();
     let mut force_draw = true;
+    let mut ui_command: Option<(String, CommandOrigin)> = None;
     loop {
-        if closing && run.is_none() {
+        if input_state == InputState::Closed && run.is_none() {
             break;
+        }
+        if let Some((command, origin)) = ui_command.take() {
+            status = "Loading… · Esc cancels".into();
+            draw(
+                tui,
+                &mut composer,
+                session,
+                &status,
+                &live,
+                &mut prompt,
+                &startup,
+            )?;
+            match crate::foreground::wait(
+                session.command(&command),
+                &mut input,
+                &mut buffered_input,
+                &mut input_state,
+            )
+            .await
+            {
+                Err(error) => status = safe_text(&error),
+                Ok(effect) => {
+                    if matches!(origin, CommandOrigin::Composer) {
+                        composer.accept_submission();
+                    }
+                    match effect {
+                        CommandEffect::Notice(notice) => status = safe_text(&notice),
+                        CommandEffect::Image(image) => {
+                            status = match attach_image(&mut composer, image) {
+                                Ok(()) => "Image attached".into(),
+                                Err(error) => safe_text(&error),
+                            }
+                        }
+                        CommandEffect::Picker(spec) => {
+                            match crate::picker::Picker::new(spec, settings.keymap.clone()) {
+                                Ok(picker) => {
+                                    prompt = Some(crate::overlay::Overlay::Picker(picker))
+                                }
+                                Err(error) => status = safe_text(&error),
+                            }
+                        }
+                        CommandEffect::Reset(messages) => {
+                            last_response.clear();
+                            pending = session.pending_commands().map_err(io::Error::other)?;
+                            composer
+                                .load_stash(
+                                    session
+                                        .load_ui_state("promptStash")
+                                        .map_err(io::Error::other)?,
+                                )
+                                .map_err(io::Error::other)?;
+                            tui.terminal.clear_visible_screen()?;
+                            for message in messages {
+                                if let Some(text) = crate::transcript::assistant_text(&message) {
+                                    last_response = text;
+                                }
+                                write_message(
+                                    &mut tui.terminal,
+                                    &message,
+                                    &session.view().directory,
+                                )?;
+                            }
+                        }
+                    }
+                }
+            }
+            force_draw = true;
         }
         let elapsed = last_draw.elapsed();
         if force_draw || elapsed >= frame_budget {
@@ -147,6 +228,7 @@ where
                         }
                     }
                     AgentEvent::MessageCommitted(message) => {
+                        if let Some(text) = crate::transcript::assistant_text(&message) { last_response = text; }
                         if let Some(panel) = startup.take() {
                             draw(tui, &mut composer, session, &status, &live, &mut prompt, &startup)?;
                             let width = tui.terminal.last_known_screen_size.width;
@@ -164,7 +246,7 @@ where
                     AgentEvent::Interaction { request, .. } => {
                         let pane = crate::prompt::Prompt::new(request);
                         insert_history_lines(&mut tui.terminal, pane.description())?;
-                        prompt = Some(pane);
+                        prompt = Some(crate::overlay::Overlay::Prompt(pane));
                         status = "Waiting for your answer".into();
                     }
                     AgentEvent::Error(error) => status = safe_text(&error.to_string()),
@@ -180,9 +262,9 @@ where
                     AgentEvent::Quota(_) | AgentEvent::ReasoningDelta(_) | AgentEvent::TurnCompleted => {}
                 }
             }
-            event = next_input_event(&mut input, closing) => {
+            event = next_input_event(&mut input, input_state, &mut buffered_input) => {
                 let Some(event) = event else {
-                    closing = true;
+                    input_state = InputState::Closed;
                     if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
                     continue;
                 };
@@ -191,28 +273,41 @@ where
                     Event::Key(key) if key.kind == crossterm::event::KeyEventKind::Release => continue,
                     Event::Key(key) if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') => {
                         if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
-                        else { break; }
+                        else if prompt.take().is_none() { break; }
                     }
                     Event::Key(key) => {
                         if let Some(pane) = &mut prompt {
                             match pane.key(key) {
-                                Ok(true) => prompt = None,
-                                Ok(false) => {},
+                                Ok(crate::overlay::OverlayAction::Close) => prompt = None,
+                                Ok(crate::overlay::OverlayAction::Continue) => {},
+                                Ok(crate::overlay::OverlayAction::Command(command)) => { prompt = None; ui_command = Some((command, CommandOrigin::Picker)); },
                                 Err(error) => status = safe_text(&error),
                             }
                             continue;
                         }
-                        if crate::key_hint::ctrl(KeyCode::Char('s')).is_press(key) {
+                        if crate::key_hint::ctrl(KeyCode::Char('s')).is_press(key) && !composer.chord_pending() {
                             match composer.toggle_stash(|value| session.save_ui_state("promptStash", value)) {
                                 Ok(()) => status = if composer.has_stash() { "Prompt stashed · Ctrl+S restores it" } else { "Prompt restored" }.into(),
                                 Err(error) => status = safe_text(&error),
                             }
                             continue;
                         }
+                        if crate::key_hint::ctrl(KeyCode::Char('v')).is_press(key) || crate::key_hint::ctrl_alt(KeyCode::Char('v')).is_press(key) {
+                            let result = match crate::clipboard_paste::image_source() {
+                                Ok(source) => crate::foreground::wait(session.prepare_image(source), &mut input, &mut buffered_input, &mut input_state).await.and_then(|image| attach_image(&mut composer, image)),
+                                Err(error) => Err(error),
+                            };
+                            status = match result { Ok(()) => "Image attached".into(), Err(error) => safe_text(&error) };
+                            continue;
+                        }
                         match composer.key(key) {
                             Err(error) => status = error.into(),
                             Ok(None) => {},
-                            Ok(Some(mode)) => {
+                            Ok(Some(ComposerAction::Copy)) => match copy_response(&last_response) {
+                                Ok(lease) => { _clipboard_lease = lease; status = "Copied last response".into(); }
+                                Err(error) => status = safe_text(&error),
+                            },
+                            Ok(Some(ComposerAction::Submit(mode))) => {
                                 let draft = composer.draft();
                                 let user = draft.input();
                                 let text = user.content.iter().filter_map(|content| match content { antex_core::Content::Text(text) => Some(text.as_str()), _ => None }).collect::<String>();
@@ -230,7 +325,7 @@ where
                                 } else if text.trim() == "/retry-pending" {
                                     if let Some(command) = pending.first().cloned() {
                                         match command {
-                                            AgentCommand::Steer(user) | AgentCommand::FollowUp(user) => match session.start(user).await {
+                                            AgentCommand::Steer(user) | AgentCommand::FollowUp(user) => match crate::foreground::wait(session.start(user), &mut input, &mut buffered_input, &mut input_state).await {
                                                 Ok(active) => { run = Some(active); pending.remove(0); composer.accept_submission(); }
                                                 Err(error) => status = safe_text(&error),
                                             },
@@ -239,32 +334,39 @@ where
                                     } else { status = "No unsent inputs.".into(); }
                                 } else if text.trim() == "/quit" {
                                     break;
-                                } else if text.starts_with('/') {
-                                    match session.command(&text).await {
-                                        Ok(effect) => {
-                                            composer.accept_submission();
-                                            match effect {
-                                                CommandEffect::Notice(notice) => status = safe_text(&notice),
-                                                CommandEffect::Reset(messages) => {
-                                                    pending = session.pending_commands().map_err(io::Error::other)?;
-                                                    composer.load_stash(session.load_ui_state("promptStash").map_err(io::Error::other)?).map_err(io::Error::other)?;
-                                                    tui.terminal.clear_visible_screen()?;
-                                                    for message in messages { write_message(&mut tui.terminal, &message, &session.view().directory)?; }
-                                                }
-                                            }
-                                        }
+                                } else if text.trim() == "/copy" {
+                                    match copy_response(&last_response) {
+                                        Ok(lease) => { _clipboard_lease = lease; composer.accept_submission(); status = "Copied last response".into(); }
                                         Err(error) => status = safe_text(&error),
                                     }
+                                } else if text.starts_with('/') {
+                                    if user.content.iter().any(|content| matches!(content, antex_core::Content::Image { .. })) {
+                                        status = "Commands cannot include image attachments; stash the draft first.".into();
+                                    } else {
+                                        ui_command = Some((text, CommandOrigin::Composer));
+                                    }
                                 } else {
-                                    match session.start(user).await {
+                                    match crate::foreground::wait(session.start(user), &mut input, &mut buffered_input, &mut input_state).await {
                                         Ok(active) => { run = Some(active); composer.accept_submission(); status = "Working…".into(); }
                                         Err(error) => status = safe_text(&error),
                                     }
                                 }
                             }
                         }
+                        if let Some(text) = composer.take_clipboard_yank() {
+                            match crate::clipboard_copy::copy_to_clipboard(&text, crate::clipboard_copy::CopyFormat::PlainText) {
+                                Ok(lease) => _clipboard_lease = lease,
+                                Err(error) => status = safe_text(&error),
+                            }
+                        }
                     }
                     Event::Paste(text) => {
+                        if prompt.is_none() && let Some(path) = crate::clipboard_paste::pasted_image_path(&text) {
+                            match crate::foreground::wait(session.prepare_image(crate::ImageSource::File(path)), &mut input, &mut buffered_input, &mut input_state).await.and_then(|image| attach_image(&mut composer, image)) {
+                                Ok(()) => { status = "Image attached".into(); continue; }
+                                Err(error) => status = safe_text(&error),
+                            }
+                        }
                         let result = match &mut prompt { Some(pane) => pane.paste(&text), None => composer.paste(&text) };
                         if let Err(error) = result { status = error.into(); }
                     },
@@ -288,11 +390,31 @@ async fn next_agent_event(run: &mut Option<AgentRun>) -> Option<AgentEvent> {
     }
 }
 
+fn copy_response(text: &str) -> Result<Option<crate::clipboard_copy::ClipboardLease>, String> {
+    if text.is_empty() {
+        return Err("No assistant response to copy.".into());
+    }
+    crate::clipboard_copy::copy_to_clipboard(text, crate::clipboard_copy::CopyFormat::Markdown)
+}
+
+fn attach_image(composer: &mut Composer, image: antex_core::Content) -> Result<(), String> {
+    match image {
+        antex_core::Content::Image { media_type, data } => {
+            composer.attach(media_type, data).map_err(str::to_owned)
+        }
+        _ => Err("Image preparation returned non-image content.".into()),
+    }
+}
+
 async fn next_input_event<E: futures::Stream<Item = io::Result<Event>> + Unpin>(
     input: &mut E,
-    closing: bool,
+    state: InputState,
+    buffered: &mut std::collections::VecDeque<io::Result<Event>>,
 ) -> Option<io::Result<Event>> {
-    if closing {
+    if let Some(event) = buffered.pop_front() {
+        return Some(event);
+    }
+    if state == InputState::Closed {
         std::future::pending().await
     } else {
         input.next().await

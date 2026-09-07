@@ -135,6 +135,14 @@ fn content_text(content: &[Content]) -> String {
         .collect()
 }
 
+pub(crate) fn assistant_text(message: &Message) -> Option<String> {
+    if let Message::Assistant { content, .. } = message {
+        let text = content_text(content);
+        return (!text.is_empty()).then_some(text);
+    }
+    None
+}
+
 #[cfg(test)]
 #[path = "transcript_tests.rs"]
 mod tests;

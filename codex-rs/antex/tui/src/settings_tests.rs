@@ -1,8 +1,6 @@
 use super::*;
 use pretty_assertions::assert_eq;
 
-
-
 #[test]
 fn settings_diagnostics_do_not_echo_unsupported_values() {
     let settings = Settings::from_config(

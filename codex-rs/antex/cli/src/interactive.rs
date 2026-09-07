@@ -63,6 +63,23 @@ impl InteractiveSession {
 }
 
 impl Session for InteractiveSession {
+    async fn prepare_image(
+        &mut self,
+        source: antex_tui::ImageSource,
+    ) -> Result<antex_core::Content, String> {
+        let image = match source {
+            antex_tui::ImageSource::File(path) => {
+                antex_runtime::ImageAttachment::load(&self.workspace.join(path))
+            }
+            antex_tui::ImageSource::Rgba {
+                width,
+                height,
+                bytes,
+            } => antex_runtime::ImageAttachment::from_rgba(width, height, bytes),
+        }
+        .map_err(|error| error.to_string())?;
+        Ok(image.content)
+    }
     fn load_ui_state(&mut self, name: &str) -> Result<Option<serde_json::Value>, String> {
         self.conversation
             .load_ui_state(name)
@@ -160,11 +177,24 @@ impl Session for InteractiveSession {
             .split_once(char::is_whitespace)
             .unwrap_or((command.trim(), ""));
         let argument = argument.trim();
+        let name = if name == "/resume" && argument.is_empty() {
+            "/sessions"
+        } else {
+            name
+        };
         match name {
+            "/image" => {
+                if argument.is_empty() { return Err("Usage: /image <path>".into()); }
+                let path = antex_tui::parse_image_path(argument).ok_or("Usage: /image <path>; quote paths containing spaces.")?;
+                let image = self.prepare_image(antex_tui::ImageSource::File(path)).await?;
+                Ok(CommandEffect::Image(image))
+            }
             "/help" => Ok(CommandEffect::Notice("/model [id], /cd <path>, /sessions, /resume <id>, /fork <record-id>, /compact, /status, /quit".into())),
             "/model" => {
                 let models = self.provider.models().await.map_err(|error| error.to_string())?;
-                if argument.is_empty() { return Ok(CommandEffect::Notice(models.iter().map(|model| model.id.as_str()).collect::<Vec<_>>().join(", "))); }
+                if argument.is_empty() {
+                    return Ok(CommandEffect::Picker(antex_tui::PickerSpec { title: "Choose a model".into(), items: models.into_iter().take(256).map(|model| antex_tui::PickerItem { label: model.display_name, description: format!("{} · {} token context", model.id, model.context_window), command: format!("/model {}", model.id) }).collect() }));
+                }
                 if !models.iter().any(|model| model.id == argument) { return Err("Choose a model listed by /model.".into()); }
                 self.config.model = Some(argument.into());
                 self.reset_agent();
@@ -184,16 +214,25 @@ impl Session for InteractiveSession {
             }
             "/sessions" => {
                 let store = SessionStore::new(&self.home, &self.workspace).map_err(|error| error.to_string())?;
-                Ok(CommandEffect::Notice(store.list().map_err(|error| error.to_string())?.iter().map(ToString::to_string).collect::<Vec<_>>().join(" ")))
+                let previews = tokio::task::spawn_blocking(move || store.previews(/*limit*/ 256)).await.map_err(|error| error.to_string())?.map_err(|error| error.to_string())?;
+                Ok(CommandEffect::Picker(antex_tui::PickerSpec { title: "Recent sessions".into(), items: previews.into_iter().filter(|preview| preview.id != self.conversation.id()).map(|preview| antex_tui::PickerItem { label: preview.text, description: preview.id.to_string(), command: format!("/resume {}", preview.id) }).collect() }))
             }
             "/resume" => {
                 let id = argument.parse().map_err(|_| "Usage: /resume <session-id>")?;
+                if id == self.conversation.id() { return Ok(CommandEffect::Notice("This session is already active.".into())); }
                 let store = SessionStore::new(&self.home, &self.workspace).map_err(|error| error.to_string())?;
                 self.conversation = Conversation::new(store.open(id).map_err(|error| error.to_string())?).map_err(|error| error.to_string())?;
                 self.reset_agent();
                 Ok(CommandEffect::Reset(self.history()))
             }
             "/fork" => {
+                if argument.is_empty() {
+                    return Ok(CommandEffect::Picker(antex_tui::PickerSpec { title: "Fork from a user message".into(), items: self.conversation.entries().iter().rev().filter_map(|entry| {
+                        let Message::User(input) = &entry.message else { return None; };
+                        let label = input.content.iter().filter_map(|content| match content { antex_core::Content::Text(text) => Some(text.as_str()), _ => None }).flat_map(str::chars).take(120).collect::<String>();
+                        Some(antex_tui::PickerItem { label: if label.is_empty() { "[Image message]".into() } else { label }, description: entry.record_id.to_string(), command: format!("/fork {}", entry.record_id) })
+                    }).take(256).collect() }));
+                }
                 let parent = argument.parse().map_err(|_| "Usage: /fork <record-id>")?;
                 self.conversation.branch(parent).map_err(|error| error.to_string())?;
                 self.reset_agent();
@@ -210,3 +249,7 @@ impl Session for InteractiveSession {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "interactive_tests.rs"]
+mod tests;
