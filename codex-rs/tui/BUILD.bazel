@@ -5,7 +5,11 @@ codex_rust_crate(
     compile_data = glob([
         "assets/**",
         "frames/**",
-    ]),
+    ]) + [
+        "//codex-rs/antex/tui/src:mascot.rs",
+        "//codex-rs/antex/tui/src:mascot_palette.rs",
+        "//codex-rs/antex/tui/src:mascot_tests.rs",
+    ],
     crate_name = "codex_tui",
     extra_binaries = [
         "//codex-rs/cli:codex",

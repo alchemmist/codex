@@ -1,7 +1,7 @@
 use std::time::Duration;
 use std::time::Instant;
 
-use codex_config::types::StartupMascotSkin;
+use crate::appearance::StartupMascotSkin;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -186,5 +186,5 @@ fn render_pixel_pair(top: Option<MascotColor>, bottom: Option<MascotColor>) -> S
 }
 
 #[cfg(test)]
-#[path = "startup_mascot_tests.rs"]
+#[path = "mascot_tests.rs"]
 mod tests;

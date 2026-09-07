@@ -114,6 +114,7 @@ mod request_user_input;
 mod search;
 mod separators;
 mod session;
+#[path = "../../../antex/tui/src/mascot.rs"]
 mod startup_mascot;
 mod startup_panel;
 

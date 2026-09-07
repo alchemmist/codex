@@ -1,0 +1,8 @@
+exports_files(
+    [
+        "mascot.rs",
+        "mascot_palette.rs",
+        "mascot_tests.rs",
+    ],
+    visibility = ["//visibility:public"],
+)

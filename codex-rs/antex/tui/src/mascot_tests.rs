@@ -1,4 +1,4 @@
-use codex_config::types::StartupMascotSkin;
+use crate::appearance::StartupMascotSkin;
 use pretty_assertions::assert_eq;
 
 use super::*;

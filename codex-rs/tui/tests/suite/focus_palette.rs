@@ -233,10 +233,7 @@ impl PtyCodex {
             self.read_output(Duration::from_millis(/*millis*/ 50))?;
             self.answer_startup_queries()?;
 
-            if self.palette_answered
-                && (self.screen_contains("OpenAI Codex")
-                    || self.screen_contains("alchemmist codex"))
-            {
+            if self.palette_answered && self.screen_contains("Antex") {
                 return Ok(());
             }
 

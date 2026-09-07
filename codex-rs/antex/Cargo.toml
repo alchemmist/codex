@@ -1,5 +1,5 @@
 [workspace]
-members = ["cli", "core", "provider-openai", "runtime"]
+members = ["cli", "core", "provider-openai", "runtime", "tui"]
 resolver = "2"
 
 [workspace.package]
@@ -24,3 +24,6 @@ debug = 0
 
 [profile.test]
 debug = 0
+
+[patch.crates-io]
+crossterm = { git = "https://github.com/openai-oss-forks/crossterm", rev = "45fecb9508105988f42fe6ff0441783ed3717f92" }
