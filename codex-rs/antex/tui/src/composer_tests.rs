@@ -4,31 +4,76 @@ use crossterm::event::KeyModifiers;
 use pretty_assertions::assert_eq;
 
 #[test]
-fn stash_preserves_images_and_rejects_overwriting_an_active_draft() {
+fn stash_preserves_images_and_appends_to_the_current_draft() {
     let mut composer = Composer::new(Arc::new(RuntimeKeymap::defaults()));
     composer.paste("Describe ").unwrap();
     composer
         .attach("image/png".into(), Arc::from([1, 2, 3]))
         .unwrap();
-    let original = composer.draft();
-    composer.stash().unwrap();
-    composer.paste("another draft").unwrap();
-    assert!(composer.restore_stash().is_err());
-    assert_eq!(composer.draft().input(), UserInput::from("another draft"));
-    composer.accept_submission();
-    composer.restore_stash().unwrap();
-    assert_eq!(composer.draft(), original);
+    composer.toggle_stash(|_| Ok(())).unwrap();
+    composer.paste("current prompt: ").unwrap();
+    composer.toggle_stash(|_| Ok(())).unwrap();
+    assert!(!composer.has_stash());
     assert_eq!(
         composer.draft().input(),
         UserInput {
             content: vec![
-                Content::Text("Describe ".into()),
+                Content::Text("current prompt: Describe ".into()),
                 Content::Image {
                     media_type: "image/png".into(),
                     data: Arc::from([1, 2, 3])
                 }
             ],
             tool_scope: ToolScope::Default,
+        }
+    );
+}
+
+#[test]
+fn stash_persistence_failure_keeps_the_draft_and_saved_slot_unchanged() {
+    let mut composer = Composer::new(Arc::new(RuntimeKeymap::defaults()));
+    composer.paste("keep").unwrap();
+    let original = composer.draft();
+    assert!(composer.toggle_stash(|_| Err("disk full".into())).is_err());
+    assert_eq!(composer.draft(), original);
+    assert!(!composer.has_stash());
+    composer.toggle_stash(|_| Ok(())).unwrap();
+    composer.paste("current").unwrap();
+    let before = composer.draft();
+    assert!(composer.toggle_stash(|_| Err("disk full".into())).is_err());
+    assert_eq!(composer.draft(), before);
+    assert!(composer.has_stash());
+}
+
+#[test]
+fn persisted_images_restore_without_placeholder_collisions() {
+    let mut first = Composer::new(Arc::new(RuntimeKeymap::defaults()));
+    first.attach("image/png".into(), Arc::from([1])).unwrap();
+    let mut persisted = serde_json::Value::Null;
+    first
+        .toggle_stash(|value| {
+            persisted = value.clone();
+            Ok(())
+        })
+        .unwrap();
+    let mut resumed = Composer::new(Arc::new(RuntimeKeymap::defaults()));
+    resumed.load_stash(Some(persisted)).unwrap();
+    resumed.attach("image/png".into(), Arc::from([2])).unwrap();
+    resumed.toggle_stash(|_| Ok(())).unwrap();
+    assert_eq!(
+        resumed.draft().input(),
+        UserInput {
+            content: vec![
+                Content::Image {
+                    media_type: "image/png".into(),
+                    data: Arc::from([2])
+                },
+                Content::Image {
+                    media_type: "image/png".into(),
+                    data: Arc::from([1])
+                }
+            ],
+            tool_scope: ToolScope::Default
         }
     );
 }

@@ -19,8 +19,10 @@ use crate::textarea::TextArea;
 use crate::textarea::TextAreaState;
 
 const MAX_DRAFT_BYTES: usize = 256 * 1024;
-const MAX_STASHES: usize = 8;
 const MAX_STASH_BYTES: usize = 16 * 1024 * 1024;
+
+#[path = "composer_stash.rs"]
+mod stash;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub(crate) struct Draft {
@@ -81,8 +83,9 @@ pub(crate) struct Composer {
     state: TextAreaState,
     keymap: Arc<RuntimeKeymap>,
     images: Vec<(String, Content)>,
-    stashes: Vec<Draft>,
+    stashed: Option<Draft>,
     next_image: u64,
+    chords: crate::keymap::KeyChordMatcher,
 }
 
 impl Composer {
@@ -94,9 +97,20 @@ impl Composer {
             state: TextAreaState::default(),
             keymap,
             images: Vec::new(),
-            stashes: Vec::new(),
+            stashed: None,
             next_image: 1,
+            chords: crate::keymap::KeyChordMatcher::default(),
         }
+    }
+
+    pub(crate) fn configure(&mut self, settings: &crate::Settings) {
+        self.keymap = settings.keymap.clone();
+        self.editor.set_keymap_bindings(&self.keymap);
+        self.editor.set_vim_mode_start(settings.vim_start);
+        self.editor.set_vim_enabled(settings.vim_mode);
+        self.editor
+            .set_vim_mode_indicator_enabled(settings.show_vim_mode);
+        self.chords.cancel();
     }
 
     pub(crate) fn paste(&mut self, text: &str) -> Result<(), &'static str> {
@@ -120,7 +134,10 @@ impl Composer {
         if self.editor.text().len() + marker.len() > MAX_DRAFT_BYTES {
             return Err("Draft is too large; attach a file instead.");
         }
-        self.next_image += 1;
+        self.next_image = self
+            .next_image
+            .checked_add(1)
+            .ok_or("image identifier exhausted")?;
         self.editor.insert_element(&marker);
         self.images
             .push((marker, Content::Image { media_type, data }));
@@ -147,36 +164,23 @@ impl Composer {
         self.state = TextAreaState::default();
     }
 
-    pub(crate) fn stash(&mut self) -> Result<(), &'static str> {
-        let draft = self.draft();
-        if draft.text.is_empty() {
-            return Ok(());
-        }
-        if self.stashes.len() == MAX_STASHES
-            || self.stashes.iter().map(Draft::size).sum::<usize>() + draft.size() > MAX_STASH_BYTES
-        {
-            return Err("Prompt stash is full; restore a saved draft first.");
-        }
-        self.stashes.push(draft);
-        self.accept_submission();
-        Ok(())
-    }
-
-    pub(crate) fn restore_stash(&mut self) -> Result<(), &'static str> {
-        if !self.editor.is_empty() {
-            return Err("Save or clear the current draft before restoring a stash.");
-        }
-        let Some(draft) = self.stashes.pop() else {
-            return Err("Prompt stash is empty.");
-        };
-        self.editor
-            .set_text_with_elements(&draft.text, &draft.elements);
-        self.images = draft.images;
-        self.state = TextAreaState::default();
-        Ok(())
-    }
-
     pub(crate) fn key(&mut self, event: KeyEvent) -> Result<Option<SubmitMode>, &'static str> {
+        let contexts = crate::keymap::KeymapContextSet::new(crate::keymap::KeymapContext::Global)
+            .with(crate::keymap::KeymapContext::Chat)
+            .with(crate::keymap::KeymapContext::Composer)
+            .with(self.editor.keymap_context());
+        let event = match self.chords.advance(
+            event,
+            &self.keymap.chords,
+            contexts,
+            tokio::time::Instant::now(),
+        ) {
+            crate::keymap::KeyChordMatch::PassThrough => event,
+            crate::keymap::KeyChordMatch::Completed(event) => event,
+            crate::keymap::KeyChordMatch::Pending(_)
+            | crate::keymap::KeyChordMatch::Cancelled
+            | crate::keymap::KeyChordMatch::Ignored => return Ok(None),
+        };
         if self.keymap.app.toggle_vim_mode.is_pressed(event) {
             self.editor.set_vim_enabled(!self.editor.is_vim_enabled());
             return Ok(None);
@@ -225,6 +229,7 @@ impl Composer {
     }
 
     pub(crate) fn mode_label(&self) -> Option<&'static str> {
+        self.editor.vim_mode_indicator_span()?;
         self.editor.vim_mode_label()
     }
 }

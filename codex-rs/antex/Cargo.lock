@@ -180,6 +180,7 @@ name = "antex-tui"
 version = "0.0.0"
 dependencies = [
  "antex-core",
+ "base64",
  "chrono",
  "crossterm",
  "derive_more",
