@@ -447,6 +447,17 @@ Antex can complete file-editing tasks, resume and fork sessions, survive interru
 
 ### Phase 5 — Replace the app-server TUI path
 
+Checkpoint 2026-09-07: the migration is paused at a working explicit `antex tui`
+entry point, not at release readiness. The historical progress notes below
+describe successive slices; the current consolidated status, remaining gaps,
+validation commands, and remote environment are recorded in `HANDOF.md`.
+Model/session/fork pickers, image/clipboard controls, persisted rich stash,
+complete-draft Vim undo, paste-burst handling, durable input queues, transcript
+paging, and session themes are now connected. The final focused Linux run
+passed 893 tests across the six Antex packages (one skip); an unauthenticated
+tmux smoke exercised help/Escape, draft stash/restore, status, and clean exit.
+Live subscription use and complete baseline parity remain acceptance gates.
+
 The first retained presentation slice moves the original mascot renderer,
 palette, and tests into `antex-tui` with `git mv`. During extraction the old TUI
 includes these same source files through narrow source-path bridges; no legacy
@@ -511,6 +522,11 @@ interactions still need completion before replacing the default entry.
 All baseline TUI fixtures pass through the direct kernel path; `antex-tui` has no dependency on app-server client/protocol, daemon, legacy Codex core, cloud, connectors, or remote execution crates; narrow tmux panes and theme changes remain stable.
 
 ### Phase 6 — Add the extension host
+
+Checkpoint 2026-09-07: `antex-extension-protocol` contains the bounded wire types,
+envelope/permission validation, and four passing tests. This is a scaffold only:
+the extension host, process lifecycle, invocation-origin enforcement, SDK, and
+Rust/Python conformance fixtures have not been implemented.
 
 #### Work
 
