@@ -83,6 +83,8 @@ The explicitly installed `agents`, `diagnostics`, and `plan` extensions own
 `/subagents` and `/agents`, `/context`, `/system-prompt`, `/dump`, and the
 persistent `/todo` panel. The host rejects Agent actions originating from model
 tools or lifecycle observers, so ordinary prompts cannot spawn subagents.
+The plan extension persists at most 64 TODO items per active session branch and
+never injects its panel state into model context.
 
 ## Validation on deimos
 
