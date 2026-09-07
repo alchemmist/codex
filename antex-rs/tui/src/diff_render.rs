@@ -30,15 +30,12 @@
 //! preserved across the split so that no color information is lost.
 
 use diffy::Hunk;
-use ratatui::buffer::Buffer;
-use ratatui::layout::Rect;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
 use ratatui::style::Style;
 use ratatui::style::Stylize;
 use ratatui::text::Line as RtLine;
 use ratatui::text::Span as RtSpan;
-use ratatui::widgets::Paragraph;
 use std::collections::HashMap;
 use std::path::Path;
 use std::path::PathBuf;
@@ -85,15 +82,11 @@ use crate::color::perceptual_distance;
 use crate::diff_model::FileChange;
 use crate::display_paths::get_git_repo_root;
 use crate::display_paths::relativize_to_home;
-use crate::render::Insets;
 use crate::render::highlight::DiffScopeBackgroundRgbs;
 use crate::render::highlight::diff_scope_background_rgbs;
 use crate::render::highlight::exceeds_highlight_limits;
 use crate::render::highlight::highlight_code_to_styled_spans;
 use crate::render::line_utils::prefix_lines;
-use crate::render::renderable::ColumnRenderable;
-use crate::render::renderable::InsetRenderable;
-use crate::render::renderable::Renderable;
 use crate::terminal_detection::TerminalName;
 use crate::terminal_detection::terminal_info;
 use crate::terminal_palette::StdoutColorLevel;
@@ -298,62 +291,7 @@ fn quantize_rgb_to_ansi256(target: (u8, u8, u8)) -> Color {
     }
 }
 
-pub struct DiffSummary {
-    changes: HashMap<PathBuf, FileChange>,
-    cwd: PathBuf,
-}
-
-impl DiffSummary {
-    pub(crate) fn new(changes: HashMap<PathBuf, FileChange>, cwd: impl Into<PathBuf>) -> Self {
-        Self {
-            changes,
-            cwd: cwd.into(),
-        }
-    }
-}
-
-impl Renderable for FileChange {
-    fn render(&self, area: Rect, buf: &mut Buffer) {
-        let mut lines = vec![];
-        render_change(self, &mut lines, area.width as usize, /*lang*/ None);
-        Paragraph::new(lines).render(area, buf);
-    }
-
-    fn desired_height(&self, width: u16) -> u16 {
-        let mut lines = vec![];
-        render_change(self, &mut lines, width as usize, /*lang*/ None);
-        lines.len() as u16
-    }
-}
-
-impl From<DiffSummary> for Box<dyn Renderable> {
-    fn from(val: DiffSummary) -> Self {
-        let mut rows: Vec<Box<dyn Renderable>> = vec![];
-        let mut changes: Vec<_> = val.changes.into_iter().collect();
-        changes.sort_by(|left, right| left.0.cmp(&right.0));
-
-        for (i, (path, change)) in changes.into_iter().enumerate() {
-            if i > 0 {
-                rows.push(Box::new(RtLine::from("")));
-            }
-            let (added, removed) = line_counts(&change);
-            let mut path = RtLine::from(display_path_for(&path, val.cwd.as_path()));
-            path.push_span(" ");
-            path.extend(render_line_count_summary(added, removed));
-            rows.push(Box::new(path));
-            rows.push(Box::new(RtLine::from("")));
-            rows.push(Box::new(InsetRenderable::new(
-                Box::new(change) as Box<dyn Renderable>,
-                Insets::tlbr(
-                    /*top*/ 0, /*left*/ 2, /*bottom*/ 0, /*right*/ 0,
-                ),
-            )));
-        }
-
-        Box::new(ColumnRenderable::with(rows))
-    }
-}
-
+#[cfg(test)]
 pub(crate) fn create_diff_summary(
     changes: &HashMap<PathBuf, FileChange>,
     cwd: &Path,
@@ -364,6 +302,7 @@ pub(crate) fn create_diff_summary(
 
 #[derive(Clone, Copy)]
 pub(crate) enum DiffStage {
+    #[cfg(test)]
     Applied,
     Proposed,
 }
@@ -453,8 +392,11 @@ fn render_changes_block(
     let mut header_spans: Vec<RtSpan<'static>> = vec!["• ".dim()];
     if let [row] = &rows[..] {
         let verb = match (stage, row.change) {
+            #[cfg(test)]
             (DiffStage::Applied, FileChange::Add { .. }) => "Added",
+            #[cfg(test)]
             (DiffStage::Applied, FileChange::Delete { .. }) => "Deleted",
+            #[cfg(test)]
             (DiffStage::Applied, FileChange::Update { .. }) => "Edited",
             (DiffStage::Proposed, FileChange::Add { .. }) => "Write",
             (DiffStage::Proposed, FileChange::Delete { .. }) => "Delete",
@@ -468,6 +410,7 @@ fn render_changes_block(
     } else {
         header_spans.push(
             match stage {
+                #[cfg(test)]
                 DiffStage::Applied => "Edited",
                 DiffStage::Proposed => "Proposed changes to",
             }
