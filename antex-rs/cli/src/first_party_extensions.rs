@@ -5,6 +5,9 @@ use std::path::Path;
 
 const TMUX_LOG_PROGRAM: &[u8] = include_bytes!("../../extensions/tmux-log/antex_ext_tmux_log.py");
 const TMUX_LOG_DEFINITION: &[u8] = include_bytes!("../../extensions/tmux-log/extension.json");
+const WORKFLOWS_PROGRAM: &[u8] =
+    include_bytes!("../../extensions/workflows/antex_ext_workflows.py");
+const WORKFLOWS_DEFINITION: &[u8] = include_bytes!("../../extensions/workflows/extension.json");
 
 struct Extension {
     name: &'static str,
@@ -13,12 +16,20 @@ struct Extension {
     definition: &'static [u8],
 }
 
-const EXTENSIONS: &[Extension] = &[Extension {
-    name: "tmux-log",
-    program_name: "antex_ext_tmux_log.py",
-    program: TMUX_LOG_PROGRAM,
-    definition: TMUX_LOG_DEFINITION,
-}];
+const EXTENSIONS: &[Extension] = &[
+    Extension {
+        name: "tmux-log",
+        program_name: "antex_ext_tmux_log.py",
+        program: TMUX_LOG_PROGRAM,
+        definition: TMUX_LOG_DEFINITION,
+    },
+    Extension {
+        name: "workflows",
+        program_name: "antex_ext_workflows.py",
+        program: WORKFLOWS_PROGRAM,
+        definition: WORKFLOWS_DEFINITION,
+    },
+];
 
 pub(crate) fn names() -> impl Iterator<Item = &'static str> {
     EXTENSIONS.iter().map(|extension| extension.name)

@@ -19,6 +19,7 @@ pub use process::ExtensionResponse;
 pub use registry::ExtensionRegistry;
 pub use registry::ExtensionRegistryConfig;
 pub use registry::RegistryCommand;
+pub use registry::RegistryCommandOutput;
 pub use registry::RegistryError;
 pub use registry::RegistryEventDelivery;
 pub use registry::RegistryEventOutput;

@@ -354,7 +354,7 @@ impl Session for InteractiveSession {
                 let Some(extensions) = self.extensions.as_ref() else { return Err("Unknown command. Use /help.".into()); };
                 if !extensions.commands().iter().any(|command| command.name == extension_name) { return Err("Unknown command. Use /help.".into()); }
                 let output = extensions.run_command(extension_name, argument.into(), tokio_util::sync::CancellationToken::new()).await.map_err(|error| error.to_string())?;
-                self.apply_extension_output(extension_name, output).await
+                self.apply_extension_output(&output.extension, output.output).await
             }
         }
     }

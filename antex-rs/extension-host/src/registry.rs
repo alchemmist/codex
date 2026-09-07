@@ -27,6 +27,7 @@ pub struct RegistryCommand {
 }
 
 struct CommandTarget {
+    extension: String,
     process: Arc<ManagedExtension>,
     remote_name: String,
 }
@@ -57,6 +58,11 @@ pub struct RegistryEventOutput {
 pub struct RegistryEventDelivery {
     pub outputs: Vec<RegistryEventOutput>,
     pub failures: Vec<String>,
+}
+
+pub struct RegistryCommandOutput {
+    pub extension: String,
+    pub output: Output,
 }
 
 pub struct ExtensionRegistryConfig<'a> {
@@ -129,6 +135,7 @@ impl ExtensionRegistry {
                     .insert(
                         name.clone(),
                         CommandTarget {
+                            extension: extension.manifest.name.clone(),
                             process: Arc::clone(&extension.process),
                             remote_name: command.name.clone(),
                         },
@@ -178,7 +185,7 @@ impl ExtensionRegistry {
         name: &str,
         arguments: String,
         cancellation: CancellationToken,
-    ) -> Result<Output, RegistryError> {
+    ) -> Result<RegistryCommandOutput, RegistryError> {
         let target = self
             .command_targets
             .get(name)
@@ -194,7 +201,10 @@ impl ExtensionRegistry {
             )
             .await?
         {
-            ExtensionResponse::Output(output) => Ok(output),
+            ExtensionResponse::Output(output) => Ok(RegistryCommandOutput {
+                extension: target.extension.clone(),
+                output,
+            }),
             ExtensionResponse::Notified => Err(ExtensionError::Protocol(
                 antex_extension_protocol::ProtocolError::Encoding,
             )

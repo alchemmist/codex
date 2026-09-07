@@ -110,7 +110,10 @@ fn single_binary_installs_first_party_extensions_only_on_request() {
     };
     let listing = run(&["extensions", "list"]);
     assert!(listing.status.success());
-    assert_eq!(String::from_utf8(listing.stdout).unwrap(), "tmux-log\n");
+    assert_eq!(
+        String::from_utf8(listing.stdout).unwrap(),
+        "tmux-log\nworkflows\n"
+    );
     assert!(!home.exists());
     let install = run(&["extensions", "install", "tmux-log"]);
     assert!(install.status.success());
