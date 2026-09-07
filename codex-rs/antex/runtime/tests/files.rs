@@ -49,6 +49,23 @@ fn ambiguous_edits_and_read_only_writes_leave_files_unchanged() {
 }
 
 #[test]
+fn edits_accept_lf_context_in_crlf_files_and_reject_overlapping_matches() {
+    let directory = tempfile::tempdir().unwrap();
+    let files = WorkspaceFiles::new(directory.path(), PermissionProfile::Workspace).unwrap();
+    files
+        .write("file", "начало\r\nfirst\r\nsecond\r\nlast".as_bytes())
+        .unwrap();
+    files.edit("file", "first\nsecond", "new\nlines").unwrap();
+    assert_eq!(
+        files.read("file").unwrap(),
+        "начало\r\nnew\r\nlines\r\nlast".as_bytes()
+    );
+    files.write("overlap", b"aaa").unwrap();
+    assert!(files.edit("overlap", "aa", "changed").is_err());
+    assert_eq!(files.read("overlap").unwrap(), b"aaa");
+}
+
+#[test]
 fn parent_traversal_cannot_escape_the_workspace() {
     let root = tempfile::tempdir().unwrap();
     let directory = root.path().join("workspace");

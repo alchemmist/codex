@@ -152,25 +152,10 @@ impl WorkspaceFiles {
     }
 
     pub fn edit(&self, path: &str, old_text: &str, new_text: &str) -> io::Result<()> {
-        if old_text.is_empty() {
-            return Err(io::Error::other("edit requires nonempty original text"));
-        }
         let bytes = self.read(path)?;
         let text = std::str::from_utf8(&bytes)
             .map_err(|_| io::Error::other("edit requires UTF-8 text"))?;
-        let mut matches = text.match_indices(old_text);
-        let (offset, _) = matches
-            .next()
-            .ok_or_else(|| io::Error::other("original text was not found"))?;
-        if matches.next().is_some() {
-            return Err(io::Error::other(
-                "original text is ambiguous; include more context",
-            ));
-        }
-        let mut updated = String::with_capacity(text.len() + new_text.len());
-        updated.push_str(&text[..offset]);
-        updated.push_str(new_text);
-        updated.push_str(&text[offset + old_text.len()..]);
+        let updated = crate::edit::replace_unique(text, old_text, new_text)?;
         self.write(path, updated.as_bytes())
     }
 

@@ -1,4 +1,5 @@
 mod config;
+mod edit;
 mod files;
 mod permissions;
 mod project_context;
