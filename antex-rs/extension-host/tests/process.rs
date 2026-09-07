@@ -228,6 +228,22 @@ async fn explicit_command_continuations_may_return_more_actions() {
         panic!("continuation returned no output");
     };
     assert_eq!(output.text, "continued step-1");
+    let response = extension
+        .request(
+            ExtensionRequest::Continuation(Event {
+                name: "actionResult".into(),
+                data: serde_json::to_value(ActionResult {
+                    id: "pending".into(),
+                    succeeded: true,
+                    data: json!({}),
+                })
+                .unwrap(),
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(response, ExtensionResponse::Notified));
     extension.shutdown().await.unwrap();
 }
 

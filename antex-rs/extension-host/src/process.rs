@@ -203,36 +203,41 @@ impl Extension {
         request: ExtensionRequest,
         cancellation: CancellationToken,
     ) -> Result<ExtensionResponse, ExtensionError> {
-        let (method, params, expects_output, user_command, lifecycle_event) = match request {
-            ExtensionRequest::Tool(call) => (
-                Method::ToolCall,
-                serde_json::to_value(call),
-                true,
-                false,
-                false,
-            ),
-            ExtensionRequest::Command(command) => (
-                Method::CommandRun,
-                serde_json::to_value(command),
-                true,
-                true,
-                false,
-            ),
-            ExtensionRequest::Event(event) => (
-                Method::EventNotify,
-                serde_json::to_value(event),
-                true,
-                false,
-                true,
-            ),
-            ExtensionRequest::Continuation(event) => (
-                Method::EventNotify,
-                serde_json::to_value(event),
-                true,
-                true,
-                false,
-            ),
-        };
+        let (method, params, expects_output, user_command, lifecycle_event, nullable_output) =
+            match request {
+                ExtensionRequest::Tool(call) => (
+                    Method::ToolCall,
+                    serde_json::to_value(call),
+                    true,
+                    false,
+                    false,
+                    false,
+                ),
+                ExtensionRequest::Command(command) => (
+                    Method::CommandRun,
+                    serde_json::to_value(command),
+                    true,
+                    true,
+                    false,
+                    false,
+                ),
+                ExtensionRequest::Event(event) => (
+                    Method::EventNotify,
+                    serde_json::to_value(event),
+                    true,
+                    false,
+                    true,
+                    true,
+                ),
+                ExtensionRequest::Continuation(event) => (
+                    Method::EventNotify,
+                    serde_json::to_value(event),
+                    true,
+                    true,
+                    false,
+                    true,
+                ),
+            };
         let value = self
             .call(
                 method,
@@ -243,7 +248,7 @@ impl Extension {
         if !expects_output {
             return Ok(ExtensionResponse::Notified);
         }
-        if lifecycle_event && value.is_null() {
+        if nullable_output && value.is_null() {
             return Ok(ExtensionResponse::Notified);
         }
         let output: Output = serde_json::from_value(value).map_err(|_| ProtocolError::Encoding)?;

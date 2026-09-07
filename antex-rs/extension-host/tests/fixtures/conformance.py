@@ -66,14 +66,17 @@ for line in sys.stdin:
         respond(request, {"text": "hello", "records": [], "actions": []})
     elif method == "event/notify":
         if request["params"]["name"] == "actionResult":
-            respond(
-                request,
-                {
-                    "text": f"continued {request['params']['data']['id']}",
-                    "records": [],
-                    "actions": [],
-                },
-            )
+            if request["params"]["data"]["id"] == "pending":
+                respond(request, None)
+            else:
+                respond(
+                    request,
+                    {
+                        "text": f"continued {request['params']['data']['id']}",
+                        "records": [],
+                        "actions": [],
+                    },
+                )
         elif request["params"]["data"].get("fail"):
             respond(request, error={"code": -32000, "message": "event failed"})
         elif request["params"]["data"].get("terminalLog"):

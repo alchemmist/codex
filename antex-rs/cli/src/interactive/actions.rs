@@ -6,6 +6,7 @@ use antex_core::ContextHook;
 use antex_core::ContextKind;
 use antex_core::InteractionAnswer;
 use antex_core::Message;
+use antex_core::ToolHost;
 use antex_core::TurnInput;
 use antex_extension_protocol::Action;
 use antex_extension_protocol::ActionResult;
@@ -15,6 +16,7 @@ use antex_extension_protocol::Output;
 use antex_extension_protocol::WorkspaceAccess;
 use antex_runtime::ExtensionSandbox;
 use antex_runtime::ExtensionWorkspace;
+use futures::StreamExt;
 use tokio_util::sync::CancellationToken;
 
 use super::*;
@@ -42,12 +44,11 @@ impl InteractiveSession {
                 text = output.text;
             }
             panel = output.panel.or(panel);
-            for action in output.actions {
-                action_count += 1;
-                if action_count > 64 {
-                    return Err("extension command exceeds its 64-action budget".into());
-                }
-                let result = self.execute_extension_action(action).await;
+            action_count += output.actions.len();
+            if action_count > 64 {
+                return Err("extension command exceeds its 64-action budget".into());
+            }
+            for result in self.execute_extension_actions(output.actions).await {
                 if let Some(result_text) = result.data["text"].as_str()
                     && !result_text.is_empty()
                 {
@@ -88,6 +89,38 @@ impl InteractiveSession {
         Ok(CommandEffect::Notice(text))
     }
 
+    async fn execute_extension_actions(&mut self, actions: Vec<Action>) -> Vec<ActionResult> {
+        if actions.len() > 1
+            && actions
+                .iter()
+                .all(|action| matches!(action, Action::Agent { .. }))
+        {
+            let ids = actions
+                .iter()
+                .filter_map(|action| match action {
+                    Action::Agent { id, .. } => Some(id.clone()),
+                    _ => None,
+                })
+                .collect::<Vec<_>>();
+            return match self.run_extension_agent_batch(actions).await {
+                Ok(results) => results,
+                Err(error) => ids
+                    .into_iter()
+                    .map(|id| ActionResult {
+                        id,
+                        succeeded: false,
+                        data: serde_json::json!({"text":error}),
+                    })
+                    .collect(),
+            };
+        }
+        let mut results = Vec::with_capacity(actions.len());
+        for action in actions {
+            results.push(self.execute_extension_action(action).await);
+        }
+        results
+    }
+
     async fn execute_extension_action(&mut self, action: Action) -> ActionResult {
         let (id, result) = match action {
             Action::TerminalLog { id, text } => {
@@ -107,7 +140,23 @@ impl InteractiveSession {
                 self.run_extension_shell(&command, workspace, network).await,
             ),
             Action::Agent { id, prompt, model } => {
-                (id, self.run_extension_agent(prompt, model).await)
+                let result = self
+                    .run_extension_agent_batch(vec![Action::Agent {
+                        id: id.clone(),
+                        prompt,
+                        model,
+                    }])
+                    .await
+                    .and_then(|mut results| {
+                        results
+                            .pop()
+                            .ok_or_else(|| "agent returned no result".to_string())
+                    });
+                return result.unwrap_or_else(|error| ActionResult {
+                    id,
+                    succeeded: false,
+                    data: serde_json::json!({"text":error}),
+                });
             }
         };
         match result {
@@ -213,14 +262,16 @@ impl InteractiveSession {
         Ok(serde_json::json!({"text":bounded(&text)}))
     }
 
-    async fn run_extension_agent(
+    async fn run_extension_agent_batch(
         &mut self,
-        prompt: String,
-        model: Option<String>,
-    ) -> Result<serde_json::Value, String> {
-        let model = match model.or_else(|| self.config.model.clone()) {
-            Some(model) => model,
-            None => {
+        actions: Vec<Action>,
+    ) -> Result<Vec<ActionResult>, String> {
+        let needs_model = actions
+            .iter()
+            .any(|action| matches!(action, Action::Agent { model: None, .. }));
+        let default_model = match self.config.model.clone() {
+            Some(model) => Some(model),
+            None if needs_model => Some(
                 self.provider
                     .models()
                     .await
@@ -228,57 +279,121 @@ impl InteractiveSession {
                     .into_iter()
                     .next()
                     .ok_or_else(|| "no model is available".to_string())?
-                    .id
-            }
+                    .id,
+            ),
+            None => None,
         };
         let tools = self.tools().await?;
-        let mut agent = Agent::new(self.provider.clone(), tools)
-            .with_context_hook(Arc::new(self.context.clone()));
-        let mut run = agent.start(TurnInput {
-            model,
-            reasoning: self.config.model_reasoning_effort.clone(),
-            history: Vec::new(),
-            input: prompt.as_str().into(),
-        });
-        let mut answer = String::new();
-        let result = tokio::time::timeout(Duration::from_secs(900), async {
-            while let Some(event) = run.events.recv().await {
-                match event {
-                    AgentEvent::MessageCommitted(Message::Assistant { content, .. }) => {
-                        for block in content {
-                            if let Content::Text(text) = block {
-                                answer.push_str(&text);
-                            }
-                        }
-                    }
-                    AgentEvent::Interaction { request, .. } => {
-                        request
-                            .answer(InteractionAnswer::Deny)
-                            .map_err(|error| error.to_string())?;
-                    }
-                    AgentEvent::Error(error) => return Err(error.to_string()),
-                    AgentEvent::Finished { reason, .. } => {
-                        return match reason {
-                            antex_core::FinishReason::Completed => Ok(()),
-                            antex_core::FinishReason::Interrupted => {
-                                Err("agent interrupted".into())
-                            }
-                            antex_core::FinishReason::Failed => Err("agent failed".into()),
-                        };
-                    }
-                    _ => {}
+        Ok(run_agents(
+            self.provider.clone(),
+            tools,
+            Arc::new(self.context.clone()),
+            self.config.model_reasoning_effort.clone(),
+            default_model,
+            actions,
+        )
+        .await)
+    }
+}
+
+async fn run_agents<P: antex_core::ModelProvider + 'static>(
+    provider: Arc<P>,
+    tools: Arc<dyn ToolHost>,
+    context: Arc<dyn ContextHook>,
+    reasoning: Option<String>,
+    default_model: Option<String>,
+    actions: Vec<Action>,
+) -> Vec<ActionResult> {
+    futures::stream::iter(actions)
+        .map(|action| {
+            let provider = provider.clone();
+            let tools = tools.clone();
+            let context = Arc::clone(&context);
+            let reasoning = reasoning.clone();
+            let default_model = default_model.clone();
+            async move {
+                let Action::Agent { id, prompt, model } = action else {
+                    unreachable!()
+                };
+                let result = run_agent(
+                    provider,
+                    tools,
+                    context,
+                    reasoning,
+                    model.or(default_model).expect("resolved model"),
+                    prompt,
+                )
+                .await;
+                match result {
+                    Ok(data) => ActionResult {
+                        id,
+                        succeeded: true,
+                        data,
+                    },
+                    Err(error) => ActionResult {
+                        id,
+                        succeeded: false,
+                        data: serde_json::json!({"text":error}),
+                    },
                 }
             }
-            Err("agent event stream ended".into())
         })
+        .buffered(8)
+        .collect()
         .await
-        .map_err(|_| {
-            let _ = run.commands.try_send(AgentCommand::Interrupt);
-            "agent action timed out".to_string()
-        })?;
-        result?;
-        Ok(serde_json::json!({"text":bounded(&answer)}))
-    }
+}
+
+async fn run_agent<P: antex_core::ModelProvider + 'static>(
+    provider: Arc<P>,
+    tools: Arc<dyn ToolHost>,
+    context: Arc<dyn ContextHook>,
+    reasoning: Option<String>,
+    model: String,
+    prompt: String,
+) -> Result<serde_json::Value, String> {
+    let mut agent = Agent::new(provider, tools).with_context_hook(context);
+    let mut run = agent.start(TurnInput {
+        model,
+        reasoning,
+        history: Vec::new(),
+        input: prompt.as_str().into(),
+    });
+    let mut answer = String::new();
+    let result = tokio::time::timeout(Duration::from_secs(900), async {
+        while let Some(event) = run.events.recv().await {
+            match event {
+                AgentEvent::MessageCommitted(Message::Assistant { content, .. }) => {
+                    for block in content {
+                        if let Content::Text(text) = block {
+                            answer.push_str(&text);
+                        }
+                    }
+                }
+                AgentEvent::Interaction { request, .. } => {
+                    request
+                        .answer(InteractionAnswer::Deny)
+                        .map_err(|error| error.to_string())?;
+                }
+                AgentEvent::Error(error) => return Err(error.to_string()),
+                AgentEvent::Finished { reason, .. } => {
+                    return match reason {
+                        antex_core::FinishReason::Completed => Ok(()),
+                        antex_core::FinishReason::Interrupted => Err("agent interrupted".into()),
+                        antex_core::FinishReason::Failed => Err("agent failed".into()),
+                    };
+                }
+                _ => {}
+            }
+        }
+        Err("agent event stream ended".into())
+    })
+    .await
+    .map_err(|_| {
+        let _ = run.commands.try_send(AgentCommand::Interrupt);
+        "agent action timed out".to_string()
+    })?;
+    result?;
+    Ok(serde_json::json!({"text":bounded(&answer)}))
 }
 
 fn bounded(text: &str) -> String {
@@ -288,3 +403,7 @@ fn bounded(text: &str) -> String {
     }
     text[..end].to_owned()
 }
+
+#[cfg(test)]
+#[path = "actions_tests.rs"]
+mod tests;

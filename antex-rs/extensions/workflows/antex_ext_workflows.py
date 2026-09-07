@@ -38,6 +38,14 @@ class Context:
             raise RuntimeError(str(result.get("data", {}).get("text", "action failed")))
         return result.get("data", {})
 
+    def action_batch(self, actions):
+        self.pending.put(("actions", actions, self.snapshot()))
+        results = [self.results.get() for _ in actions]
+        for result in results:
+            if not result.get("succeeded"):
+                raise RuntimeError(str(result.get("data", {}).get("text", "action failed")))
+        return [result.get("data", {}) for result in results]
+
     def shell(self, argv, cwd=None, timeout_seconds=None, env=None):
         if not isinstance(argv, list) or not argv or not all(isinstance(item, str) for item in argv):
             raise ValueError("ctx.shell argv must be a non-empty string list")
@@ -72,7 +80,38 @@ class Context:
     def agent_batch(self, prompts, parallelism=None, **options):
         if parallelism is not None and not 1 <= int(parallelism) <= 8:
             raise ValueError("parallelism must be between 1 and 8")
-        return [self.agent(prompt, **options) for prompt in prompts]
+        prompts = list(prompts)
+        if len(prompts) > 64:
+            raise ValueError("agent batch exceeds 64 prompts")
+        actions = []
+        for index, prompt in enumerate(prompts):
+            if isinstance(prompt, dict):
+                prompt_options = dict(options)
+                prompt_options.update(prompt)
+                text = prompt_options.pop("prompt")
+                model = prompt_options.pop("model", None)
+            else:
+                text = prompt
+                model = None
+                prompt_options = options
+            unsupported = set(prompt_options) - {
+                "reasoning_effort",
+                "developer_instructions",
+                "cwd",
+            }
+            if unsupported:
+                raise ValueError(f"unsupported agent options: {sorted(unsupported)}")
+            if not isinstance(text, str) or not text or len(text) > MAX_TEXT_BYTES:
+                raise ValueError("agent prompt is empty or exceeds its budget")
+            actions.append(
+                {
+                    "type": "agent",
+                    "id": f"agent-{index}",
+                    "prompt": text,
+                    "model": model,
+                }
+            )
+        return self.action_batch(actions)
 
     def inspect(self, target):
         if target not in {"transcript", "context", "systemPrompt"}:
@@ -105,6 +144,7 @@ class Runner:
         self.pending = queue.Queue(maxsize=1)
         self.results = queue.Queue(maxsize=1)
         self.thread = None
+        self.awaiting = 0
 
     def start(self, arguments):
         if self.thread is not None and self.thread.is_alive():
@@ -147,6 +187,9 @@ class Runner:
         if self.thread is None or not self.thread.is_alive():
             raise RuntimeError("no workflow action is awaiting a result")
         self.results.put(result)
+        self.awaiting -= 1
+        if self.awaiting > 0:
+            return None
         return self.next(workflow_id)
 
     def next(self, workflow_id):
@@ -155,8 +198,10 @@ class Runner:
         common = {"records": [record], "actions": []}
         if snapshot["status"] is not None:
             common["status"] = snapshot["status"]
-        if kind == "action":
-            common.update({"text": "", "actions": [value]})
+        if kind in {"action", "actions"}:
+            actions = [value] if kind == "action" else value
+            self.awaiting = len(actions)
+            common.update({"text": "", "actions": actions})
             return common
         if kind == "done":
             common["text"] = json.dumps(value, ensure_ascii=False)[:MAX_TEXT_BYTES]

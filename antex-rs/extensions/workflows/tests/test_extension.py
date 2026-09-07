@@ -95,6 +95,81 @@ class ExtensionTest(unittest.TestCase):
                 process.stdin.close()
                 process.stdout.close()
 
+    def test_agent_batch_waits_for_every_result_in_original_order(self):
+        with tempfile.TemporaryDirectory() as directory:
+            workspace = pathlib.Path(directory)
+            workflows = workspace / ".antex" / "workflows"
+            workflows.mkdir(parents=True)
+            (workflows / "batch.py").write_text(
+                "WORKFLOW={'id':'batch','title':'Batch'}\n"
+                "def run(ctx):\n"
+                " return ctx.agent_batch(['first','second'],parallelism=2)\n"
+            )
+            process = subprocess.Popen(
+                [sys.executable, str(ROOT / "antex_ext_workflows.py")],
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                text=True,
+            )
+            try:
+                self.request(
+                    process,
+                    "1",
+                    "initialize",
+                    {
+                        "protocolVersion": 1,
+                        "antexVersion": "0.0.0",
+                        "sessionId": "test",
+                        "cwd": str(workspace),
+                        "capabilities": [
+                            "agent",
+                            "contextRead",
+                            "persist",
+                            "sessionRead",
+                            "shell",
+                            "ui",
+                            "workspaceRead",
+                            "workspaceWrite",
+                        ],
+                        "state": None,
+                    },
+                )
+                batch = self.request(
+                    process,
+                    "2",
+                    "command/run",
+                    {"name": "workflow", "arguments": "batch"},
+                )
+                self.assertEqual(
+                    [action["prompt"] for action in batch["actions"]],
+                    ["first", "second"],
+                )
+                pending = self.request(
+                    process,
+                    "3",
+                    "event/notify",
+                    {
+                        "name": "actionResult",
+                        "data": {"id": "agent-0", "succeeded": True, "data": {"text": "one"}},
+                    },
+                )
+                self.assertIsNone(pending)
+                final = self.request(
+                    process,
+                    "4",
+                    "event/notify",
+                    {
+                        "name": "actionResult",
+                        "data": {"id": "agent-1", "succeeded": True, "data": {"text": "two"}},
+                    },
+                )
+                self.assertEqual(json.loads(final["text"]), [{"text": "one"}, {"text": "two"}])
+            finally:
+                process.kill()
+                process.wait()
+                process.stdin.close()
+                process.stdout.close()
+
     def request(self, process, request_id, method, params):
         process.stdin.write(
             json.dumps(
