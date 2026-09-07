@@ -46,19 +46,22 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 ## Remaining product work
 
 - Complete live ChatGPT subscription login, model turn and tool-cycle acceptance.
-- Finish migration of legacy sessions and prompt stashes. The validated WIP is in
-  Git stash `antex session migration wip before legacy deletion` and needs path
-  adjustment from `codex-rs/antex` to `antex-rs` before restoration.
 - Add streamable HTTP/OAuth MCP support.
 - Implement the required first-party tmux-log, explicit-agents and workflows
   extensions plus diagnostic/export packages.
 - Execute extension command actions and persist/reload extension state through
   the host seam.
-- Split the four production TUI modules still over 800 lines and remove retained
+- Split the remaining production TUI keymap module over 800 lines and remove retained
   dead presentation paths/warnings.
 - Finish Antex installer/release tests and quantitative binary/startup/RSS gates.
 - Rename the GitHub repository and origin only at final cutover.
 - Publish `antex-v0.0.1` only after every Phase 10 gate succeeds.
+
+Portable Codex JSONL sessions and plain prompt stashes now migrate explicitly
+without provider credentials or hidden instructions. The runtime/CLI validation
+passed 55 tests on deimos. Rich legacy stash state is reported and skipped.
+The module-size inventory now reports only `tui/src/keymap.rs` over 800 lines;
+`custom_terminal.rs`, `terminal_probe.rs`, and `wrapping.rs` are below the gate.
 
 ## Validation on deimos
 
