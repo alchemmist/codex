@@ -119,6 +119,7 @@ mod clipboard_paste;
 mod collaboration_modes;
 mod color;
 mod config_update;
+#[path = "../../antex/tui/src/custom_terminal.rs"]
 pub(crate) mod custom_terminal;
 mod daybreak;
 mod experimental_features;
@@ -147,16 +148,24 @@ mod history_cell;
 mod hooks_rpc;
 mod ide_context;
 mod inline_visualization;
+#[path = "../../antex/tui/src/insert_history.rs"]
 pub(crate) mod insert_history;
+#[cfg(test)]
+mod insert_history_tests;
 pub use insert_history::insert_history_lines;
+#[path = "../../antex/tui/src/key_hint.rs"]
 mod key_hint;
+#[path = "../../antex/tui/src/keymap.rs"]
 mod keymap;
+mod keymap_config;
 mod keymap_setup;
+#[path = "../../antex/tui/src/line_truncation.rs"]
 mod line_truncation;
 pub(crate) mod live_wrap;
 mod local_settings;
 pub use live_wrap::RowBuilder;
 mod appearance;
+mod editor_types;
 mod local_chatgpt_auth;
 mod managed_new_thread_defaults;
 mod markdown;
@@ -202,6 +211,7 @@ mod streaming;
 mod style;
 mod task_mentions;
 mod temporary_structured_request;
+#[path = "../../antex/tui/src/terminal_hyperlinks.rs"]
 mod terminal_hyperlinks;
 mod terminal_palette;
 mod terminal_probe;
@@ -229,17 +239,21 @@ mod updates;
 #[cfg(not(debug_assertions))]
 mod updates_cache;
 mod version;
+#[path = "../../antex/tui/src/vim_search.rs"]
 mod vim_search;
+#[path = "../../antex/tui/src/width.rs"]
 mod width;
 #[cfg(any(target_os = "windows", test))]
 mod windows_sandbox;
 mod workspace_command;
 mod workspace_messages;
 
+#[path = "../../antex/tui/src/wrapping.rs"]
 mod wrapping;
 
 mod table_detect;
 #[cfg(test)]
+#[path = "../../antex/tui/src/test_backend.rs"]
 pub(crate) mod test_backend;
 #[cfg(test)]
 pub(crate) mod test_support;

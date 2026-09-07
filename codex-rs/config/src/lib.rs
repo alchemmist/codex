@@ -37,6 +37,7 @@ mod state;
 mod strict_config;
 pub mod test_support;
 mod thread_config;
+#[path = "../../antex/tui/src/keymap_config.rs"]
 mod tui_keymap;
 pub mod types;
 

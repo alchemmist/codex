@@ -1,8 +1,59 @@
 exports_files(
     [
+        "key_hint.rs",
+        "keymap.rs",
+        "keymap_tests.rs",
+        "keymap_config.rs",
+        "tui_keymap_chord_tests.rs",
         "mascot.rs",
         "mascot_palette.rs",
         "mascot_tests.rs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "text_sources",
+    srcs = [
+        "line_truncation.rs",
+        "line_truncation_tests.rs",
+        "render/line_utils.rs",
+        "vim_search.rs",
+        "width.rs",
+        "wrapping.rs",
+        "wrapping_tests.rs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "terminal_sources",
+    srcs = glob([
+        "custom_terminal.rs",
+        "custom_terminal_tests.rs",
+        "custom_terminal/**",
+        "insert_history.rs",
+        "terminal_hyperlinks.rs",
+        "terminal_hyperlinks_tests.rs",
+        "terminal_hyperlinks_unit_tests.rs",
+        "terminal_hyperlinks/**",
+        "test_backend.rs",
+        "snapshots/**",
+    ]),
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "keymap_sources",
+    srcs = glob(["keymap/**"]) + ["keymap_tests.rs"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "editor_sources",
+    srcs = glob(["textarea/**"]) + [
+        "textarea.rs",
+        "textarea_tests.rs",
     ],
     visibility = ["//visibility:public"],
 )

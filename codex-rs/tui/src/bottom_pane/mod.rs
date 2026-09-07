@@ -170,6 +170,8 @@ pub(crate) use title_setup::TerminalTitleItem;
 pub(crate) use title_setup::TerminalTitleSetupView;
 #[cfg(test)]
 pub(crate) use title_setup::preview_line_for_title_items;
+#[cfg(test)]
+mod composer_hyperlink_tests;
 mod paste_burst;
 mod pending_input_preview;
 mod pending_thread_approvals;
@@ -179,6 +181,7 @@ mod selection_popup_common;
 mod selection_row_layout;
 mod selection_tabs;
 mod startup;
+#[path = "../../../antex/tui/src/textarea.rs"]
 mod textarea;
 mod unified_exec_footer;
 pub(crate) use feedback_note_view::FeedbackNoteView;

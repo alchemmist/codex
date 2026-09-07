@@ -2,6 +2,10 @@ load("//:defs.bzl", "codex_rust_crate")
 
 codex_rust_crate(
     name = "config",
-    compile_data = ["defaults.toml"],
+    compile_data = [
+        "defaults.toml",
+        "//codex-rs/antex/tui/src:keymap_config.rs",
+        "//codex-rs/antex/tui/src:tui_keymap_chord_tests.rs",
+    ],
     crate_name = "codex_config",
 )

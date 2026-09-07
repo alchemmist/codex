@@ -1,6 +1,7 @@
 use ratatui::layout::Rect;
 
 pub(crate) mod highlight;
+#[path = "../../../antex/tui/src/render/line_utils.rs"]
 pub(crate) mod line_utils;
 pub(crate) mod renderable;
 

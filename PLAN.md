@@ -453,6 +453,19 @@ includes these same source files through narrow source-path bridges; no legacy
 crate becomes a dependency of the new workspace. Remove these bridges when the
 old TUI is retired. Existing styles and snapshots remain the visual authority.
 
+The shared-source extraction now also includes keymap resolution, Unicode
+wrapping, terminal hyperlinks, cursor-safe terminal drawing, scrollback
+insertion, and the original textarea with Vim/Russian commands. Textarea
+implementation is split into editing, elements, mode, navigation, painting,
+and Vim-input modules; its top-level module is below 800 lines. The independent
+TUI suite passes 387 tests on deimos in 4.343 seconds (one pre-existing ignored
+test). Renamed external snapshots were compared against the original payloads;
+no rendering changes were accepted. This is component validation, not the
+direct-kernel frontend acceptance gate: the application/composer orchestration,
+runtime integration, and remaining presentation extraction are still pending.
+The legacy TUI also passes all 4,352 selected tests after extraction (six
+pre-existing skips; 22.410 seconds after compilation) on deimos.
+
 #### Work
 
 - Create or reduce `antex-tui` so it talks directly to `AgentRun` events and commands.
