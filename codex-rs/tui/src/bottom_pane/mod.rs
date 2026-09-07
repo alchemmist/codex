@@ -172,6 +172,7 @@ pub(crate) use title_setup::TerminalTitleSetupView;
 pub(crate) use title_setup::preview_line_for_title_items;
 #[cfg(test)]
 mod composer_hyperlink_tests;
+#[path = "../../../antex/tui/src/paste_burst.rs"]
 mod paste_burst;
 mod pending_input_preview;
 mod pending_thread_approvals;

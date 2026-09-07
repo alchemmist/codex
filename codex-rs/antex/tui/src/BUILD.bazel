@@ -108,6 +108,8 @@ filegroup(
 filegroup(
     name = "editor_sources",
     srcs = glob(["textarea/**"]) + [
+        "paste_burst.rs",
+        "paste_burst_tests.rs",
         "textarea.rs",
         "textarea_tests.rs",
     ],

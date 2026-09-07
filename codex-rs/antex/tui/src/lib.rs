@@ -27,6 +27,7 @@ mod mascot;
 mod mascot_palette;
 mod overlay;
 mod pager;
+mod paste_burst;
 mod picker;
 mod presentation_commands;
 mod prompt;
