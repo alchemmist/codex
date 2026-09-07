@@ -104,15 +104,16 @@ fn narrow_composer_keeps_unicode_cursor_inside_its_viewport() {
     assert!(area.contains(cursor.into()));
     let visible = (0..area.height)
         .map(|y| {
-            (0..area.width)
+            let row = (0..area.width)
                 .map(|x| buffer[(x, y)].symbol())
-                .collect::<String>()
+                .collect::<String>();
+            format!("|{row}|")
         })
         .collect::<Vec<_>>()
         .join("\n");
     insta::assert_snapshot!(visible, @"
-    › привет 👩‍💻      
-      next          
-                    
+    |› привет 👩‍💻      |
+    |  next          |
+    |                |
     ");
 }
