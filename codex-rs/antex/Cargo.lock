@@ -132,6 +132,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "antex-extension-protocol"
+version = "0.0.0"
+dependencies = [
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
 name = "antex-provider-openai"
 version = "0.0.0"
 dependencies = [
