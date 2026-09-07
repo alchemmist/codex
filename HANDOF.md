@@ -1,97 +1,172 @@
 # Antex handoff
 
-Date: 2026-09-07. Branch: `antex`.
+Date: 2026-09-07. Branch: `antex`. Checkpoint: `fbcced88c7246b35774b3517117d6d7874a1a11c`.
 
-Antex is now the only Rust product workspace. The independent workspace was
-promoted to `antex-rs/`; the legacy `codex-rs`, app-server, V8/code-mode, cloud,
-enterprise, voice, Windows, Bazel, npm, upstream SDK and legacy release
-infrastructure were removed from Git.
+## Product boundary
 
-The workspace exposes exactly one binary target, `antex`. Authentication,
-provider turns, tools, sessions, and the TUI are composed in-process; no daemon,
-app-server, IPC service, or companion binary is required. The baseline gate now
-rejects additional binary targets and system prompts larger than 4 KiB.
+Antex is an independent terminal coding agent with one shipped executable,
+`antex`. Login, provider calls, the agent loop, built-in tools, sessions,
+compaction, and the TUI run in that process. There is no required app-server,
+daemon, IPC service, desktop process, V8 host, or companion binary.
 
-This is still a development checkpoint, not release readiness. No `antex-v*`
-tag or GitHub Release has been published, and the GitHub repository has not yet
-been renamed.
+The base agent works without extensions. First-party extensions are embedded as
+small resources and materialized only through `antex extensions install <name>`.
+Their processes are optional, sandboxed, bounded, restartable, and keep state in
+the append-only Antex session. Complex orchestration belongs in workflows rather
+than the kernel or system prompt.
 
-## Current architecture
+The old local fallback remains `/Users/antonmoss/.local/bin/codex`, version
+`0.0.14`, with SHA-256
+`be16a880b76ea5c6d4a38e61ff1f4fa86de15306078513d639cc1716df3528b2`.
+Do not replace it before every Phase 10 cutover gate passes.
 
-`antex-rs/` contains seven production crates:
+## Repository state
 
-- `core` — provider-neutral deterministic agent kernel;
-- `provider-openai` — ChatGPT OAuth, model discovery and Responses transport;
-- `runtime` — local tools, permissions, sandbox, sessions and context;
-- `tui` — direct inline terminal frontend;
-- `extension-protocol` and `extension-host` — bounded out-of-process extensions;
-- `cli` — the `antex` composition root.
+- Rust workspace: `antex-rs/`.
+- Seven production crates: CLI, core, runtime, OpenAI provider, TUI, extension
+  protocol, and extension host.
+- One Cargo binary target: `antex`.
+- Product version: `0.0.0`; private OpenAI compatibility revision: `0.153.4`.
+- Origin is still `git@github.com:alchemmist/codex.git`.
+- No `antex-v*` tag or GitHub Release exists.
+- The GitHub repository has not been renamed.
+- User-owned untracked `research/` must remain untouched and uncommitted.
+- Stash `antex session migration wip before legacy deletion` is obsolete: its
+  session and prompt-stash migration was incorporated. It can be dropped later
+  after final audit, but is harmless.
 
-Antex has no production dependency on legacy Codex crates. The inventory gate
-reports 35,517 production Rust lines, seven crates and no forbidden dependency.
+The legacy tracked Codex workspace and product infrastructure were deleted.
+The ignored local `codex-rs/target` was deliberately retained. Git history and
+all historical upstream and `alchemmist-v*` tags remain intact.
 
-## Verified evidence
+## Current measured inventory
 
-- The promoted Linux workspace passed 909 tests with one existing skip in 5.032s
-  on deimos.
-- Workspace release Clippy passes with `-D warnings` on deimos.
-- Runtime and extension-host cross-check for `aarch64-apple-darwin` passes on
-  deimos. Full CLI cross-build needs an Apple SDK for `ring`; real macOS build and
-  execution remain release gates.
-- Extension host conformance passes for Rust and Python fixtures. Malformed,
-  oversized, stalled and crashing extensions fail independently.
-- Linux extension sandbox tests prove protocol stdin remains available while
-  seccomp uses FD 3, and verify workspace/network capability isolation.
-- The stdio MCP bridge passes an end-to-end host → sandbox → MCP server tool call.
-- `/Users/antonmoss/.local/bin/codex` remains unchanged with SHA-256
-  `be16a880b76ea5c6d4a38e61ff1f4fa86de15306078513d639cc1716df3528b2`.
-- The current system prompt is 1,601 bytes, `antex-core` is 1,576 production
-  lines, and the workspace inventory reports only the `antex` executable.
+`scripts/antex-baseline.py --check` on deimos reports:
 
-## Remaining product work
+- 35,032 production Rust lines;
+- `antex-core`: 1,576 lines;
+- `antex-tui`: 25,177 lines;
+- 446 production dependency nodes;
+- zero forbidden dependencies;
+- zero production modules above 800 lines;
+- one shipped executable, `antex`;
+- 1,601-byte built-in system prompt.
 
-- Complete live ChatGPT subscription login, model turn and tool-cycle acceptance.
-- Add streamable HTTP/OAuth MCP support.
-- Complete workflow pause/stop/resume and package the PR babysitter workflow.
-- Execute shell, agent, and inspection command actions. `TerminalLog` lifecycle
-  actions are connected, and extension state persists in the active session
-  branch and reloads after process restart.
-- Remove any newly exposed dead presentation paths as the remaining extensions are migrated.
-- Finish Antex installer/release tests and quantitative binary/startup/RSS gates.
-- Rename the GitHub repository and origin only at final cutover.
-- Publish `antex-v0.0.1` only after every Phase 10 gate succeeds.
+The gate rejects additional binary targets, more than ten production crates,
+more than 100,000 production lines, `antex-core` above 12,000 lines, modules
+above 800 lines, forbidden dependencies, and system prompts above 4 KiB.
 
-Portable Codex JSONL sessions and plain prompt stashes now migrate explicitly
-without provider credentials or hidden instructions. The runtime/CLI validation
-passed 55 tests on deimos. Rich legacy stash state is reported and skipped.
-The module-size inventory reports no production module over 800 lines. The full
-TUI suite passes 782 tests with one existing skip, and workspace release Clippy
-passes with `-D warnings` on deimos.
+## Implemented product path
 
-`antex-ext-tmux-log` toggles with `/tmux-command-log`, mirrors bounded shell
-commands and final output into a private tmux window, persists its enabled state,
-and is installed explicitly from the single Antex binary. Its absence or failure
-does not affect the base agent loop.
+- Provider-neutral `Agent` with deterministic assistant/tool iterations,
+  steering, follow-up, interruption, bounded retries, and context hooks.
+- OpenAI adapter with ChatGPT account storage, refresh, browser/device login,
+  model discovery, Responses streaming, reasoning, usage, and private protocol
+  compatibility revision.
+- Runtime `read`, `write`, `edit`, and `shell` tools; read-only/workspace/full
+  permissions; Bubblewrap/seccomp on Linux and Seatbelt on macOS.
+- Append-only JSONL sessions with resume, parent-linked fork, torn-tail recovery,
+  pending input recovery, compaction checkpoints, UI state, and extension state.
+- Explicit non-destructive Codex migration for supported config, skills, stdio
+  and HTTP MCP definitions, portable sessions, and plain prompt stashes.
+- Direct inline TUI with retained mascot, Markdown, diffs, images, clipboard,
+  themes, Vim/Russian aliases, prompt stash, queues, pickers, transcript, and
+  narrow-terminal behavior.
+- Bounded JSON-RPC extension protocol and host with discovery, project trust,
+  capability sandbox, timeouts, cancellation, restart limits, failure isolation,
+  Rust/Python conformance, command routing, lifecycle events, and action chains.
+- Explicit extension actions: sandboxed shell, context/session inspection,
+  ephemeral in-process agents, parallel batches up to eight, and terminal logs.
+  Model tools and lifecycle observers cannot spawn agents.
 
-`antex-ext-workflows` is installed explicitly from the single binary and runs
-project `.antex/workflows/<id>.py` functions. Its synchronous `ctx.shell`,
-`ctx.agent`, inspection, checkpoint, progress, and parallel `agent_batch` calls
-continue through a 64-action host loop. Shell actions share the runtime sandbox
-and up to eight ephemeral agents run in-process with empty conversation history.
+## First-party extensions
 
-The explicitly installed `agents`, `diagnostics`, and `plan` extensions own
-`/subagents` and `/agents`, `/context`, `/system-prompt`, `/dump`, and the
-persistent `/todo` panel. The host rejects Agent actions originating from model
-tools or lifecycle observers, so ordinary prompts cannot spawn subagents.
-The plan extension persists at most 64 TODO items per active session branch and
-never injects its panel state into model context.
+All are optional. The first five are explicitly installed from the one Antex
+binary; configured MCP instances are emitted by `antex migrate codex`:
 
-## Validation on deimos
+- `tmux-log`: `/tmux-command-log`, bounded private tmux window, persisted toggle.
+- `workflows`: project `.antex/workflows/<id>.py`, synchronous `ctx.shell`,
+  `ctx.agent`, parallel `ctx.agent_batch`, `ctx.inspect`, checkpoint, progress,
+  and logging over a 64-action continuation loop.
+- `agents`: `/subagents`, `/agents`, up to eight explicit ephemeral agents and
+  bounded persisted run summaries.
+- `diagnostics`: `/context`, `/system-prompt`, and non-overwriting `/dump`.
+- `plan`: persistent `/todo` panel with at most 64 items per session branch.
+- `mcp`: stdio and Streamable HTTP transports. HTTP supports JSON or SSE POST
+  responses, `Mcp-Session-Id`, `MCP-Protocol-Version: 2025-06-18`, loopback HTTP
+  or HTTPS enforcement, response bounds, and a private bearer-token file.
+
+## Latest validation evidence
+
+- Full TUI suite before the extension-only slices: 782 passed, one existing skip.
+- Runtime/CLI/extension action slice: 71 passed on deimos.
+- Workflow/extension-host/CLI slice: 31 passed on deimos.
+- Clean rebuild after removing the disposable remote target: 31 passed.
+- HTTP MCP Python acceptance: two tests pass, covering stdio plus HTTP JSON/SSE,
+  session/protocol headers, and bearer headers.
+- Agents, workflows, diagnostics, plan, and tmux-log Python protocol acceptance
+  tests pass.
+- Current workspace `just clippy -- -D warnings` passes on deimos.
+- Current HTTP MCP Codex-migration test passes on deimos.
+- The full workspace suite has not been rerun after the latest extension slices;
+  run it before claiming Phase 7 or release readiness.
+
+deimos filled its filesystem during linking. Only the disposable directory
+`/home/antonmoss/antex-work/validation-host/antex-rs/target` was removed and
+recreated, releasing about 30 GiB. The clean scoped rebuild then passed. Check
+disk space before another full build.
+
+## Remaining work, in recommended order
+
+1. Finish workflow control and discovery:
+   - make workflow execution non-blocking from the TUI command dispatcher;
+   - implement `/workflow pause`, `/workflow stop`, `/workflow resume`, and a
+     workflow picker;
+   - discover personal `~/.antex/workflows` alongside trusted project workflows;
+   - persist interrupted/failed run metadata and snapshot the source;
+   - package the PR babysitter as a workflow.
+2. Finish MCP OAuth according to the current official MCP authorization spec:
+   - parse `WWW-Authenticate` and RFC 9728 protected-resource metadata;
+   - discover RFC 8414 authorization-server metadata;
+   - support dynamic client registration when advertised;
+   - implement authorization code + PKCE + state + localhost callback;
+   - include RFC 8707 `resource` in authorization and token requests;
+   - store/refresh/rotate tokens privately and audience-bind them;
+   - add fake-server tests for discovery, login, refresh, 401, scope failure,
+     redirects, and token non-disclosure.
+   The current bearer-token-file mode is not full OAuth completion.
+3. Run the complete workspace suite on deimos with
+   `ANTEX_BWRAP=/home/antonmoss/antex-tools/bin/bwrap`, then release Clippy,
+   baseline, and extension conformance.
+4. Perform live manual ChatGPT Plus/Pro acceptance: login, model catalog, plain
+   turn, shell tool cycle, edit task, interrupt, resume, and fork. No live
+   subscription success is currently claimed.
+5. Resolve the OpenAI identification experiment: remove the compatibility
+   revision if the endpoint accepts native Antex identification, otherwise keep
+   the private contract pin and document its update procedure.
+6. Complete supported-platform preflight:
+   - real Apple Silicon macOS build/run (the deimos cross-build lacks Apple SDK
+     support for `ring`);
+   - Linux x86_64 fresh clone;
+   - stripped binary size below 40 MiB on both;
+   - editable prompt below 150 ms;
+   - idle RSS below 60 MiB;
+   - warm full suite below five minutes;
+   - narrow tmux and light/dark theme smoke;
+   - explicit MCP/workflow/tmux/agents/Codex-migration smoke.
+7. Test `make install-local`, `make install-mac`, and `make install-linux`
+   against draft artifacts and verify they install only `antex`.
+8. At final cutover only: rename GitHub repository to `alchemmist/antex`, update
+   `origin`, verify fork ancestry and retained tags, then run `make release-patch`
+   from clean synchronized `main` to publish `antex-v0.0.1`.
+
+Do not mark PLAN.md phases complete from partial evidence. Phase 10 requires the
+real release and supported-platform artifacts, not just scripts or mocks.
+
+## Validation commands
 
 Remote checkout: `/home/antonmoss/antex-work/validation-host`.
-Tools: `/home/antonmoss/antex-tools`.
-
-From the local repository root:
+Private tools: `/home/antonmoss/antex-tools`.
 
 ```sh
 rsync -a --delete --exclude target/ \
@@ -102,9 +177,11 @@ python3 scripts/antex-remote.py \
   --host deimos.vla.yp-c.yandex.net \
   --checkout /home/antonmoss/antex-work/validation-host \
   --tools /home/antonmoss/antex-tools \
+  --jobs 4 \
   env ANTEX_BWRAP=/home/antonmoss/antex-tools/bin/bwrap just test
 ```
 
-Do not reset or reuse the older dirty checkout at
-`/home/antonmoss/antex-work/codex`. The user-owned untracked `research/`
-directory is not part of Antex commits.
+Do not use or reset `/home/antonmoss/antex-work/codex`; it is an older dirty
+checkout. Run Rust builds, tests, Clippy, and generation only on deimos. Run
+local `just fmt` after code changes. Do not rerun tests after final `just fix`
+and `just fmt` in a slice.
