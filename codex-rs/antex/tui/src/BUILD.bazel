@@ -52,6 +52,17 @@ filegroup(
 )
 
 filegroup(
+    name = "clipboard_sources",
+    srcs = [
+        "clipboard_copy.rs",
+        "clipboard_copy_tests.rs",
+        "clipboard_html.rs",
+        "clipboard_html_tests.rs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
     name = "diff_sources",
     srcs = glob(["diff_render/**"]) + [
         "diff_model.rs",

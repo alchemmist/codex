@@ -113,7 +113,9 @@ mod bottom_pane;
 mod branch_summary;
 mod chatwidget;
 mod cli;
+#[path = "../../antex/tui/src/clipboard_copy.rs"]
 mod clipboard_copy;
+#[path = "../../antex/tui/src/clipboard_html.rs"]
 mod clipboard_html;
 mod clipboard_paste;
 mod collaboration_modes;

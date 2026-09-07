@@ -1,6 +1,6 @@
 use std::path::Path;
 
-use crate::markdown_normalize::unwrap_markdown_fences;
+pub(crate) use crate::markdown_normalize::unwrap_markdown_fences;
 use crate::terminal_hyperlinks::HyperlinkLine;
 
 pub(crate) fn render_markdown_agent_with_links_and_cwd(

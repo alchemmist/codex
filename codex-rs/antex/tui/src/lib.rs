@@ -1,5 +1,8 @@
 mod appearance;
 mod assistant_directives;
+mod clipboard_copy;
+mod clipboard_html;
+mod clipboard_paste;
 mod color;
 mod composer;
 mod custom_terminal;
@@ -43,6 +46,8 @@ mod width;
 mod wrapping;
 
 pub use appearance::StartupMascotSkin;
+pub use clipboard_paste::ImageSource;
+pub use clipboard_paste::parse_image_path;
 pub use frontend::run;
 pub use session::CommandEffect;
 pub use session::Session;
