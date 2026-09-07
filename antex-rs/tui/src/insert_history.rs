@@ -1,6 +1,6 @@
 //! Inserts finalized history rows into terminal scrollback.
 //!
-//! Codex uses the terminal scrollback itself for finalized chat history, so inserting a history
+//! Antex uses the terminal scrollback itself for finalized chat history, so inserting a history
 //! cell is an escape-sequence operation rather than a normal ratatui render.
 
 use std::fmt;
@@ -42,74 +42,21 @@ use ratatui::style::Modifier;
 use ratatui::text::Line;
 use ratatui::text::Span;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum HistoryLineWrapPolicy {
-    PreWrap,
-    Terminal,
-}
-
-/// Selects the terminal escape strategy used when writing history above the viewport.
-///
-/// Full-screen insertion preserves terminal-native scrollback when partial scroll regions are
-/// unreliable and keeps terminal-managed soft wrapping intact for Zellij.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum InsertHistoryMode {
-    Standard,
-    FullScreen,
-}
-
-/// Insert `lines` above the viewport using the terminal's backend writer
-/// (avoids direct stdout references).
-pub fn insert_history_lines<B>(
+pub(crate) fn insert_history_lines<B>(
     terminal: &mut crate::custom_terminal::Terminal<B>,
     lines: Vec<Line>,
-) -> io::Result<()>
-where
-    B: Backend<Error = io::Error> + Write,
-{
-    insert_history_lines_with_wrap_policy(terminal, lines, HistoryLineWrapPolicy::PreWrap)
-}
-
-pub fn insert_history_lines_with_wrap_policy<B>(
-    terminal: &mut crate::custom_terminal::Terminal<B>,
-    lines: Vec<Line>,
-    wrap_policy: HistoryLineWrapPolicy,
-) -> io::Result<()>
-where
-    B: Backend<Error = io::Error> + Write,
-{
-    insert_history_lines_with_mode_and_wrap_policy(
-        terminal,
-        lines,
-        InsertHistoryMode::Standard,
-        wrap_policy,
-    )
-}
-
-pub(crate) fn insert_history_lines_with_mode_and_wrap_policy<B>(
-    terminal: &mut crate::custom_terminal::Terminal<B>,
-    lines: Vec<Line>,
-    mode: InsertHistoryMode,
-    wrap_policy: HistoryLineWrapPolicy,
 ) -> io::Result<()>
 where
     B: Backend<Error = io::Error> + Write,
 {
     let screen_size = terminal.last_known_screen_size;
-    insert_history_hyperlink_lines_with_mode_and_wrap_policy(
-        terminal,
-        &plain_hyperlink_lines(lines.iter().map(line_to_static).collect()),
-        mode,
-        wrap_policy,
-        screen_size,
-    )
+    let lines = plain_hyperlink_lines(lines.iter().map(line_to_static).collect());
+    insert_history_hyperlink_lines(terminal, &lines, screen_size)
 }
 
-pub(crate) fn insert_history_hyperlink_lines_with_mode_and_wrap_policy<B>(
+pub(crate) fn insert_history_hyperlink_lines<B>(
     terminal: &mut crate::custom_terminal::Terminal<B>,
     lines: &[HyperlinkLine],
-    mode: InsertHistoryMode,
-    wrap_policy: HistoryLineWrapPolicy,
     screen_size: Size,
 ) -> io::Result<()>
 where
@@ -131,93 +78,59 @@ where
     // - Non-URL lines also flow through adaptive wrapping; behavior is
     //   equivalent to standard wrapping when no URL is present.
     let wrap_width = area.width.max(1) as usize;
-    let (wrapped, wrapped_rows) = wrap_history_hyperlink_lines(lines, wrap_width, wrap_policy);
+    let (wrapped, wrapped_rows) = wrap_history_hyperlink_lines(lines, wrap_width);
     let wrapped_lines = wrapped_rows as u16;
-    match mode {
-        InsertHistoryMode::FullScreen => {
-            // The existing viewport is immediately replaced in the same draw pass. Clear it
-            // before terminal scrolling can move composer contents into scrollback.
-            terminal.clear_after_position(area.as_position())?;
-            let writer = terminal.backend_mut();
-            queue!(writer, MoveTo(/*x*/ 0, area.top()))?;
-            for (index, line) in wrapped.iter().enumerate() {
-                if index > 0 {
-                    queue!(writer, Print("\r\n"))?;
-                }
-                write_history_line(writer, line, wrap_width)?;
-            }
+    let writer = terminal.backend_mut();
+    let cursor_top = if area.bottom() < screen_size.height {
+        // If the viewport is not at the bottom of the screen, scroll it down to make room.
+        // Don't scroll it past the bottom of the screen.
+        let scroll_amount = wrapped_lines.min(screen_size.height - area.bottom());
 
-            // Writing raw source text through the terminal preserves its soft-wrap metadata.
-            // Advance through empty rows for the viewport so history ends immediately above the
-            // composer even when a replay batch is taller than the visible history region.
-            for _ in 0..area.height {
-                queue!(writer, Print("\r\n"), Clear(ClearType::UntilNewLine))?;
-            }
-            queue!(writer, MoveTo(last_cursor_pos.x, last_cursor_pos.y))?;
-
-            let viewport_top = area
-                .top()
-                .saturating_add(wrapped_lines)
-                .min(screen_size.height.saturating_sub(area.height));
-            if area.y != viewport_top {
-                area.y = viewport_top;
-                should_update_area = true;
-            }
+        let top_1based = area.top() + 1;
+        queue!(writer, SetScrollRegion(top_1based..screen_size.height))?;
+        queue!(writer, MoveTo(/*x*/ 0, area.top()))?;
+        for _ in 0..scroll_amount {
+            queue!(writer, Print("\x1bM"))?;
         }
-        InsertHistoryMode::Standard => {
-            let writer = terminal.backend_mut();
-            let cursor_top = if area.bottom() < screen_size.height {
-                // If the viewport is not at the bottom of the screen, scroll it down to make room.
-                // Don't scroll it past the bottom of the screen.
-                let scroll_amount = wrapped_lines.min(screen_size.height - area.bottom());
+        queue!(writer, ResetScrollRegion)?;
 
-                let top_1based = area.top() + 1;
-                queue!(writer, SetScrollRegion(top_1based..screen_size.height))?;
-                queue!(writer, MoveTo(/*x*/ 0, area.top()))?;
-                for _ in 0..scroll_amount {
-                    queue!(writer, Print("\x1bM"))?;
-                }
-                queue!(writer, ResetScrollRegion)?;
+        let cursor_top = area.top().saturating_sub(1);
+        area.y += scroll_amount;
+        should_update_area = true;
+        cursor_top
+    } else {
+        area.top().saturating_sub(1)
+    };
 
-                let cursor_top = area.top().saturating_sub(1);
-                area.y += scroll_amount;
-                should_update_area = true;
-                cursor_top
-            } else {
-                area.top().saturating_sub(1)
-            };
+    // Limit the scroll region to the lines from the top of the screen to the
+    // top of the viewport. With this in place, when we add lines inside this
+    // area, only the lines in this area will be scrolled. We place the cursor
+    // at the end of the scroll region, and add lines starting there.
+    //
+    // ┌─Screen───────────────────────┐
+    // │┌╌Scroll region╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐│
+    // │┆                            ┆│
+    // │┆                            ┆│
+    // │┆                            ┆│
+    // │█╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘│
+    // │╭─Viewport───────────────────╮│
+    // ││                            ││
+    // │╰────────────────────────────╯│
+    // └──────────────────────────────┘
+    queue!(writer, SetScrollRegion(1..area.top()))?;
 
-            // Limit the scroll region to the lines from the top of the screen to the
-            // top of the viewport. With this in place, when we add lines inside this
-            // area, only the lines in this area will be scrolled. We place the cursor
-            // at the end of the scroll region, and add lines starting there.
-            //
-            // ┌─Screen───────────────────────┐
-            // │┌╌Scroll region╌╌╌╌╌╌╌╌╌╌╌╌╌╌┐│
-            // │┆                            ┆│
-            // │┆                            ┆│
-            // │┆                            ┆│
-            // │█╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌┘│
-            // │╭─Viewport───────────────────╮│
-            // ││                            ││
-            // │╰────────────────────────────╯│
-            // └──────────────────────────────┘
-            queue!(writer, SetScrollRegion(1..area.top()))?;
+    // NB: we are using MoveTo instead of set_cursor_position here to avoid messing with the
+    // terminal's last_known_cursor_position, which hopefully will still be accurate after we
+    // fetch/restore the cursor position. insert_history_lines should be cursor-position-neutral :)
+    queue!(writer, MoveTo(/*x*/ 0, cursor_top))?;
 
-            // NB: we are using MoveTo instead of set_cursor_position here to avoid messing with the
-            // terminal's last_known_cursor_position, which hopefully will still be accurate after we
-            // fetch/restore the cursor position. insert_history_lines should be cursor-position-neutral :)
-            queue!(writer, MoveTo(/*x*/ 0, cursor_top))?;
-
-            for line in &wrapped {
-                queue!(writer, Print("\r\n"))?;
-                write_history_line(writer, line, wrap_width)?;
-            }
-
-            queue!(writer, ResetScrollRegion)?;
-            queue!(writer, MoveTo(last_cursor_pos.x, last_cursor_pos.y))?;
-        }
+    for line in &wrapped {
+        queue!(writer, Print("\r\n"))?;
+        write_history_line(writer, line, wrap_width)?;
     }
+
+    queue!(writer, ResetScrollRegion)?;
+    queue!(writer, MoveTo(last_cursor_pos.x, last_cursor_pos.y))?;
 
     if should_update_area {
         terminal.set_viewport_area(area);
@@ -232,21 +145,17 @@ where
 pub(crate) fn wrap_history_hyperlink_lines(
     lines: &[HyperlinkLine],
     wrap_width: usize,
-    wrap_policy: HistoryLineWrapPolicy,
 ) -> (Vec<HyperlinkLine>, usize) {
     let mut wrapped = Vec::new();
     let mut wrapped_rows = 0usize;
 
     for line in lines {
-        let line_wrapped = match wrap_policy {
-            HistoryLineWrapPolicy::Terminal => vec![line.clone()],
-            HistoryLineWrapPolicy::PreWrap
-                if line_contains_url_like(&line.line)
-                    && !line_has_mixed_url_and_non_url_tokens(&line.line) =>
-            {
-                vec![line.clone()]
-            }
-            HistoryLineWrapPolicy::PreWrap => remap_wrapped_line(
+        let line_wrapped = if line_contains_url_like(&line.line)
+            && !line_has_mixed_url_and_non_url_tokens(&line.line)
+        {
+            vec![line.clone()]
+        } else {
+            remap_wrapped_line(
                 line,
                 adaptive_wrap_line(
                     &line.line,
@@ -256,7 +165,7 @@ pub(crate) fn wrap_history_hyperlink_lines(
                 .into_iter()
                 .map(|line| line_to_static(&line))
                 .collect(),
-            ),
+            )
         };
         wrapped_rows += line_wrapped
             .iter()

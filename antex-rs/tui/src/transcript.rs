@@ -64,13 +64,7 @@ pub(crate) fn write_message<
 ) -> std::io::Result<()> {
     let size = terminal.last_known_screen_size;
     let lines = message_lines(message, usize::from(size.width.max(1)), cwd);
-    crate::insert_history::insert_history_hyperlink_lines_with_mode_and_wrap_policy(
-        terminal,
-        &lines,
-        crate::insert_history::InsertHistoryMode::Standard,
-        crate::insert_history::HistoryLineWrapPolicy::PreWrap,
-        size,
-    )
+    crate::insert_history::insert_history_hyperlink_lines(terminal, &lines, size)
 }
 
 pub(crate) fn safe_text(text: &str) -> String {
