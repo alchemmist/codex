@@ -3,12 +3,12 @@ source: tui/src/frontend_tests.rs
 assertion_line: 136
 expression: visible
 ---
-  ▀▄     ▄▀  Antex v0.0.0
-   ▄▀▄▄▄▀▄
- ▄█▀▀███▀▀█▄  Terminal coding agent
- ▀▀▄▄▀▀▀▄▄▀▀
-  ▄█▀   ▀█▄  /help for commands
- ▀▀       ▀▀
+ ▀▄       ▄▀  Antex v0.0.0
+  ▄▀█████▀▄
+▄█▀▀█████▀▀█▄  Terminal coding agent
+▀▀▄▄▀▀▀▀▀▄▄▀▀
+  ██  ▄  ██  /help for commands
+   ▀▀▀ ▀▀▀
 ›
 hello
 

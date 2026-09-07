@@ -1896,12 +1896,10 @@ impl RuntimeKeymap {
             "main",
             main_bindings,
             MAIN_RESERVED_BINDINGS,
-            [(
-                "chat.interrupt_turn",
-                "fixed.backtrack",
-                key_hint::plain(KeyCode::Esc),
-            )],
+            [("chat.interrupt_turn", "fixed.backtrack", key_hint::plain(KeyCode::Esc))],
         )?;
+
+        validate_no_reserved("main", main_bindings, &[("fixed.prompt_stash", key_hint::ctrl(KeyCode::Char('s')))], [("composer.history_search_next", "fixed.prompt_stash", key_hint::ctrl(KeyCode::Char('s')))])?;
 
         let approval_overlay_bindings = [
             ("list.move_up", self.list.move_up.as_slice()),
