@@ -1,164 +1,84 @@
-# Antex — промежуточная передача работы
+# Antex handoff
 
-Дата: 2026-09-07. Ветка: `antex`. Работа поставлена на паузу по просьбе пользователя.
-PLAN.md целиком НЕ выполнен; релизная готовность НЕ заявляется.
+Date: 2026-09-07. Branch: `antex`.
 
-## Что является рабочим результатом
+Antex is now the only Rust product workspace. The independent workspace was
+promoted to `antex-rs/`; the legacy `codex-rs`, app-server, V8/code-mode, cloud,
+enterprise, voice, Windows, Bazel, npm, upstream SDK and legacy release
+infrastructure were removed from Git.
 
-В `codex-rs/antex/` находится самостоятельный Cargo workspace: `core`,
-`provider-openai`, `runtime`, `tui`, `cli`, `extension-protocol`.
-Новый frontend запускается явно командой `antex tui` и обращается к `AgentRun`
-напрямую, без app-server и зависимости от legacy Codex core. Есть также `exec`.
-Запуск без подкоманды пока не переключён на новый TUI.
+This is still a development checkpoint, not release readiness. No `antex-v*`
+tag or GitHub Release has been published, and the GitHub repository has not yet
+been renamed.
 
-Это проверенный Linux development checkpoint, а не готовая замена установленного
-агента: реальный запрос к ChatGPT под пользовательской подпиской ещё не прошёл.
-Интеграционные тесты используют настоящий новый kernel с подставным provider.
-MCP, workflows и subagents через новые расширения пока недоступны.
+## Current architecture
 
-## Состояние относительно PLAN.md
+`antex-rs/` contains seven production crates:
 
-| Фаза | Реализованная часть | Что остаётся |
-| --- | --- | --- |
-| 0: baseline | Зафиксированы исходные данные, fixtures и fallback | Чистые платформенные сборки и полные замеры отложены пользователем до release preflight |
-| 1: identity | Antex identity и отдельный development CLI; безопасный import в legacy-пути | Полный аудит брендинга; перенос migrate в независимый CLI; installer/update cutover |
-| 2: kernel | Provider-neutral agent, bounded events/context, tool validation, steer/follow-up, interrupt, retries, approvals/questions | Формальная приёмка всех API/размерных gates; завершение общего cutover |
-| 3: OpenAI | OAuth browser/device, accounts/refresh, models, bounded HTTP/SSE Responses и provider continuation | Живой login/turn, compatibility identity probe, аудит WebSocket/transport parity |
-| 4: runtime | read/write/edit/shell, permissions, sandbox, JSONL sessions, resume/fork, compaction, AGENTS/skills, images | Перенос старых данных в новую модель сессии; полная security/platform приёмка |
-| 5: TUI | Работающий прямой frontend и значительная часть исходного UX | Полный baseline parity, reflow/palette stress, оставшиеся bindings, размеры модулей, default entry cutover |
-| 6: extensions | Только protocol scaffold и четыре теста | Host, lifecycle/isolation, registry/trust, SDK, Rust/Python conformance fixtures |
-| 7: first-party extensions | Не перенесены | MCP, explicit subagents, workflows, tmux logging и прочие обязательные расширения |
-| 8: удаление legacy | Переносимые presentation-файлы перемещены с сохранением истории | Удаление старой инфраструктуры, source-path bridges и запрещённых зависимостей |
-| 9: rename | Не выполнена | Финальная структура каталогов и переименование GitHub repository |
-| 10: release | Не выполнена | Release/install/update pipeline, бюджеты обеих платформ, live acceptance и 0.0.1 |
+- `core` — provider-neutral deterministic agent kernel;
+- `provider-openai` — ChatGPT OAuth, model discovery and Responses transport;
+- `runtime` — local tools, permissions, sandbox, sessions and context;
+- `tui` — direct inline terminal frontend;
+- `extension-protocol` and `extension-host` — bounded out-of-process extensions;
+- `cli` — the `antex` composition root.
 
-Checkboxes целых фаз оставлены незакрытыми намеренно: наличие реализации не
-означает прохождение всех completion criteria. Исторические цифры внутри PLAN
-описывают прежние срезы; актуальная контрольная проверка приведена ниже.
+Antex has no production dependency on legacy Codex crates. The inventory gate
+reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 
-## Существенные реализованные детали
+## Verified evidence
 
-- Kernel сохраняет принятый ввод на границе отмены, не переигрывает частично
-  выданный ответ и валидирует аргументы до запуска инструмента.
-- Runtime использует ограниченный доступ к workspace, атомарную запись и
-  newline-safe edit; Linux shell работает через bubblewrap/seccomp, отменяет
-  группу процессов и ограничивает вывод. Full permissions — явный обход sandbox,
-  а не обещание изоляции. Автоматического unsandboxed fallback нет.
-- Append-only JSONL хранит ветви, результаты и checkpoint compaction; исходная
-  история остаётся доступной через transcript. UI state и очередь ввода отделены
-  от model history. Очередь согласуется с фактически закоммиченными сообщениями.
-- TUI сохраняет inline scrollback, ant skins, Markdown, syntax/diffs, Unicode,
-  Vim/Russian commands, rich undo/redo, защиту от paste burst, stash с картинками,
-  clipboard copy, image attachment, approvals/questions, model/session/fork
-  pickers, transcript paging, темы и отменяемые foreground operations.
-- По SSH чтение изображения из clipboard удалённой машины не подменяет локальное:
-  пользователь получает подсказку использовать `/image`. Copy поддерживает
-  существующий tmux/OSC52 путь.
-- Protocol scaffold задаёт JSON-RPC/NDJSON, frame/text bounds и capability checks.
-  Он не запускает процессы. Требование «Agent action только после явной команды
-  пользователя» должен реализовать будущий host; сейчас это не готовая защита.
-
-## Что проверено
-
-Все сборки, Rust-тесты и Clippy выполнялись на deimos, не на Mac.
-
-1. Финальный focused run шести новых пакетов: **893 passed, 1 skipped**, 5.139 s
-   выполнения тестов после компиляции. Лог локально:
-   `/tmp/antex-checkpoint-tests.log`.
-2. Legacy TUI после переноса paste detector: **4352 passed, 6 skipped**, 22.690 s.
-   Один существующий startup-draft тест прошёл на повторе (flaky), а не с первого
-   запуска. Лог: `/tmp/antex-legacy-paste-tests.log`. Это не весь legacy workspace.
-3. Свежая debug-сборка `antex tui` в tmux с чистой конфигурацией и отдельным home:
-   editable startup, `/help`, закрытие Escape, ввод `checkpoint-draft`, stash и
-   восстановление Ctrl+S, `/status`, `/quit` с exit 0. Без авторизованного аккаунта.
-   Ранее отдельно проверялось узкое окно; полным resize/reflow acceptance это не является.
-4. Scoped `just fix` для шести новых пакетов завершился успешно. Остались warnings
-   от переносимых presentation-модулей. Для этого вызова использовано
-   `-A unused-imports`, чтобы не удалить импорты, используемые legacy consumers
-   общих source-path файлов. Это не проверка с `-D warnings`.
-   Лог: `/tmp/antex-checkpoint-clippy.log`; строк `Fixed` в нём нет.
-5. `just bazel-lock-update` на deimos завершился; `MODULE.bazel.lock` совпадает
-   локально и удалённо. Лог: `/tmp/antex-checkpoint-bazel.log`.
-6. Локальный `just fmt` и `git diff --check` выполнены; локальной сборки не было.
-   После fmt/fix тесты повторно не запускались согласно правилам репозитория.
-7. Ранее пройдены Linux sandbox/security cases и Mac-target cross-Clippy runtime.
-   Cross-Clippy не заменяет сборку/запуск всего продукта на macOS.
-
-## Что НЕ проверено или не готово
-
-- Реальный OAuth login + model turn + tool cycle с ChatGPT Plus/Pro. Предыдущий
-  device code истёк без авторизации; его нельзя использовать снова. Чужие или
-  fallback credentials не переносились. Работающего login-процесса не оставлено.
-- Текущий полный продукт на macOS arm64, Mac clipboard/Seatbelt в реальном запуске.
-- Финальные release size, startup latency, idle RSS, clean build time и LOC/crate
-  budgets. Старый замер CLI 10.74 MiB был ДО TUI и не характеризует текущий бинарник.
-- Полный argument-comment lint после последних TUI-переносов; ранее проходил
-  только для более раннего core/provider/runtime/CLI среза.
-- Полная эквивалентность старому UI: некоторые перенесённые keybindings ещё не
-  подключены; крупные keymap/wrapping/custom_terminal требуют дальнейшего разбиения.
-- Extensions end-to-end, credential isolation и restart/cancellation policy host.
-- Deletion deny list, окончательный rename, installer/update и релизные артефакты.
-
-## Как продолжить на deimos
-
-Checkout: `/home/antonmoss/antex-work/codex`.
-Tools: `/home/antonmoss/antex-tools` (Rust 1.95, just, nextest, clang 17,
-bubblewrap 0.12, Bazel). Использовать helper: он задаёт PATH, CARGO_HOME,
-RUSTUP_HOME и build flags. Рабочий каталог команды helper — `codex-rs`.
-
-Из локального корня репозитория, только удалённое исполнение:
-
-```sh
-python3 scripts/antex-remote.py --tty \
-  --host deimos.vla.yp-c.yandex.net \
-  --checkout /home/antonmoss/antex-work/codex \
-  --tools /home/antonmoss/antex-tools \
-  env ANTEX_BWRAP=/home/antonmoss/antex-tools/bin/bwrap \
-  just antex --home /home/antonmoss/antex-work/tui-acceptance.HiuwJF tui
-```
-
-Home smoke-проверки не содержит авторизованного аккаунта. Для реальной работы
-нужно отдельно выполнить `login --device-code` с выбранным изолированным home
-и лично пройти авторизацию. Сначала убедиться, что хранение аккаунта на этом
-удалённом хосте приемлемо. Не копировать данные установленного fallback.
-
-Для тестов убрать `--tty`, заменить `just antex ...` на:
-
-```sh
-just test --manifest-path antex/Cargo.toml \
-  -p antex-core -p antex-provider-openai -p antex-runtime \
-  -p antex-tui -p antex-cli -p antex-extension-protocol
-```
-
-Проверенный бинарник: `codex-rs/antex/target/debug/antex` в удалённом checkout.
-Tmux server: `antex-smoke-clean`, session `tui-smoke`; checkpoint window 1
-оставлена dead/exit 0 с remain-on-exit для просмотра, не с работающим агентом.
-
-## Git и сохранность данных
-
-- До финальной фиксации checkpoint: `00315cafb2`; дополнительные коммиты:
-  `7ca2a11e27` (форматирование pager Escape regression), `5023dc411f`
-  (protocol scaffold). Этот документ и PLAN записаны следующим отдельным коммитом.
-- На момент подготовки handoff локальный `origin/antex` указывает на
-  `00315cafb2`. Финальные checkpoint-коммиты не пушились. Проверять актуальное
-  состояние перед следующим push; merge/release/rename не выполнялись.
-- Remote Git HEAD ранее был `e02200b228`; тестировалось более свежее дерево,
-  синхронизированное файлами, а не этот старый коммит сам по себе. Не считать
-  удалённый checkout чистым и не делать reset. Перед pull сохранить/сопоставить
-  remote diff и generated files. Старые validation stashes оставлены намеренно.
-- Пользовательский untracked `research/` не изменялся и не включён в коммиты.
-- `/Users/antonmoss/.local/bin/codex` сохранён; SHA256 повторно проверен:
+- The promoted Linux workspace passed 909 tests with one existing skip in 5.032s
+  on deimos.
+- Scoped and workspace Clippy run on deimos. Retained TUI presentation code still
+  has dead-code and three disallowed-yellow warnings that must be removed before
+  the release workflow's `-D warnings` gate.
+- Runtime and extension-host cross-check for `aarch64-apple-darwin` passes on
+  deimos. Full CLI cross-build needs an Apple SDK for `ring`; real macOS build and
+  execution remain release gates.
+- Extension host conformance passes for Rust and Python fixtures. Malformed,
+  oversized, stalled and crashing extensions fail independently.
+- Linux extension sandbox tests prove protocol stdin remains available while
+  seccomp uses FD 3, and verify workspace/network capability isolation.
+- The stdio MCP bridge passes an end-to-end host → sandbox → MCP server tool call.
+- `/Users/antonmoss/.local/bin/codex` remains unchanged with SHA-256
   `be16a880b76ea5c6d4a38e61ff1f4fa86de15306078513d639cc1716df3528b2`.
-  Локальный 0.0.14 остаётся fallback; публикация отсутствующего Release не нужна.
 
-## Следующий небольшой этап
+## Remaining product work
 
-Сначала проверить checkpoint с настоящим аккаунтом и согласовать достаточный
-минимум TUI parity, прежде чем переключать default entry. Затем отдельно
-реализовывать extension host и conformance fixtures, не смешивая это с удалением
-legacy. Host должен явно проверять origin Agent actions и получать sandbox
-launcher из composition root; нельзя занять protocol stdin тем же FD, которым
-shell сейчас передаёт seccomp filter. После этого — first-party extensions,
-удаление bridges/legacy, budgets, rename и release gates в порядке PLAN.
+- Complete live ChatGPT subscription login, model turn and tool-cycle acceptance.
+- Finish migration of legacy sessions and prompt stashes. The validated WIP is in
+  Git stash `antex session migration wip before legacy deletion` and needs path
+  adjustment from `codex-rs/antex` to `antex-rs` before restoration.
+- Add streamable HTTP/OAuth MCP support.
+- Implement the required first-party tmux-log, explicit-agents and workflows
+  extensions plus diagnostic/export packages.
+- Execute extension command actions and persist/reload extension state through
+  the host seam.
+- Split the four production TUI modules still over 800 lines and remove retained
+  dead presentation paths/warnings.
+- Finish Antex installer/release tests and quantitative binary/startup/RSS gates.
+- Rename the GitHub repository and origin only at final cutover.
+- Publish `antex-v0.0.1` only after every Phase 10 gate succeeds.
 
-До нового запроса пользователя работа остановлена на этом checkpoint.
+## Validation on deimos
+
+Remote checkout: `/home/antonmoss/antex-work/validation-host`.
+Tools: `/home/antonmoss/antex-tools`.
+
+From the local repository root:
+
+```sh
+rsync -a --delete --exclude target/ \
+  antex-rs/ \
+  deimos.vla.yp-c.yandex.net:/home/antonmoss/antex-work/validation-host/antex-rs/
+
+python3 scripts/antex-remote.py \
+  --host deimos.vla.yp-c.yandex.net \
+  --checkout /home/antonmoss/antex-work/validation-host \
+  --tools /home/antonmoss/antex-tools \
+  env ANTEX_BWRAP=/home/antonmoss/antex-tools/bin/bwrap just test
+```
+
+Do not reset or reuse the older dirty checkout at
+`/home/antonmoss/antex-work/codex`. The user-owned untracked `research/`
+directory is not part of Antex commits.

@@ -78,7 +78,7 @@ fn reconstructed(lines: &[Line<'static>]) -> String {
 }
 
 fn unique_foreground_colors_for_theme(theme_name: &str) -> Vec<String> {
-    let theme = resolve_theme_by_name(theme_name, /*codex_home*/ None)
+    let theme = resolve_theme_by_name(theme_name, /*antex_home*/ None)
         .unwrap_or_else(|| panic!("expected built-in theme {theme_name} to resolve"));
     let lines = highlight_to_line_spans_with_theme(
         "fn main() { let answer = 42; println!(\"hello\"); }\n",
@@ -356,7 +356,7 @@ fn ansi_palette_color_maps_ansi_white_to_gray() {
 #[test]
 fn ansi_family_themes_use_terminal_palette_colors_not_rgb() {
     for theme_name in ["ansi", "base16", "base16-256"] {
-        let theme = resolve_theme_by_name(theme_name, /*codex_home*/ None)
+        let theme = resolve_theme_by_name(theme_name, /*antex_home*/ None)
             .unwrap_or_else(|| panic!("expected built-in theme {theme_name} to resolve"));
         let lines = highlight_to_line_spans_with_theme(
             "fn main() { let answer = 42; println!(\"hello\"); }\n",
@@ -605,7 +605,7 @@ fn foreground_style_for_scopes_uses_first_scope_with_foreground() {
 
 #[test]
 fn bundled_theme_can_provide_diff_scope_backgrounds() {
-    let theme = resolve_theme_by_name("github", /*codex_home*/ None)
+    let theme = resolve_theme_by_name("github", /*antex_home*/ None)
         .expect("expected built-in GitHub theme to load");
     let rgbs = diff_scope_background_rgbs_for_theme(&theme);
     assert!(
@@ -724,13 +724,13 @@ fn load_custom_theme_returns_none_for_missing() {
 #[test]
 fn validate_theme_name_none_for_bundled() {
     // Bundled themes should never produce a warning.
-    assert!(validate_theme_name(Some("dracula"), /*codex_home*/ None).is_none());
+    assert!(validate_theme_name(Some("dracula"), /*antex_home*/ None).is_none());
     assert!(validate_theme_name(Some("nord"), Some(Path::new("/nonexistent"))).is_none());
 }
 
 #[test]
 fn validate_theme_name_none_when_no_override() {
-    assert!(validate_theme_name(/*name*/ None, /*codex_home*/ None).is_none());
+    assert!(validate_theme_name(/*name*/ None, /*antex_home*/ None).is_none());
 }
 
 #[test]

@@ -7,10 +7,10 @@ antex *args:
     cargo run -p antex-cli -- {{args}}
 
 fmt:
-    cargo fmt -- --config imports_granularity=Item
+    cargo fmt
 
 fmt-check:
-    cargo fmt -- --config imports_granularity=Item --check
+    cargo fmt -- --check
 
 fix *args:
     cargo clippy --fix --tests --allow-dirty {{args}}
