@@ -15,6 +15,7 @@ tokio = { workspace = true, features = ["io-util", "process"] }
 tokio-util.workspace = true
 
 [dev-dependencies]
+antex-runtime = { path = "../runtime" }
 pretty_assertions = "1"
 tempfile = "3"
 tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }

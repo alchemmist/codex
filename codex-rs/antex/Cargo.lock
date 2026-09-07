@@ -141,6 +141,7 @@ version = "0.0.0"
 dependencies = [
  "antex-core",
  "antex-extension-protocol",
+ "antex-runtime",
  "futures",
  "pretty_assertions",
  "serde",
