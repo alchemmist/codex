@@ -5,6 +5,7 @@ use ratatui::layout::Rect;
 pub(crate) enum Overlay {
     Prompt(crate::prompt::Prompt),
     Picker(crate::picker::Picker),
+    Pager(crate::pager::Pager),
 }
 
 pub(crate) enum OverlayAction {
@@ -18,6 +19,7 @@ impl Overlay {
         match self {
             Self::Prompt(_) => 2,
             Self::Picker(_) => 10,
+            Self::Pager(_) => 40,
         }
     }
 
@@ -35,6 +37,7 @@ impl Overlay {
                 crate::picker::PickerAction::Cancel => OverlayAction::Close,
                 crate::picker::PickerAction::Select(command) => OverlayAction::Command(command),
             }),
+            Self::Pager(pager) => Ok(pager.key(key)),
         }
     }
 
@@ -42,6 +45,7 @@ impl Overlay {
         match self {
             Self::Prompt(prompt) => prompt.paste(text),
             Self::Picker(picker) => picker.paste(text),
+            Self::Pager(_) => Err("Close the transcript before pasting into the draft."),
         }
     }
 
@@ -49,6 +53,10 @@ impl Overlay {
         match self {
             Self::Prompt(prompt) => prompt.render(area, buffer),
             Self::Picker(picker) => picker.render(area, buffer),
+            Self::Pager(pager) => {
+                pager.render(area, buffer);
+                None
+            }
         }
     }
 }
