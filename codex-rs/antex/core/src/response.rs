@@ -42,29 +42,7 @@ pub(crate) async fn collect<P: ModelProvider>(
     response: &mut Response,
 ) -> Result<(), ProviderError> {
     let mut attempts = 0;
-    let mut stream = loop {
-        let result = tokio::select! {
-            biased;
-            _ = cancel.cancelled() => return Err(error(ErrorKind::Cancelled, "run interrupted")),
-            _ = events.closed() => return Err(error(ErrorKind::Cancelled, "event receiver closed")),
-            result = provider.stream(request.clone()) => result,
-        };
-        match result {
-            Ok(stream) => break stream,
-            Err(error)
-                if attempts < 2
-                    && matches!(error.kind, ErrorKind::Transport | ErrorKind::RateLimited) =>
-            {
-                attempts += 1;
-                tokio::select! {
-                    _ = cancel.cancelled() => return Err(self::error(ErrorKind::Cancelled, "run interrupted")),
-                    _ = events.closed() => return Err(self::error(ErrorKind::Cancelled, "event receiver closed")),
-                    _ = tokio::time::sleep(std::time::Duration::from_millis(100 * attempts)) => {},
-                }
-            }
-            Err(error) => return Err(error),
-        }
-    };
+    let mut stream = open(provider, &request, events, cancel, &mut attempts).await?;
     loop {
         let item = tokio::select! {
             biased;
@@ -72,8 +50,27 @@ pub(crate) async fn collect<P: ModelProvider>(
             _ = events.closed() => return Err(error(ErrorKind::Cancelled, "event receiver closed")),
             item = stream.next() => item,
         };
-        let item = item
-            .ok_or_else(|| error(ErrorKind::Protocol, "model stream ended without completion"))??;
+        let item = match item {
+            Some(Ok(item)) => item,
+            Some(Err(error))
+                if attempts < 2
+                    && response.content.is_empty()
+                    && response.calls.is_empty()
+                    && matches!(error.kind, ErrorKind::Transport | ErrorKind::RateLimited) =>
+            {
+                attempts += 1;
+                retry_delay(events, cancel, attempts).await?;
+                stream = open(provider, &request, events, cancel, &mut attempts).await?;
+                continue;
+            }
+            Some(Err(error)) => return Err(error),
+            None => {
+                return Err(error(
+                    ErrorKind::Protocol,
+                    "model stream ended without completion",
+                ));
+            }
+        };
         let previous_content = response.content.clone();
         let event = match item {
             ModelEvent::Quota(quota) => {
@@ -146,5 +143,45 @@ pub(crate) async fn collect<P: ModelProvider>(
         if let Some(event) = event {
             emit(events, cancel, event).await?;
         }
+    }
+}
+
+async fn open<P: ModelProvider>(
+    provider: &P,
+    request: &ModelRequest,
+    events: &mpsc::Sender<AgentEvent>,
+    cancel: &CancellationToken,
+    attempts: &mut u64,
+) -> Result<crate::ModelStream, ProviderError> {
+    loop {
+        let result = tokio::select! {
+            biased;
+            _=cancel.cancelled()=>return Err(error(ErrorKind::Cancelled,"run interrupted")),
+            _=events.closed()=>return Err(error(ErrorKind::Cancelled,"event receiver closed")),
+            result=provider.stream(request.clone())=>result,
+        };
+        match result {
+            Ok(stream) => return Ok(stream),
+            Err(error)
+                if *attempts < 2
+                    && matches!(error.kind, ErrorKind::Transport | ErrorKind::RateLimited) =>
+            {
+                *attempts += 1;
+                retry_delay(events, cancel, *attempts).await?;
+            }
+            Err(error) => return Err(error),
+        }
+    }
+}
+
+async fn retry_delay(
+    events: &mpsc::Sender<AgentEvent>,
+    cancel: &CancellationToken,
+    attempt: u64,
+) -> Result<(), ProviderError> {
+    tokio::select! {
+        _=cancel.cancelled()=>Err(error(ErrorKind::Cancelled,"run interrupted")),
+        _=events.closed()=>Err(error(ErrorKind::Cancelled,"event receiver closed")),
+        _=tokio::time::sleep(std::time::Duration::from_millis(100*attempt))=>Ok(()),
     }
 }

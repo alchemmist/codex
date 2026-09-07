@@ -77,6 +77,7 @@ pub(crate) fn response_stream(response: Response) -> ModelStream {
         }
         let mut stream = response.bytes_stream();
         let mut decoder = Decoder::default();
+        let mut observed_output=false;
         while let Some(chunk) = tokio::time::timeout(Duration::from_secs(120), stream.next()).await
             .map_err(|_| error(ErrorKind::Transport, "OpenAI stream stalled"))?
         {
@@ -84,6 +85,7 @@ pub(crate) fn response_stream(response: Response) -> ModelStream {
             for byte in chunk {
                 if let Some(value) = decoder.push(byte)? {
                     for event in wire::decode(value)? {
+                        observed_output|=!matches!(event,ModelEvent::Quota(_));
                         let finished = matches!(event, ModelEvent::Finished(_));
                         yield event;
                         if finished {
@@ -93,7 +95,7 @@ pub(crate) fn response_stream(response: Response) -> ModelStream {
                 }
             }
         }
-        Err(error(ErrorKind::Protocol, "OpenAI stream ended before completion"))?;
+        Err(error(if observed_output {ErrorKind::Protocol} else {ErrorKind::Transport}, "OpenAI stream ended before completion"))?;
     })
 }
 

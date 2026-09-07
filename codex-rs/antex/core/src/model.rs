@@ -144,3 +144,15 @@ pub trait ModelProvider: Send + Sync {
         request: ModelRequest,
     ) -> impl Future<Output = Result<ModelStream, ProviderError>> + Send;
 }
+
+impl<P: ModelProvider> ModelProvider for Arc<P> {
+    fn models(&self) -> impl Future<Output = Result<Vec<ModelInfo>, ProviderError>> + Send {
+        self.as_ref().models()
+    }
+    fn stream(
+        &self,
+        request: ModelRequest,
+    ) -> impl Future<Output = Result<ModelStream, ProviderError>> + Send {
+        self.as_ref().stream(request)
+    }
+}

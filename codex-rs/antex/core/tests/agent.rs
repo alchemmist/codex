@@ -13,6 +13,9 @@ mod interactions;
 #[path = "agent/completion.rs"]
 mod completion;
 
+#[path = "agent/retry.rs"]
+mod retry;
+
 #[derive(Clone)]
 struct Provider {
     responses: Arc<Mutex<VecDeque<Vec<ModelEvent>>>>,
