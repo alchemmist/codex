@@ -267,15 +267,14 @@ fn migrate_mcp(
             descriptions.push(format!("skip MCP {name}: disabled"));
             continue;
         }
-        let Some(command) = server.get("command").and_then(Value::as_str) else {
-            let reason = if server.contains_key("url") {
-                "streamable HTTP/OAuth is not implemented"
-            } else {
-                "missing stdio command"
-            };
-            descriptions.push(format!("skip MCP {name}: {reason}"));
+        let command = server.get("command").and_then(Value::as_str);
+        let url = server.get("url").and_then(Value::as_str);
+        if command.is_none() == url.is_none() {
+            descriptions.push(format!(
+                "skip MCP {name}: expected one stdio command or HTTP URL"
+            ));
             continue;
-        };
+        }
         let arguments = match server.get("args") {
             None => Vec::new(),
             Some(Value::Array(values)) => values
@@ -297,18 +296,20 @@ fn migrate_mcp(
             descriptions.push(format!("skip MCP {name}: destination already exists"));
             continue;
         }
-        let mut extension_arguments = vec![
-            "--name".to_string(),
-            identifier.clone(),
-            "--".into(),
-            command.into(),
-        ];
-        extension_arguments.extend(arguments);
+        let mut extension_arguments = vec!["--name".to_string(), identifier.clone()];
+        let capabilities = if let Some(command) = command {
+            extension_arguments.extend(["--".into(), command.into()]);
+            extension_arguments.extend(arguments);
+            vec!["network", "shell"]
+        } else {
+            extension_arguments.extend(["--url".into(), url.unwrap().into()]);
+            vec!["network"]
+        };
         let definition = serde_json::to_vec_pretty(&json!({
             "name": identifier,
             "program": "antex_ext_mcp.py",
             "arguments": extension_arguments,
-            "capabilities": ["network", "shell"]
+            "capabilities": capabilities
         }))
         .map_err(|_| io::Error::other("failed to encode MCP extension definition"))?;
         writes.extend([
@@ -323,10 +324,14 @@ fn migrate_mcp(
                 executable: true,
             },
         ]);
-        descriptions.push(format!("write stdio MCP extension {name} as {identifier}"));
+        descriptions.push(format!(
+            "write {} MCP extension {name} as {identifier}",
+            if command.is_some() { "stdio" } else { "HTTP" }
+        ));
         for key in server.keys().filter(|key| {
             ![
                 "command",
+                "url",
                 "args",
                 "enabled",
                 "startup_timeout_sec",

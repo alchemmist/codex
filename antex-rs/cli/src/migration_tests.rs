@@ -30,7 +30,7 @@ fn codex_migration_is_deterministic_and_never_changes_the_source() {
         first
             .describe()
             .iter()
-            .any(|line| line == "skip MCP remote: streamable HTTP/OAuth is not implemented")
+            .any(|line| line == "write HTTP MCP extension remote as remote")
     );
     first.apply().unwrap();
     assert_eq!(
@@ -65,6 +65,24 @@ fn codex_migration_is_deterministic_and_never_changes_the_source() {
             "program":"antex_ext_mcp.py",
             "arguments":["--name","docs","--","docs-server","--stdio"],
             "capabilities":["network","shell"]
+        })
+    );
+    let remote: serde_json::Value = serde_json::from_slice(
+        &fs::read(
+            destination
+                .path()
+                .join("extensions/mcp-remote/extension.json"),
+        )
+        .unwrap(),
+    )
+    .unwrap();
+    assert_eq!(
+        remote,
+        serde_json::json!({
+            "name":"remote",
+            "program":"antex_ext_mcp.py",
+            "arguments":["--name","remote","--url","https://example.test/mcp"],
+            "capabilities":["network"]
         })
     );
 }

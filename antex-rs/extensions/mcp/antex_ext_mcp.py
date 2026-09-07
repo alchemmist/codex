@@ -2,8 +2,12 @@
 import argparse
 import hashlib
 import json
+import pathlib
 import subprocess
 import sys
+import urllib.error
+import urllib.parse
+import urllib.request
 
 
 PROTOCOL_VERSION = 1
@@ -135,6 +139,136 @@ class Mcp:
                 self.process.wait()
 
 
+class HttpMcp:
+    initialize = Mcp.initialize
+    tools = Mcp.tools
+    call = Mcp.call
+
+    def __init__(self, url, token_file=None):
+        parsed = urllib.parse.urlparse(url)
+        if parsed.scheme != "https" and not (
+            parsed.scheme == "http" and parsed.hostname in {"127.0.0.1", "localhost", "::1"}
+        ):
+            raise ValueError("HTTP MCP URL must use HTTPS or loopback HTTP")
+        if parsed.username or parsed.password or parsed.fragment:
+            raise ValueError("HTTP MCP URL contains forbidden credentials or fragment")
+        self.url = url
+        self.next_id = 1
+        self.session_id = None
+        self.token = None
+        if token_file is not None:
+            path = pathlib.Path(token_file)
+            if not path.is_absolute():
+                path = pathlib.Path(__file__).resolve().parent / path
+            if path.is_symlink() or not path.is_file() or path.stat().st_size > 16 * 1024:
+                raise ValueError("invalid MCP bearer token file")
+            self.token = path.read_text(encoding="utf-8").strip()
+            if not self.token or len(self.token) > 16 * 1024 or any(character.isspace() for character in self.token):
+                raise ValueError("invalid MCP bearer token")
+
+    def request(self, method, params):
+        request_id = self.next_id
+        self.next_id += 1
+        messages = self.post(
+            {"jsonrpc": "2.0", "id": request_id, "method": method, "params": params}
+        )
+        for message in messages:
+            if "method" in message and "id" in message:
+                self.post(
+                    {
+                        "jsonrpc": "2.0",
+                        "id": message["id"],
+                        "error": {
+                            "code": -32601,
+                            "message": "MCP server requests are unsupported",
+                        },
+                    }
+                )
+                continue
+            if message.get("id") != request_id:
+                continue
+            if "error" in message:
+                raise RuntimeError(str(message["error"].get("message", "MCP request failed"))[:512])
+            return message.get("result")
+        raise RuntimeError("HTTP MCP response did not contain the matching JSON-RPC result")
+
+    def notify(self, method, params=None):
+        message = {"jsonrpc": "2.0", "method": method}
+        if params is not None:
+            message["params"] = params
+        self.post(message)
+
+    def post(self, message):
+        body = json.dumps(message, separators=(",", ":")).encode()
+        if len(body) > MAX_FRAME_BYTES:
+            raise RuntimeError("MCP request exceeds its frame budget")
+        headers = {
+            "Accept": "application/json, text/event-stream",
+            "Content-Type": "application/json",
+        }
+        if self.session_id is not None:
+            headers["Mcp-Session-Id"] = self.session_id
+            headers["MCP-Protocol-Version"] = "2025-06-18"
+        if self.token is not None:
+            headers["Authorization"] = f"Bearer {self.token}"
+        request = urllib.request.Request(self.url, data=body, headers=headers, method="POST")
+        try:
+            response = urllib.request.urlopen(request, timeout=30)
+        except urllib.error.HTTPError as error:
+            if error.code == 401:
+                challenge = error.headers.get("WWW-Authenticate", "")[:512]
+                raise RuntimeError(f"HTTP MCP authorization required: {challenge}")
+            raise RuntimeError(f"HTTP MCP request failed with status {error.code}")
+        with response:
+            session_id = response.headers.get("Mcp-Session-Id")
+            if session_id is not None:
+                if not session_id or len(session_id) > 1024 or any(not 0x21 <= ord(character) <= 0x7E for character in session_id):
+                    raise RuntimeError("HTTP MCP returned an invalid session identifier")
+                self.session_id = session_id
+            if response.status == 202:
+                return []
+            content_type = response.headers.get_content_type()
+            if content_type == "application/json":
+                data = response.read(MAX_FRAME_BYTES + 1)
+                if len(data) > MAX_FRAME_BYTES:
+                    raise RuntimeError("HTTP MCP response exceeds its frame budget")
+                return [self.validate(json.loads(data))]
+            if content_type == "text/event-stream":
+                return self.read_sse(response)
+            raise RuntimeError(f"HTTP MCP returned unsupported content type {content_type}")
+
+    def read_sse(self, response):
+        messages = []
+        data = []
+        total = 0
+        while True:
+            line = response.readline(MAX_FRAME_BYTES + 2)
+            if not line:
+                break
+            total += len(line)
+            if len(line) > MAX_FRAME_BYTES or total > 8 * MAX_FRAME_BYTES:
+                raise RuntimeError("HTTP MCP SSE response exceeds its budget")
+            line = line.decode("utf-8").rstrip("\r\n")
+            if not line:
+                if data:
+                    messages.append(self.validate(json.loads("\n".join(data))))
+                    data = []
+                continue
+            if line.startswith("data:"):
+                data.append(line[5:].lstrip())
+        if data:
+            messages.append(self.validate(json.loads("\n".join(data))))
+        return messages
+
+    def validate(self, message):
+        if not isinstance(message, dict) or message.get("jsonrpc") != "2.0":
+            raise RuntimeError("invalid MCP response")
+        return message
+
+    def close(self):
+        pass
+
+
 def response(request, result=None, error=None):
     message = {"jsonrpc": "2.0", "id": request.get("id", "")}
     if error is None:
@@ -208,12 +342,16 @@ def manifest(name, tools, permissions):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--name", required=True)
+    parser.add_argument("--url")
+    parser.add_argument("--bearer-token-file")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     command = args.command[1:] if args.command[:1] == ["--"] else args.command
-    if not command:
-        raise SystemExit("MCP server command is required")
-    mcp = Mcp(command)
+    if bool(args.url) == bool(command):
+        raise SystemExit("provide exactly one MCP URL or stdio server command")
+    if args.bearer_token_file and not args.url:
+        raise SystemExit("--bearer-token-file requires --url")
+    mcp = HttpMcp(args.url, args.bearer_token_file) if args.url else Mcp(command)
     tools = None
     aliases = {}
     try:
