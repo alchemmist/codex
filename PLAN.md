@@ -410,6 +410,26 @@ The Antex kernel completes real manual turns through a ChatGPT Plus/Pro subscrip
 
 ### Phase 4 — Build the minimal local runtime
 
+Progress: `antex-runtime` now owns capability-scoped file operations, newline-safe
+unique edits, sandboxed shell execution, one-shot approvals, bounded image
+normalization, JSONL sessions, parent-linked forks, torn-tail recovery, and
+checkpoint-based compaction. Runtime config and frozen project/skill context are
+connected to the independent `antex exec` path. Compaction preserves the latest
+request and complete recent tool exchanges, and records summaries without
+rewriting committed records. Image-heavy histories are compacted before sampling.
+
+Remote evidence includes Linux runtime and kernel integration tests, provider
+contract tests with fabricated credentials, CLI resume tests, and scoped Clippy.
+The Linux sandbox uses privately built Bubblewrap 0.12.0 plus seccomp, not an
+unsandboxed fallback. The macOS runtime branch passed cross-target compilation
+on deimos; real macOS execution remains a release gate. A preliminary stripped
+Linux CLI build was 11,259,128 bytes (10.74 MiB), before the new TUI and extensions.
+
+The manual ChatGPT device-login attempt reached the official verification flow,
+but expired without user authorization. No live subscription turn is claimed;
+request a fresh code when the maintainer is available. The isolated preflight
+home is outside the checkout and does not read or modify the installed fallback.
+
 #### Work
 
 - Create `antex-runtime` and port the four built-in tools: read, write, edit, shell.
@@ -426,6 +446,12 @@ The Antex kernel completes real manual turns through a ChatGPT Plus/Pro subscrip
 Antex can complete file-editing tasks, resume and fork sessions, survive interruption, compact context, and enforce each permission profile without using legacy core, rollout, state, config, exec-server, or sandboxing types.
 
 ### Phase 5 — Replace the app-server TUI path
+
+The first retained presentation slice moves the original mascot renderer,
+palette, and tests into `antex-tui` with `git mv`. During extraction the old TUI
+includes these same source files through narrow source-path bridges; no legacy
+crate becomes a dependency of the new workspace. Remove these bridges when the
+old TUI is retired. Existing styles and snapshots remain the visual authority.
 
 #### Work
 

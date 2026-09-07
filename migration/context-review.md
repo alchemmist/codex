@@ -15,3 +15,16 @@ The kernel context module owns these fragments and their
 `ContextualUserFragment` conversions. UI-only events must not be converted into
 messages implicitly. The standalone kernel is not yet the active Antex runtime;
 these checks and the agent-loop integration suite must pass before switching it in.
+
+Additional P0 injection sites: project/skill instruction chunks, generated
+compaction summaries, and normalized image attachments. Project instructions,
+skills, and summaries remain user-level context in the OpenAI adapter. A context
+hook cannot replace committed conversation content without an explicit validated
+checkpoint. Checkpoints select the exact retained request and tool-exchange tail;
+the original JSONL records remain available for earlier branches.
+
+The working history is bounded separately from the prepared model request so
+image-heavy history can be compacted before sampling. Binary images and opaque
+continuations are omitted from summary-generation input, with explicit image
+placeholders; the active request and recent tool state retain their original
+payloads. Tool-image captions have a separate 1,024-byte limit.
