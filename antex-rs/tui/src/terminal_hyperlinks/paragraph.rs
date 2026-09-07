@@ -29,10 +29,6 @@ impl<'a> HyperlinkParagraph<'a> {
         }
     }
 
-    pub(crate) fn line_count(&self, width: u16) -> usize {
-        self.paragraph.line_count(width)
-    }
-
     pub(crate) fn scroll(mut self, rows: u16) -> Self {
         self.scroll_rows = rows;
         self

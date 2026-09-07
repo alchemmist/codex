@@ -279,18 +279,6 @@ pub(crate) struct PagerKeymap {
     pub(crate) jump_bottom: Vec<KeyBinding>,
     pub(crate) close: Vec<KeyBinding>,
     pub(crate) close_transcript: Vec<KeyBinding>,
-    chord_hints: Arc<RuntimeChordKeymap>,
-}
-
-impl PagerKeymap {
-    pub(crate) fn primary_hint(
-        &self,
-        action: &'static str,
-        bindings: &[KeyBinding],
-    ) -> Option<ShortcutHint> {
-        let action = keymap_action_id(KeymapContext::Pager.config_name(), action)?;
-        self.chord_hints.primary_hint(action, bindings)
-    }
 }
 
 /// Semantic navigation and confirmation actions shared by list-like views.
@@ -306,23 +294,6 @@ pub(crate) enum ListAction {
     JumpBottom,
     Accept,
     Cancel,
-}
-
-impl ListAction {
-    fn config_name(self) -> &'static str {
-        match self {
-            Self::MoveUp => "move_up",
-            Self::MoveDown => "move_down",
-            Self::MoveLeft => "move_left",
-            Self::MoveRight => "move_right",
-            Self::PageUp => "page_up",
-            Self::PageDown => "page_down",
-            Self::JumpTop => "jump_top",
-            Self::JumpBottom => "jump_bottom",
-            Self::Accept => "accept",
-            Self::Cancel => "cancel",
-        }
-    }
 }
 
 /// Generic list picker keybindings shared across popup list views.
@@ -346,7 +317,6 @@ pub(crate) struct ListKeymap {
     pub(crate) jump_bottom: Vec<KeyBinding>,
     pub(crate) accept: Vec<KeyBinding>,
     pub(crate) cancel: Vec<KeyBinding>,
-    chord_hints: Arc<RuntimeChordKeymap>,
 }
 
 impl ListKeymap {
@@ -381,12 +351,6 @@ impl ListKeymap {
         .into_iter()
         .find(|action| self.bindings_for(*action).is_pressed(event))
     }
-
-    pub(crate) fn primary_hint(&self, action: ListAction) -> Option<ShortcutHint> {
-        let action_id = keymap_action_id(KeymapContext::List.config_name(), action.config_name())?;
-        self.chord_hints
-            .primary_hint(action_id, self.bindings_for(action))
-    }
 }
 
 /// Task-management shortcuts specific to the shared agents dashboard.
@@ -398,18 +362,6 @@ pub(crate) struct AgentsKeymap {
     pub(crate) rename: Vec<KeyBinding>,
     pub(crate) stop: Vec<KeyBinding>,
     pub(crate) toggle_grouping: Vec<KeyBinding>,
-    chord_hints: Arc<RuntimeChordKeymap>,
-}
-
-impl AgentsKeymap {
-    pub(crate) fn primary_hint(
-        &self,
-        action: &'static str,
-        bindings: &[KeyBinding],
-    ) -> Option<ShortcutHint> {
-        let action_id = keymap_action_id(KeymapContext::Agents.config_name(), action)?;
-        self.chord_hints.primary_hint(action_id, bindings)
-    }
 }
 
 /// Approval modal keybindings.
@@ -426,38 +378,6 @@ pub(crate) struct ApprovalKeymap {
     pub(crate) deny: Vec<KeyBinding>,
     pub(crate) decline: Vec<KeyBinding>,
     pub(crate) cancel: Vec<KeyBinding>,
-    chord_hints: Arc<RuntimeChordKeymap>,
-}
-
-impl ApprovalKeymap {
-    pub(crate) fn primary_hint(
-        &self,
-        action: &'static str,
-        bindings: &[KeyBinding],
-    ) -> Option<ShortcutHint> {
-        let action = keymap_action_id(KeymapContext::Approval.config_name(), action)?;
-        self.chord_hints.primary_hint(action, bindings)
-    }
-
-    pub(crate) fn hint_for_bindings(&self, bindings: &[KeyBinding]) -> Option<ShortcutHint> {
-        [
-            ("open_fullscreen", self.open_fullscreen.as_slice()),
-            ("open_thread", self.open_thread.as_slice()),
-            ("approve", self.approve.as_slice()),
-            ("approve_for_session", self.approve_for_session.as_slice()),
-            ("approve_for_prefix", self.approve_for_prefix.as_slice()),
-            ("deny", self.deny.as_slice()),
-            ("decline", self.decline.as_slice()),
-            ("cancel", self.cancel.as_slice()),
-        ]
-        .into_iter()
-        .find_map(|(action, configured)| {
-            (!bindings.is_empty() && bindings.iter().all(|binding| configured.contains(binding)))
-                .then(|| self.primary_hint(action, configured))
-                .flatten()
-        })
-        .or_else(|| primary_binding(bindings).map(ShortcutHint::from))
-    }
 }
 
 /// Returns the first binding, used as the primary UI hint for an action.

@@ -64,10 +64,6 @@ impl ShortcutHint {
             }
         }
     }
-
-    pub(crate) fn is_press(self, event: KeyEvent) -> bool {
-        matches!(self, Self::Single(binding) if binding.is_press(event))
-    }
 }
 
 impl From<KeyBinding> for ShortcutHint {
@@ -78,11 +74,6 @@ impl From<KeyBinding> for ShortcutHint {
 
 impl KeyBinding {
     pub(crate) const fn new(key: KeyCode, modifiers: KeyModifiers) -> Self {
-        Self { key, modifiers }
-    }
-
-    pub(crate) fn from_event(event: KeyEvent) -> Self {
-        let (key, modifiers) = normalize_key_parts(event.code, event.modifiers);
         Self { key, modifiers }
     }
 

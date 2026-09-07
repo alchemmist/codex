@@ -48,23 +48,11 @@ impl TextArea {
         self.vim_enabled && self.vim_mode == VimMode::Normal && self.vim_visual.is_none()
     }
 
-    pub(crate) fn is_vim_visual_mode(&self) -> bool {
-        self.vim_enabled && self.vim_visual.is_some()
-    }
-
     pub(crate) fn take_system_clipboard_yank(&mut self) -> Option<String> {
         self.pending_system_clipboard_yank.take()
     }
 
     /// Return the cursor position that represents the last editable item in Vim normal mode.
-    pub(crate) fn vim_normal_end_cursor(&self) -> usize {
-        if self.text.is_empty() {
-            0
-        } else {
-            self.prev_atomic_boundary(self.text.len())
-        }
-    }
-
     /// Return whether a Vim operator is waiting for a motion.
     ///
     /// This is observable so the composer can avoid stealing the second key of
@@ -134,10 +122,6 @@ impl TextArea {
     }
 
     /// Return whether rendering should use the insert-mode cursor style.
-    pub(crate) fn uses_vim_insert_cursor(&self) -> bool {
-        self.vim_enabled && self.vim_mode == VimMode::Insert
-    }
-
     /// Return whether Escape should be intercepted before composer-level routing.
     ///
     /// In Vim insert mode or while a command is pending, Escape is an editing

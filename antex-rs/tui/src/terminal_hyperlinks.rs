@@ -28,10 +28,7 @@ use url::Url;
 
 use crate::line_truncation::line_width;
 use crate::render::line_utils::line_to_borrowed;
-use crate::render::line_utils::line_to_static;
 use crate::width::display_width;
-use crate::wrapping::RtOptions;
-use crate::wrapping::adaptive_wrap_line;
 
 // Destinations are repeated in every linked buffer cell. Leave oversized URLs as plain text.
 const MAX_HYPERLINK_DESTINATION_BYTES: usize = 8 * 1024;
@@ -149,61 +146,6 @@ pub(crate) fn visible_lines_ref(lines: &[HyperlinkLine]) -> Vec<Line<'_>> {
 
 pub(crate) fn plain_hyperlink_lines(lines: Vec<Line<'static>>) -> Vec<HyperlinkLine> {
     lines.into_iter().map(HyperlinkLine::new).collect()
-}
-
-pub(crate) fn prefix_hyperlink_lines(
-    lines: Vec<HyperlinkLine>,
-    initial_prefix: Span<'static>,
-    subsequent_prefix: Span<'static>,
-) -> Vec<HyperlinkLine> {
-    lines
-        .into_iter()
-        .enumerate()
-        .map(|(index, mut line)| {
-            let prefix = if index == 0 {
-                initial_prefix.clone()
-            } else {
-                subsequent_prefix.clone()
-            };
-            let shift = display_width(prefix.content.as_ref());
-            let mut spans = Vec::with_capacity(line.line.spans.len() + 1);
-            spans.push(prefix);
-            spans.extend(line.line.spans);
-            line.line = Line::from(spans).style(line.line.style);
-            for hyperlink in &mut line.hyperlinks {
-                hyperlink.columns = hyperlink.columns.start + shift..hyperlink.columns.end + shift;
-            }
-            line
-        })
-        .collect()
-}
-
-pub(crate) fn adaptive_wrap_hyperlink_lines(
-    lines: &[HyperlinkLine],
-    options: RtOptions<'static>,
-) -> Vec<HyperlinkLine> {
-    let mut out = Vec::new();
-    for (index, line) in lines.iter().enumerate() {
-        let options = if index == 0 {
-            options.clone()
-        } else {
-            options
-                .clone()
-                .initial_indent(options.subsequent_indent.clone())
-        };
-        out.extend(remap_wrapped_line(
-            line,
-            adaptive_wrap_line(&line.line, options)
-                .into_iter()
-                .map(|wrapped| line_to_static(&wrapped))
-                .collect(),
-        ));
-    }
-    out
-}
-
-pub(crate) fn annotate_web_urls(lines: Vec<Line<'static>>) -> Vec<HyperlinkLine> {
-    lines.into_iter().map(annotate_web_urls_in_line).collect()
 }
 
 pub(crate) fn annotate_web_urls_in_line(line: Line<'static>) -> HyperlinkLine {

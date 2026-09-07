@@ -169,7 +169,6 @@ impl RuntimeKeymap {
             jump_bottom: resolve_local!(keymap, defaults, pager, jump_bottom),
             close: resolve_local!(keymap, defaults, pager, close),
             close_transcript: resolve_local!(keymap, defaults, pager, close_transcript),
-            chord_hints: Arc::clone(&chords),
         };
 
         let resume_default_is_shadowed = keymap.agents.resume.is_none()
@@ -191,7 +190,6 @@ impl RuntimeKeymap {
             rename: resolve_local!(keymap, defaults, agents, rename),
             stop: resolve_local!(keymap, defaults, agents, stop),
             toggle_grouping: resolve_local!(keymap, defaults, agents, toggle_grouping),
-            chord_hints: Arc::clone(&chords),
         };
 
         let approval = ApprovalKeymap {
@@ -203,7 +201,6 @@ impl RuntimeKeymap {
             deny: resolve_local!(keymap, defaults, approval, deny),
             decline: resolve_local!(keymap, defaults, approval, decline),
             cancel: resolve_local!(keymap, defaults, approval, cancel),
-            chord_hints: Arc::clone(&chords),
         };
 
         let list_move_up = resolve_local!(keymap, defaults, list, move_up);
@@ -317,7 +314,6 @@ impl RuntimeKeymap {
             )?,
             accept: list_accept,
             cancel: list_cancel,
-            chord_hints: Arc::clone(&chords),
         };
 
         for (configured, bindings) in [

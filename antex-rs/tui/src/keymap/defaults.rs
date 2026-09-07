@@ -243,7 +243,6 @@ impl RuntimeKeymap {
                 jump_bottom: default_bindings![plain(KeyCode::End)],
                 close: default_bindings![plain(KeyCode::Char('q')), ctrl(KeyCode::Char('c'))],
                 close_transcript: default_bindings![ctrl(KeyCode::Char('t'))],
-                chord_hints: Arc::default(),
             },
             list: ListKeymap {
                 move_up: default_bindings![
@@ -266,7 +265,6 @@ impl RuntimeKeymap {
                 jump_bottom: default_bindings![plain(KeyCode::End)],
                 accept: default_bindings![plain(KeyCode::Enter)],
                 cancel: default_bindings![plain(KeyCode::Esc)],
-                chord_hints: Arc::default(),
             },
             agents: AgentsKeymap {
                 resume: default_bindings![ctrl(KeyCode::Char('o'))],
@@ -275,7 +273,6 @@ impl RuntimeKeymap {
                 rename: default_bindings![ctrl(KeyCode::Char('r'))],
                 stop: default_bindings![ctrl(KeyCode::Char('x'))],
                 toggle_grouping: default_bindings![ctrl(KeyCode::Char('s'))],
-                chord_hints: Arc::default(),
             },
             approval: ApprovalKeymap {
                 open_fullscreen: default_bindings![
@@ -292,7 +289,6 @@ impl RuntimeKeymap {
                 deny: default_bindings![plain(KeyCode::Char('d'))],
                 decline: default_bindings![plain(KeyCode::Esc), plain(KeyCode::Char('n'))],
                 cancel: default_bindings![plain(KeyCode::Char('c'))],
-                chord_hints: Arc::default(),
             },
         }
     }

@@ -354,13 +354,6 @@ impl<'a> RtOptions<'a> {
         }
     }
 
-    pub fn wrap_algorithm(self, wrap_algorithm: textwrap::WrapAlgorithm) -> RtOptions<'a> {
-        RtOptions {
-            wrap_algorithm,
-            ..self
-        }
-    }
-
     pub fn word_splitter(self, word_splitter: textwrap::WordSplitter) -> RtOptions<'a> {
         RtOptions {
             word_splitter,

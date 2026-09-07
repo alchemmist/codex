@@ -148,7 +148,7 @@ impl TerminalInfo {
         )
     }
 
-    /// Formats the terminal info as a User-Agent token.
+    #[cfg(test)]
     fn user_agent_token(&self) -> String {
         let raw = if let Some(program) = self.term_program.as_ref() {
             match self.version.as_ref().filter(|v| !v.is_empty()) {
@@ -228,11 +228,6 @@ impl Environment for ProcessEnvironment {
             }
         }
     }
-}
-
-/// Returns a sanitized terminal identifier for User-Agent strings.
-pub fn user_agent() -> String {
-    terminal_info().user_agent_token()
 }
 
 /// Returns structured terminal metadata for the current process.
@@ -369,14 +364,12 @@ fn tmux_version_from_env(env: &dyn Environment) -> Option<String> {
     env.var_non_empty("TERM_PROGRAM_VERSION")
 }
 
-/// Sanitizes a terminal token for use in User-Agent headers.
-///
-/// Invalid header characters are replaced with underscores.
+#[cfg(test)]
 fn sanitize_header_value(value: String) -> String {
     value.replace(|c| !is_valid_header_value_char(c), "_")
 }
 
-/// Returns whether a character is allowed in User-Agent header values.
+#[cfg(test)]
 fn is_valid_header_value_char(c: char) -> bool {
     c.is_ascii_alphanumeric() || c == '-' || c == '_' || c == '.' || c == '/'
 }
@@ -407,6 +400,7 @@ fn terminal_name_from_term_program(value: &str) -> Option<TerminalName> {
     }
 }
 
+#[cfg(test)]
 fn format_terminal_version(name: &str, version: &Option<String>) -> String {
     match version.as_ref().filter(|value| !value.is_empty()) {
         Some(version) => format!("{name}/{version}"),

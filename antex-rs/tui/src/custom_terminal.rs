@@ -203,18 +203,6 @@ where
         }
     }
 
-    #[cfg(test)]
-    pub(crate) fn with_screen_size_and_cursor_position_for_test(
-        backend: B,
-        screen_size: Size,
-        cursor_pos: Position,
-    ) -> Self {
-        let mut terminal =
-            Self::with_screen_size_and_cursor_position(backend, screen_size, cursor_pos);
-        terminal.screen_size_override = Some(screen_size);
-        terminal
-    }
-
     /// Get a Frame object which provides a consistent view into the terminal state for rendering.
     pub fn get_frame(&mut self) -> Frame<'_> {
         Frame {
