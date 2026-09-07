@@ -110,7 +110,13 @@ pub(crate) fn messages(messages: &[Message]) -> Result<(), ProviderError> {
                 if output.call_id.is_empty() || output.call_id.len() > 128 {
                     return Err(limit("tool result has an invalid call identifier"));
                 }
-                output.text().len() + output.call_id.len()
+                output.text().len()
+                    + output.call_id.len()
+                    + output
+                        .image()
+                        .map(|image| content_size(std::slice::from_ref(image)))
+                        .transpose()?
+                        .unwrap_or_default()
             }
         };
         if size > MAX_TRANSCRIPT_BYTES {

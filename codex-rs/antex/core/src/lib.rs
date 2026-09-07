@@ -22,9 +22,11 @@ pub use interaction::InteractionAnswer;
 pub use interaction::InteractionPrompt;
 pub use interaction::ToolContext;
 
+pub use context::ContextCheckpoint;
 pub use context::ContextFragment;
 pub use context::ContextKind;
 pub use context::ContextualUserFragment;
+pub use context::PreparedContext;
 pub use context::ToolOutcome;
 pub use context::ToolOutput;
 pub use control::AgentCommand;

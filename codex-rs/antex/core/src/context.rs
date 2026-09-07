@@ -3,6 +3,28 @@ use crate::model::MAX_TEXT_BYTES;
 use crate::model::Message;
 use crate::model::ProviderError;
 
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ContextCheckpoint {
+    pub summary: ContextFragment,
+    pub retained: Vec<usize>,
+    pub tail_start: usize,
+    pub usage: crate::Usage,
+}
+
+pub struct PreparedContext {
+    pub messages: Vec<Message>,
+    pub checkpoint: Option<ContextCheckpoint>,
+}
+
+impl From<Vec<Message>> for PreparedContext {
+    fn from(messages: Vec<Message>) -> Self {
+        Self {
+            messages,
+            checkpoint: None,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ContextKind {
     System,
@@ -60,6 +82,7 @@ pub struct ToolOutput {
     pub call_id: String,
     pub outcome: ToolOutcome,
     text: String,
+    image: Option<crate::Content>,
 }
 
 impl ToolOutput {
@@ -77,11 +100,31 @@ impl ToolOutput {
             call_id,
             outcome,
             text,
+            image: None,
         }
     }
 
     pub fn text(&self) -> &str {
         &self.text
+    }
+}
+
+impl ToolOutput {
+    pub fn with_image(mut self, image: crate::Content) -> Result<Self, ProviderError> {
+        if self.text.len() > 1024
+            || !matches!(&image,crate::Content::Image {media_type,data} if media_type.starts_with("image/") && media_type.len()<=128 && !data.is_empty() && data.len()<=crate::MAX_IMAGE_BYTES)
+        {
+            return Err(ProviderError {
+                kind: ErrorKind::Limit,
+                message: "invalid tool image or oversized caption".into(),
+            });
+        }
+        self.image = Some(image);
+        Ok(self)
+    }
+
+    pub fn image(&self) -> Option<&crate::Content> {
+        self.image.as_ref()
     }
 }
 
