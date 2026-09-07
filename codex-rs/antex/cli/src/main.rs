@@ -188,7 +188,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 .into_iter()
                 .map(|entry| entry.message)
                 .collect::<Vec<_>>();
-            if history.len() <= 8 {
+            if history.len() <= 2 {
                 println!("Session is already small; no compaction needed.");
                 return Ok(());
             }
@@ -335,12 +335,17 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                         let tail = *record_ids
                             .get(checkpoint.tail_start)
                             .ok_or("missing session checkpoint tail")?;
-                        if session
-                            .checkpoint(checkpoint.summary, &retained, tail)?
-                            .is_some()
-                        {
+                        let id = session.checkpoint(checkpoint.summary, &retained, tail)?;
+                        if id.is_some() {
                             eprintln!("antex: context compacted");
                         }
+                        let id = id
+                            .or_else(|| record_ids.first().copied())
+                            .ok_or("missing checkpoint record")?;
+                        record_ids = std::iter::once(id)
+                            .chain(retained)
+                            .chain(record_ids[checkpoint.tail_start..].iter().copied())
+                            .collect();
                     }
                     AgentEvent::TextDelta(text) => {
                         print!("{text}");

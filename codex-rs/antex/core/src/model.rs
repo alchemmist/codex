@@ -13,6 +13,7 @@ pub const MAX_SCHEMA_BYTES: usize = 8_000;
 pub const MAX_IMAGE_BYTES: usize = 4 * 1024 * 1024;
 pub const MAX_STATE_BYTES: usize = 256 * 1024;
 pub const MAX_TRANSCRIPT_BYTES: usize = 16 * 1024 * 1024;
+pub const MAX_HISTORY_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_TOOLS: usize = 64;
 
 #[derive(Clone, Debug, PartialEq, Eq)]

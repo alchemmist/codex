@@ -234,3 +234,96 @@ async fn interrupt_cancels_an_inflight_summary_request() {
     assert_eq!(completed, Some(FinishReason::Interrupted));
     assert!(provider.dropped.load(Ordering::SeqCst));
 }
+
+#[tokio::test]
+async fn image_heavy_history_is_compacted_before_the_model_request_limit() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    std::fs::create_dir(workspace.path().join(".git")).unwrap();
+    let image = Content::Image {
+        media_type: "image/png".into(),
+        data: vec![0; 3 * 1024 * 1024].into(),
+    };
+    let previous = UserInput {
+        content: vec![
+            Content::Text("earlier".into()),
+            image.clone(),
+            image.clone(),
+            image.clone(),
+        ],
+        tool_scope: ToolScope::Default,
+    };
+    let latest = UserInput {
+        content: vec![
+            Content::Text("latest".into()),
+            image.clone(),
+            image.clone(),
+            image,
+        ],
+        tool_scope: ToolScope::Default,
+    };
+    let history = vec![
+        Message::User(previous),
+        Message::Assistant {
+            content: vec![Content::Text("earlier findings".into())],
+            tool_calls: Vec::new(),
+        },
+    ];
+    let provider = provider(Mode::Summary);
+    let compaction = Compaction::new(
+        provider.clone(),
+        ProjectContext::load(home.path(), workspace.path()).unwrap(),
+        "fake".into(),
+        64_000,
+    );
+    let runtime =
+        Arc::new(LocalRuntime::new(workspace.path(), PermissionProfile::ReadOnly).unwrap());
+    let mut agent = Agent::new(provider.clone(), runtime).with_context_hook(Arc::new(compaction));
+    let store = SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut session = store.create().unwrap();
+    let mut ids = history
+        .iter()
+        .map(|message| session.append(message).unwrap())
+        .collect::<Vec<_>>();
+    let mut run = agent.start(TurnInput {
+        model: "fake".into(),
+        reasoning: None,
+        history,
+        input: latest.clone(),
+    });
+    let mut finished = None;
+    while let Some(event) = run.events.recv().await {
+        match event {
+            AgentEvent::MessageCommitted(message) => ids.push(session.append(&message).unwrap()),
+            AgentEvent::ContextCheckpoint(checkpoint) => {
+                let retained = checkpoint
+                    .retained
+                    .iter()
+                    .map(|index| ids[*index])
+                    .collect::<Vec<_>>();
+                let id = session
+                    .checkpoint(checkpoint.summary, &retained, ids[checkpoint.tail_start])
+                    .unwrap()
+                    .unwrap();
+                ids = std::iter::once(id)
+                    .chain(retained)
+                    .chain(ids[checkpoint.tail_start..].iter().copied())
+                    .collect();
+            }
+            AgentEvent::Finished { reason, .. } => finished = Some(reason),
+            _ => {}
+        }
+    }
+    assert_eq!(finished, Some(FinishReason::Completed));
+    let replay = session.active_path().unwrap();
+    assert_eq!(replay.len(), 3);
+    assert_eq!(replay[1].message, Message::User(latest));
+    assert!(
+        provider
+            .requests
+            .lock()
+            .unwrap()
+            .iter()
+            .all(|request| context_size(&request.messages).unwrap() <= MAX_TRANSCRIPT_BYTES)
+    );
+}

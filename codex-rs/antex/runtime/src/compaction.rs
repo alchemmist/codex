@@ -68,6 +68,9 @@ impl<P: ModelProvider> Compaction<P> {
             start -= 1;
         }
         if start == 0 {
+            start = latest_exchange_start(history);
+        }
+        if start == 0 {
             return Err(failure("not enough completed history to compact safely"));
         }
         let retained = history
@@ -76,7 +79,32 @@ impl<P: ModelProvider> Compaction<P> {
             .filter(|index| *index < start)
             .into_iter()
             .collect::<Vec<_>>();
+        if start <= retained.len() {
+            return Err(failure("not enough completed history to compact safely"));
+        }
+        for message in &mut messages {
+            match message {
+                Message::User(input) => input.content = summary_content(&input.content),
+                Message::Assistant { content, .. } => *content = summary_content(content),
+                Message::Tool(output) if output.image().is_some() => {
+                    *output = antex_core::ToolOutput::new(
+                        output.call_id.clone(),
+                        output.outcome,
+                        format!(
+                            "{}\n[Image omitted from summary input; consult the original attachment for visual details.]",
+                            output.text()
+                        ),
+                    );
+                }
+                Message::Context(_) | Message::Tool(_) => {}
+            }
+        }
         messages.push(Message::User("Summarize this coding session for continuation. Preserve the user's goal, decisions, changed files, important tool outcomes, and unresolved work. Do not execute tools or continue the task. Return only a concise summary under 6000 UTF-8 bytes.".into()));
+        if messages.len() > 4096
+            || antex_core::context_size(&messages)? > antex_core::MAX_TRANSCRIPT_BYTES
+        {
+            return Err(failure("summary input exceeds its context budget"));
+        }
         let request = ModelRequest {
             model: self.model.clone(),
             reasoning: None,
@@ -152,14 +180,31 @@ impl<P: ModelProvider> ContextHook for Compaction<P> {
                 usage: Usage::default(),
                 ..cached.checkpoint.clone()
             });
-            if estimate(&messages) > self.token_limit {
-                let next = self.summarize(history, messages).await?;
+            if over_budget(&messages, self.token_limit)? {
+                let mut next = self.summarize(history, messages).await?;
                 messages = self
                     .project
                     .prepare(&project(history, &next))
                     .await?
                     .messages;
-                if estimate(&messages) > self.token_limit {
+                if over_budget(&messages, self.token_limit)? {
+                    let start = latest_exchange_start(history);
+                    if start > next.tail_start {
+                        next.tail_start = start;
+                        next.retained = history
+                            .iter()
+                            .rposition(|message| matches!(message, Message::User(_)))
+                            .filter(|index| *index < start)
+                            .into_iter()
+                            .collect();
+                        messages = self
+                            .project
+                            .prepare(&project(history, &next))
+                            .await?
+                            .messages;
+                    }
+                }
+                if over_budget(&messages, self.token_limit)? {
                     return Err(failure(
                         "recent context and instructions exceed the configured context limit",
                     ));
@@ -191,6 +236,28 @@ fn project(history: &[Message], checkpoint: &ContextCheckpoint) -> Vec<Message> 
         )
         .chain(history[checkpoint.tail_start..].iter().cloned())
         .collect()
+}
+
+fn latest_exchange_start(history: &[Message]) -> usize {
+    let mut start = history.len().saturating_sub(1);
+    while start > 0 && matches!(history[start], Message::Tool(_)) {
+        start -= 1;
+    }
+    start
+}
+
+fn summary_content(content: &[Content]) -> Vec<Content> {
+    content.iter().filter_map(|block|match block {
+        Content::Image {..}=>Some(Content::Text("[Image omitted from summary input; consult the original attachment for visual details.]".into())),
+        Content::Continuation {..}=>None,
+        Content::Text(_) | Content::Reasoning(_)=>Some(block.clone()),
+    }).collect()
+}
+
+fn over_budget(messages: &[Message], token_limit: usize) -> Result<bool, ProviderError> {
+    Ok(messages.len() > 4096
+        || estimate(messages) > token_limit
+        || antex_core::context_size(messages)? > antex_core::MAX_TRANSCRIPT_BYTES)
 }
 
 fn digest(messages: &[Message]) -> [u8; 32] {

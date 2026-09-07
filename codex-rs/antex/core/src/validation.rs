@@ -81,9 +81,23 @@ pub(crate) fn messages(messages: &[Message]) -> Result<(), ProviderError> {
     if messages.len() > 4096 {
         return Err(limit("too many messages in the active transcript"));
     }
+    if context_size(messages)? > MAX_TRANSCRIPT_BYTES {
+        return Err(limit("active transcript exceeds its byte budget"));
+    }
+    Ok(())
+}
+
+pub(crate) fn history(messages: &[Message]) -> Result<(), ProviderError> {
+    context_size(messages).map(|_| ())
+}
+
+pub fn context_size(messages: &[Message]) -> Result<usize, ProviderError> {
+    if messages.len() > 16_384 {
+        return Err(limit("too many messages in the working history"));
+    }
     let mut size = 0;
     for message in messages {
-        size += match message {
+        let bytes = match message {
             Message::Context(fragment) => fragment.text().len(),
             Message::User(input) => user(input)?,
             Message::Assistant {
@@ -119,9 +133,13 @@ pub(crate) fn messages(messages: &[Message]) -> Result<(), ProviderError> {
                         .unwrap_or_default()
             }
         };
-        if size > MAX_TRANSCRIPT_BYTES {
-            return Err(limit("active transcript exceeds its byte budget"));
+        if bytes > MAX_TRANSCRIPT_BYTES {
+            return Err(limit("message exceeds its byte budget"));
+        }
+        size += bytes;
+        if size > crate::MAX_HISTORY_BYTES {
+            return Err(limit("working history exceeds its byte budget"));
         }
     }
-    Ok(())
+    Ok(size)
 }

@@ -75,7 +75,7 @@ async fn drive<P: ModelProvider>(
     let mut history = input.history;
     let mut scope = input.input.tool_scope.clone();
     history.push(Message::User(input.input));
-    validation::messages(&history)?;
+    validation::history(&history)?;
     emit(
         events,
         cancel,
@@ -86,7 +86,7 @@ async fn drive<P: ModelProvider>(
         for input in commands.take_steers() {
             let message = Message::User(input);
             history.push(message.clone());
-            validation::messages(&history)?;
+            validation::history(&history)?;
             emit(events, cancel, AgentEvent::MessageCommitted(message)).await?;
         }
         let toolset = ToolSet::new(tools.definitions(&scope))?;
@@ -100,6 +100,7 @@ async fn drive<P: ModelProvider>(
         } else {
             history.clone().into()
         };
+        validation::messages(&prepared.messages)?;
         if let Some(checkpoint) = prepared.checkpoint {
             if checkpoint.summary.kind() != crate::ContextKind::Summary
                 || checkpoint.retained.len() > 8
@@ -115,6 +116,21 @@ async fn drive<P: ModelProvider>(
             {
                 return Err(error(ErrorKind::Protocol, "invalid context checkpoint"));
             }
+            let projected = std::iter::once(Message::Context(checkpoint.summary.clone()))
+                .chain(
+                    checkpoint
+                        .retained
+                        .iter()
+                        .map(|index| history[*index].clone()),
+                )
+                .chain(history[checkpoint.tail_start..].iter().cloned())
+                .collect::<Vec<_>>();
+            if !prepared.messages.ends_with(&projected) {
+                return Err(error(
+                    ErrorKind::Protocol,
+                    "context checkpoint does not match the prepared history",
+                ));
+            }
             if checkpoint
                 .retained
                 .iter()
@@ -126,13 +142,35 @@ async fn drive<P: ModelProvider>(
                     "checkpoint splits a tool exchange or retains an invalid request",
                 ));
             }
+            if history
+                .iter()
+                .rposition(|message| matches!(message, Message::User(_)))
+                .is_some_and(|index| {
+                    index < checkpoint.tail_start && !checkpoint.retained.contains(&index)
+                })
+            {
+                return Err(error(
+                    ErrorKind::Protocol,
+                    "checkpoint discarded the latest user request",
+                ));
+            }
             if checkpoint.usage != Usage::default() {
                 emit(events, cancel, AgentEvent::Usage(checkpoint.usage)).await?;
             }
-            emit(events, cancel, AgentEvent::ContextCheckpoint(checkpoint)).await?;
+            emit(
+                events,
+                cancel,
+                AgentEvent::ContextCheckpoint(checkpoint.clone()),
+            )
+            .await?;
+            history = projected;
+        } else if !prepared.messages.ends_with(&history) {
+            return Err(error(
+                ErrorKind::Protocol,
+                "context hook changed history without a checkpoint",
+            ));
         }
         let messages = prepared.messages;
-        validation::messages(&messages)?;
         let request = ModelRequest {
             model: input.model.clone(),
             reasoning: input.reasoning.clone(),
@@ -163,7 +201,7 @@ async fn drive<P: ModelProvider>(
             tool_calls: response.calls.clone(),
         };
         history.push(message.clone());
-        validation::messages(&history)?;
+        validation::history(&history)?;
         events
             .send(AgentEvent::MessageCommitted(message))
             .await
@@ -225,7 +263,7 @@ async fn drive<P: ModelProvider>(
                 .await
                 .map_err(|_| error(ErrorKind::Cancelled, "event receiver closed"))?;
         }
-        validation::messages(&history)?;
+        validation::history(&history)?;
         if cancel.is_cancelled() {
             return Err(error(ErrorKind::Cancelled, "run interrupted"));
         }

@@ -60,3 +60,35 @@ async fn cancellation_at_completion_does_not_drop_already_streamed_assistant_tex
         })
     );
 }
+
+struct RewritingContext;
+
+impl ContextHook for RewritingContext {
+    fn prepare<'a>(
+        &'a self,
+        _history: &'a [Message],
+    ) -> futures::future::BoxFuture<'a, Result<PreparedContext, ProviderError>> {
+        Box::pin(async { Ok(vec![Message::User("replacement".into())].into()) })
+    }
+}
+
+#[tokio::test]
+async fn context_hooks_cannot_rewrite_history_without_an_explicit_checkpoint() {
+    let provider = super::provider(Vec::new());
+    let mut agent = Agent::new(provider.clone(), Arc::new(Tools::default()))
+        .with_context_hook(Arc::new(RewritingContext));
+    let events = drain(agent.start(input())).await;
+    assert!(provider.requests.lock().unwrap().is_empty());
+    assert!(
+        events.iter().any(
+            |event| matches!(event,AgentEvent::Error(error) if error.kind==ErrorKind::Protocol)
+        )
+    );
+    assert_eq!(
+        events.last(),
+        Some(&AgentEvent::Finished {
+            reason: FinishReason::Failed,
+            pending: Vec::new()
+        })
+    );
+}

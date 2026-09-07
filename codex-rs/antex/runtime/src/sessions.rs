@@ -307,7 +307,7 @@ impl Session {
                 Kind::Session | Kind::ToolCall | Kind::Branch | Kind::Extension => continue,
             }
             bytes += length;
-            if bytes > antex_core::MAX_TRANSCRIPT_BYTES {
+            if bytes > antex_core::MAX_HISTORY_BYTES {
                 return Err(io::Error::other("active session exceeds its replay budget"));
             }
             messages.push(SessionMessage {
