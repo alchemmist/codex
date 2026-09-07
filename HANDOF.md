@@ -34,9 +34,7 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 
 - The promoted Linux workspace passed 909 tests with one existing skip in 5.032s
   on deimos.
-- Scoped and workspace Clippy run on deimos. Retained TUI presentation code still
-  has dead-code and three disallowed-yellow warnings that must be removed before
-  the release workflow's `-D warnings` gate.
+- Workspace release Clippy passes with `-D warnings` on deimos.
 - Runtime and extension-host cross-check for `aarch64-apple-darwin` passes on
   deimos. Full CLI cross-build needs an Apple SDK for `ring`; real macOS build and
   execution remain release gates.
@@ -54,12 +52,11 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 
 - Complete live ChatGPT subscription login, model turn and tool-cycle acceptance.
 - Add streamable HTTP/OAuth MCP support.
-- Implement the required first-party tmux-log, explicit-agents and workflows
-  extensions plus diagnostic/export packages.
-- Execute extension command actions and persist/reload extension state through
-  the host seam. Bounded `toolStarted`, `toolCompleted`, and `turnComplete`
-  lifecycle events are now delivered to subscribed extensions; delivery
-  failures remain isolated.
+- Implement the required explicit-agents and workflows extensions plus
+  diagnostic/export packages.
+- Execute shell, agent, and inspection command actions. `TerminalLog` lifecycle
+  actions are connected, and extension state persists in the active session
+  branch and reloads after process restart.
 - Remove any newly exposed dead presentation paths as the remaining extensions are migrated.
 - Finish Antex installer/release tests and quantitative binary/startup/RSS gates.
 - Rename the GitHub repository and origin only at final cutover.
@@ -71,6 +68,11 @@ passed 55 tests on deimos. Rich legacy stash state is reported and skipped.
 The module-size inventory reports no production module over 800 lines. The full
 TUI suite passes 782 tests with one existing skip, and workspace release Clippy
 passes with `-D warnings` on deimos.
+
+`antex-ext-tmux-log` toggles with `/tmux-command-log`, mirrors bounded shell
+commands and final output into a private tmux window, persists its enabled state,
+and is installed explicitly from the single Antex binary. Its absence or failure
+does not affect the base agent loop.
 
 ## Validation on deimos
 

@@ -17,11 +17,16 @@ Antex currently provides:
 - an inline terminal UI with Markdown, diffs, images, themes, Vim editing and
   persistent prompt stash;
 - capability-sandboxed out-of-process extensions and a stdio MCP bridge;
+- an optional tmux command-log extension installed explicitly with
+  `antex extensions install tmux-log`;
 - explicit, non-destructive `antex migrate codex` support for compatible data.
 
 The first public release will be `0.0.1`. Until its release gates pass, the
 maintainer's installed Codex `0.0.14` remains the fallback and uses a separate
 `~/.codex` home. Antex uses `~/.antex` and never imports legacy data implicitly.
+The release artifact contains one self-contained `antex` executable. Optional
+extensions are materialized from it only when explicitly installed and are not
+required for the TUI or base agent loop.
 
 ## Development
 
