@@ -1,0 +1,10 @@
+---
+source: tui/src/picker_tests.rs
+assertion_line: 15
+expression: visible
+---
+Models · j
+› juniper
+
+
+/model juniper · Enter select · Esc cancel
