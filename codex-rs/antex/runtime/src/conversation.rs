@@ -38,6 +38,14 @@ impl Conversation {
         self.session.pending_commands()
     }
 
+    pub fn load_ui_state(&mut self, name: &str) -> io::Result<Option<serde_json::Value>> {
+        self.session.load_ui_state(name)
+    }
+
+    pub fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> io::Result<()> {
+        self.session.save_ui_state(name, value)
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
         self.session.branch(parent)?;
         self.entries = self.session.active_path()?;

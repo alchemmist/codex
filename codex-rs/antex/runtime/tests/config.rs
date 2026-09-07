@@ -15,12 +15,29 @@ fn config_loads_supported_fields_and_reports_unknown_names_without_values() {
             permissions: PermissionProfile::ReadOnly,
             shell_timeout_seconds: 600,
             context_token_limit: 64_000,
+            tui: serde_json::json!({}),
         }
     );
     assert_eq!(
         loaded.warnings,
         vec!["unsupported configuration key: unknown"]
     );
+}
+
+#[test]
+fn presentation_settings_remain_opaque_to_the_runtime() {
+    let home = tempfile::tempdir().unwrap();
+    std::fs::write(
+        home.path().join("config.toml"),
+        "[tui]\nvim_mode_default = true\n[tui.startup_panel]\nmascot_skin = 'ant-01'\n",
+    )
+    .unwrap();
+    let loaded = Config::load(home.path()).unwrap();
+    assert_eq!(
+        loaded.config.tui,
+        serde_json::json!({"vim_mode_default":true,"startup_panel":{"mascot_skin":"ant-01"}})
+    );
+    assert!(loaded.warnings.is_empty());
 }
 
 #[test]

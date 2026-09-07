@@ -118,3 +118,23 @@ fn interrupted_pending_inputs_survive_resume_without_replaying_consumed_inputs()
         .unwrap();
     assert_eq!(recovered.pending_commands().unwrap(), pending[1..]);
 }
+
+#[test]
+fn ui_state_survives_resume_and_never_enters_model_history() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = crate::SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut conversation = Conversation::new(store.create().unwrap()).unwrap();
+    let id = conversation.id();
+    let value = serde_json::json!({"text":"private unsent draft","elements":[]});
+    conversation.save_ui_state("promptStash", &value).unwrap();
+    assert!(conversation.messages().is_empty());
+    drop(conversation);
+    let mut resumed = Conversation::new(store.open(id).unwrap()).unwrap();
+    assert_eq!(resumed.load_ui_state("promptStash").unwrap(), Some(value));
+    assert!(resumed.messages().is_empty());
+    resumed
+        .save_ui_state("promptStash", &serde_json::Value::Null)
+        .unwrap();
+    assert_eq!(resumed.load_ui_state("promptStash").unwrap(), None);
+}

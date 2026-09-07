@@ -14,6 +14,7 @@ pub struct Config {
     pub permissions: PermissionProfile,
     pub shell_timeout_seconds: u64,
     pub context_token_limit: usize,
+    pub tui: serde_json::Value,
 }
 
 impl Default for Config {
@@ -24,6 +25,7 @@ impl Default for Config {
             permissions: PermissionProfile::Workspace,
             shell_timeout_seconds: 120,
             context_token_limit: 64_000,
+            tui: serde_json::json!({}),
         }
     }
 }
@@ -81,6 +83,7 @@ impl Config {
             "permissions",
             "shell_timeout_seconds",
             "context_token_limit",
+            "tui",
         ];
         let warnings = table
             .keys()
