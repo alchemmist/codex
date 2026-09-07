@@ -209,3 +209,61 @@ fn interrupted_tools_are_closed_without_reexecuting_or_rewriting_them() {
     assert!(std::fs::read(&path).unwrap().starts_with(&original));
     assert_eq!(session.active_path().unwrap().last().unwrap().message,Message::Tool(ToolOutput::new("pending".into(),ToolOutcome::Cancelled,"tool outcome was not recorded before interruption; inspect the workspace before retrying".into())));
 }
+
+#[test]
+fn newer_checkpoints_replace_only_the_view_and_old_branches_remain_accessible() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut session = store.create().unwrap();
+    let user = session.append(&Message::User("goal".into())).unwrap();
+    let mut ids = Vec::new();
+    for index in 0..10 {
+        ids.push(
+            session
+                .append(&Message::Assistant {
+                    content: vec![Content::Text(format!("step {index}"))],
+                    tool_calls: Vec::new(),
+                })
+                .unwrap(),
+        );
+    }
+    let first =
+        antex_core::ContextFragment::new(antex_core::ContextKind::Summary, "first summary".into())
+            .unwrap();
+    let second =
+        antex_core::ContextFragment::new(antex_core::ContextKind::Summary, "second summary".into())
+            .unwrap();
+    session.checkpoint(first, &[user], ids[6]).unwrap();
+    session.checkpoint(second.clone(), &[user], ids[8]).unwrap();
+    assert_eq!(
+        session
+            .active_path()
+            .unwrap()
+            .into_iter()
+            .map(|entry| entry.message)
+            .collect::<Vec<_>>(),
+        vec![
+            Message::Context(second),
+            Message::User("goal".into()),
+            Message::Assistant {
+                content: vec![Content::Text("step 8".into())],
+                tool_calls: Vec::new()
+            },
+            Message::Assistant {
+                content: vec![Content::Text("step 9".into())],
+                tool_calls: Vec::new()
+            }
+        ]
+    );
+    session.branch(ids[3]).unwrap();
+    let old = session.active_path().unwrap();
+    assert_eq!(old.len(), 5);
+    assert_eq!(
+        old.last().unwrap().message,
+        Message::Assistant {
+            content: vec![Content::Text("step 3".into())],
+            tool_calls: Vec::new()
+        }
+    );
+}

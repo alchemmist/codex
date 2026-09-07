@@ -27,7 +27,9 @@ use uuid::Uuid;
 
 use crate::session_codec;
 
-const MAX_RECORD_BYTES: u64 = 8 * 1024 * 1024;
+mod checkpoint;
+
+const MAX_RECORD_BYTES: u64 = 2 * antex_core::MAX_TRANSCRIPT_BYTES as u64;
 const MAX_RECORDS: usize = 100_000;
 
 pub struct SessionStore {
@@ -44,7 +46,7 @@ pub struct Session {
     poisoned: bool,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SessionMessage {
     pub record_id: Uuid,
     pub message: Message,
@@ -53,9 +55,10 @@ pub struct SessionMessage {
 struct Index {
     parent: Option<Uuid>,
     offset: u64,
+    kind: Kind,
 }
 
-#[derive(Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Copy, Serialize, Deserialize, PartialEq, Eq)]
 #[serde(rename_all = "snake_case")]
 enum Kind {
     Session,
@@ -119,7 +122,7 @@ impl SessionStore {
             records: HashMap::new(),
             poisoned: false,
         };
-        session.append_record(Kind::Session,json!({"workspace":self.workspace.to_string_lossy(),"workspace_bytes":self.workspace.as_os_str().as_encoded_bytes()}),None)?;
+        session.append_record(Kind::Session,json!({"workspace":self.workspace.to_string_lossy(),"workspace_bytes":self.workspace.as_os_str().as_encoded_bytes()}),/*parent*/ None)?;
         session.finish_turn()?;
         Ok(session)
     }
@@ -188,6 +191,7 @@ impl SessionStore {
                 Index {
                     parent: record.parent_id,
                     offset,
+                    kind: record.kind,
                 },
             );
         }
@@ -286,29 +290,23 @@ impl Session {
     }
 
     pub fn active_path(&mut self) -> io::Result<Vec<SessionMessage>> {
-        let mut ids = Vec::new();
-        let mut next = Some(self.head);
-        while let Some(id) = next {
-            ids.push(id);
-            next = self
-                .records
-                .get(&id)
-                .ok_or_else(|| io::Error::other("missing session parent"))?
-                .parent;
-        }
+        let ids = self.selected_records()?;
         let mut messages = Vec::new();
         let mut bytes = 0;
-        for id in ids.into_iter().rev() {
-            self.file.seek(SeekFrom::Start(self.records[&id].offset))?;
-            let line = read_line(&mut BufReader::new(&mut self.file))?;
-            let record: Record = serde_json::from_slice(&line)
-                .map_err(|_| io::Error::other("invalid session record"))?;
+        for (position, id) in ids.into_iter().enumerate() {
+            let (mut record, length) = self.read_record(id)?;
+            if record.kind == Kind::Summary && record.payload["type"] == "checkpoint" {
+                if position != 0 {
+                    continue;
+                }
+                record.payload = record.payload["summary"].take();
+            }
             match record.kind {
                 Kind::User | Kind::Assistant | Kind::ToolResult | Kind::Summary => {}
                 Kind::Extension if record.payload["type"] == "context" => {}
                 Kind::Session | Kind::ToolCall | Kind::Branch | Kind::Extension => continue,
             }
-            bytes += line.len();
+            bytes += length;
             if bytes > antex_core::MAX_TRANSCRIPT_BYTES {
                 return Err(io::Error::other("active session exceeds its replay budget"));
             }
@@ -318,6 +316,22 @@ impl Session {
             });
         }
         Ok(messages)
+    }
+
+    fn read_record(&mut self, id: Uuid) -> io::Result<(Record, usize)> {
+        let offset = self
+            .records
+            .get(&id)
+            .ok_or_else(|| io::Error::other("missing session record"))?
+            .offset;
+        self.file.seek(SeekFrom::Start(offset))?;
+        let line = read_line(&mut BufReader::new(&mut self.file))?;
+        let record: Record = serde_json::from_slice(&line)
+            .map_err(|_| io::Error::other("invalid session record"))?;
+        if record.id != id || record.session_id != self.id || record.schema_version != 1 {
+            return Err(io::Error::other("session record changed unexpectedly"));
+        }
+        Ok((record, line.len()))
     }
 
     pub fn finish_turn(&self) -> io::Result<()> {
@@ -382,7 +396,14 @@ impl Session {
             self.poisoned = true;
             return Err(error);
         }
-        self.records.insert(id, Index { parent, offset });
+        self.records.insert(
+            id,
+            Index {
+                parent,
+                offset,
+                kind,
+            },
+        );
         self.head = id;
         Ok(id)
     }
