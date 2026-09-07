@@ -80,3 +80,41 @@ fn invalid_checkpoint_cannot_advance_the_session() {
     );
     assert_eq!(conversation.entries(), before);
 }
+
+#[test]
+fn interrupted_pending_inputs_survive_resume_without_replaying_consumed_inputs() {
+    use antex_core::AgentCommand;
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = crate::SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut conversation = Conversation::new(store.create().unwrap()).unwrap();
+    let id = conversation.id();
+    let pending = vec![
+        AgentCommand::Steer("first".into()),
+        AgentCommand::FollowUp("second".into()),
+    ];
+    conversation
+        .record(&AgentEvent::Finished {
+            reason: FinishReason::Interrupted,
+            pending: pending.clone(),
+        })
+        .unwrap();
+    assert_eq!(conversation.pending_commands().unwrap(), pending);
+    assert!(conversation.messages().is_empty());
+    drop(conversation);
+    let mut resumed = Conversation::new(store.open(id).unwrap()).unwrap();
+    assert_eq!(resumed.pending_commands().unwrap(), pending);
+    resumed
+        .record(&AgentEvent::MessageCommitted(Message::User("first".into())))
+        .unwrap();
+    drop(resumed);
+    let mut recovered = Conversation::new(store.open(id).unwrap()).unwrap();
+    assert_eq!(recovered.pending_commands().unwrap(), pending[1..]);
+    recovered
+        .record(&AgentEvent::Finished {
+            reason: FinishReason::Completed,
+            pending: Vec::new(),
+        })
+        .unwrap();
+    assert_eq!(recovered.pending_commands().unwrap(), pending[1..]);
+}

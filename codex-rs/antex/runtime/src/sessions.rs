@@ -28,6 +28,7 @@ use uuid::Uuid;
 use crate::session_codec;
 
 mod checkpoint;
+mod pending;
 
 const MAX_RECORD_BYTES: u64 = 2 * antex_core::MAX_TRANSCRIPT_BYTES as u64;
 const MAX_RECORDS: usize = 100_000;
@@ -69,6 +70,7 @@ enum Kind {
     Summary,
     Branch,
     Extension,
+    Pending,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -304,7 +306,9 @@ impl Session {
             match record.kind {
                 Kind::User | Kind::Assistant | Kind::ToolResult | Kind::Summary => {}
                 Kind::Extension if record.payload["type"] == "context" => {}
-                Kind::Session | Kind::ToolCall | Kind::Branch | Kind::Extension => continue,
+                Kind::Session | Kind::ToolCall | Kind::Branch | Kind::Extension | Kind::Pending => {
+                    continue;
+                }
             }
             bytes += length;
             if bytes > antex_core::MAX_HISTORY_BYTES {

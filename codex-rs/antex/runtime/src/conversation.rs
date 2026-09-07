@@ -34,6 +34,10 @@ impl Conversation {
             .collect()
     }
 
+    pub fn pending_commands(&mut self) -> io::Result<Vec<antex_core::AgentCommand>> {
+        self.session.pending_commands()
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
         self.session.branch(parent)?;
         self.entries = self.session.active_path()?;
@@ -69,7 +73,11 @@ impl Conversation {
                     .checkpoint(checkpoint.summary.clone(), &retained, tail)?;
                 self.entries = self.session.active_path()?;
             }
-            AgentEvent::Finished { .. } => self.session.finish_turn()?,
+            AgentEvent::Finished { pending, .. } => {
+                let mut retained = self.session.pending_commands()?;
+                retained.extend(pending.iter().cloned());
+                self.session.save_pending_commands(&retained)?;
+            }
             AgentEvent::Interaction { .. }
             | AgentEvent::ToolProgress { .. }
             | AgentEvent::Quota(_)
