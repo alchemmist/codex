@@ -19,6 +19,8 @@ Antex currently provides:
 - capability-sandboxed out-of-process extensions and a stdio MCP bridge;
 - an optional tmux command-log extension installed explicitly with
   `antex extensions install tmux-log`;
+- restartable project Python workflows installed with
+  `antex extensions install workflows`;
 - explicit, non-destructive `antex migrate codex` support for compatible data.
 
 The first public release will be `0.0.1`. Until its release gates pass, the
