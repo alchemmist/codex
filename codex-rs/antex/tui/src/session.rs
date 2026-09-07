@@ -17,6 +17,7 @@ pub enum CommandEffect {
     Reset(Vec<Message>),
     Image(antex_core::Content),
     Picker(crate::PickerSpec),
+    Page(crate::TextPage),
 }
 
 /// Composes runtime persistence and agent runs without exposing provider or filesystem internals to the terminal.
@@ -24,6 +25,7 @@ pub trait Session: Send {
     fn view(&self) -> SessionView;
     fn history(&self) -> Vec<Message>;
     fn pending_commands(&mut self) -> Result<Vec<antex_core::AgentCommand>, String>;
+    fn queue_command(&mut self, command: &antex_core::AgentCommand) -> Result<(), String>;
     fn load_ui_state(&mut self, name: &str) -> Result<Option<serde_json::Value>, String>;
     fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> Result<(), String>;
     fn prepare_image(

@@ -82,6 +82,8 @@ pub(crate) enum SubmitMode {
 pub(crate) enum ComposerAction {
     Submit(SubmitMode),
     Copy,
+    Transcript,
+    Clear,
 }
 
 pub(crate) struct Composer {
@@ -198,6 +200,12 @@ impl Composer {
         }
         if self.keymap.app.copy.is_pressed(event) {
             return Ok(Some(ComposerAction::Copy));
+        }
+        if self.keymap.app.open_transcript.is_pressed(event) {
+            return Ok(Some(ComposerAction::Transcript));
+        }
+        if self.keymap.app.clear_terminal.is_pressed(event) {
+            return Ok(Some(ComposerAction::Clear));
         }
         if self.keymap.composer.submit.is_pressed(event) {
             return Ok(Some(ComposerAction::Submit(SubmitMode::Send)));

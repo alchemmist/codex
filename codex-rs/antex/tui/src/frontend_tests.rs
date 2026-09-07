@@ -41,6 +41,9 @@ struct TestSession<P: ModelProvider + 'static> {
 }
 
 impl<P: ModelProvider + 'static> Session for TestSession<P> {
+    fn queue_command(&mut self, _command: &AgentCommand) -> Result<(), String> {
+        Ok(())
+    }
     async fn prepare_image(&mut self, _source: crate::ImageSource) -> Result<Content, String> {
         Err("no image requested".into())
     }

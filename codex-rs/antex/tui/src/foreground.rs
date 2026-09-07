@@ -26,12 +26,19 @@ where
     E: Stream<Item = io::Result<Event>> + Unpin,
 {
     tokio::pin!(future);
-    let mut bytes = 0;
+    let mut bytes: usize = buffered
+        .iter()
+        .map(|event| match event {
+            Ok(Event::Paste(text)) => text.len(),
+            _ => 1,
+        })
+        .sum();
     loop {
         tokio::select! {
             result = &mut future => return result,
             event = input.next() => {
                 let Some(event) = event else { *state = InputState::Closed; return Err("Terminal input closed.".into()); };
+                if let Err(error) = &event { *state = InputState::Closed; return Err(format!("Terminal input failed: {error}")); }
                 if let Ok(Event::Key(key)) = &event
                     && key.kind != KeyEventKind::Release
                     && (key.code == KeyCode::Esc || key.code == KeyCode::Char('c') && key.modifiers.contains(KeyModifiers::CONTROL)) {

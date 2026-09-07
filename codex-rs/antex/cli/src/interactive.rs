@@ -63,6 +63,11 @@ impl InteractiveSession {
 }
 
 impl Session for InteractiveSession {
+    fn queue_command(&mut self, command: &antex_core::AgentCommand) -> Result<(), String> {
+        self.conversation
+            .queue_command(command)
+            .map_err(|error| error.to_string())
+    }
     async fn prepare_image(
         &mut self,
         source: antex_tui::ImageSource,
@@ -189,7 +194,12 @@ impl Session for InteractiveSession {
                 let image = self.prepare_image(antex_tui::ImageSource::File(path)).await?;
                 Ok(CommandEffect::Image(image))
             }
-            "/help" => Ok(CommandEffect::Notice("/model [id], /cd <path>, /sessions, /resume <id>, /fork <record-id>, /compact, /status, /quit".into())),
+            "/help" => Ok(CommandEffect::Page(antex_tui::TextPage { title: "Antex commands".into(), body: "# Conversation\n\n- `/model` — choose a model\n- `/sessions` or `/resume` — choose a session\n- `/fork` — branch from a user message\n- `/cd <path>` — change workspace\n- `/compact` — summarize active context\n- `/transcript` — inspect original messages, tools, and reasoning summaries\n- `/status` — show session identity\n\n# Input and appearance\n\n- Ctrl+S — stash or append the saved draft\n- Ctrl+V or `/image <path>` — attach an image\n- Ctrl+O or `/copy` — copy the last response\n- Ctrl+T — open the transcript\n- Ctrl+L — clear the visible screen\n- `/theme` — choose a syntax theme\n- Enter — send or steer; Tab — queue a follow-up\n- Ctrl+C — interrupt; `/quit` — exit\n".into(), older_command: None })),
+            "/transcript" => {
+                let cursor = if argument.is_empty() { None } else { Some(argument.parse().map_err(|_| "Invalid transcript cursor.")?) };
+                let page = self.conversation.transcript_page(cursor).map_err(|error| error.to_string())?;
+                Ok(CommandEffect::Page(antex_tui::TextPage { title: format!("Transcript · {}", self.conversation.id()), body: page.text, older_command: page.next_cursor.map(|cursor| format!("/transcript {cursor}")) }))
+            }
             "/model" => {
                 let models = self.provider.models().await.map_err(|error| error.to_string())?;
                 if argument.is_empty() {
