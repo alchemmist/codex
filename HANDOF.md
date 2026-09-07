@@ -50,7 +50,9 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 - Implement the required first-party tmux-log, explicit-agents and workflows
   extensions plus diagnostic/export packages.
 - Execute extension command actions and persist/reload extension state through
-  the host seam.
+  the host seam. Bounded `toolStarted`, `toolCompleted`, and `turnComplete`
+  lifecycle events are now delivered to subscribed extensions; delivery
+  failures remain isolated.
 - Remove any newly exposed dead presentation paths as the remaining extensions are migrated.
 - Finish Antex installer/release tests and quantitative binary/startup/RSS gates.
 - Rename the GitHub repository and origin only at final cutover.
