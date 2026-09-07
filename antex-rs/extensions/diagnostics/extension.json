@@ -1,0 +1,5 @@
+{
+  "name": "diagnostics",
+  "program": "antex_ext_diagnostics.py",
+  "capabilities": ["contextRead", "sessionRead", "ui", "workspaceWrite"]
+}

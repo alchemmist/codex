@@ -159,3 +159,38 @@ async fn installed_python_workflow_branches_through_the_in_process_action_loop()
         "check"
     );
 }
+
+#[cfg(unix)]
+#[tokio::test]
+async fn installed_diagnostics_reads_context_and_exports_without_overwriting() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    crate::first_party_extensions::install(home.path(), "diagnostics").unwrap();
+    let provider = OpenAiProvider::new(home.path()).unwrap();
+    let mut session = InteractiveSession::new(
+        home.path().into(),
+        workspace.path().into(),
+        Config::default(),
+        std::env::var_os("ANTEX_BWRAP").map(Into::into),
+        provider,
+    )
+    .unwrap();
+    let CommandEffect::Page(page) = session.command("/system-prompt").await.unwrap() else {
+        panic!("expected system prompt panel");
+    };
+    assert_eq!(page.title, "System prompt");
+    assert!(page.body.starts_with("Antex\nYou are Antex"));
+    session
+        .record(&AgentEvent::MessageCommitted(Message::User(
+            "request".into(),
+        )))
+        .await
+        .unwrap();
+    let CommandEffect::Notice(notice) = session.command("/dump report.md").await.unwrap() else {
+        panic!("expected export notice");
+    };
+    assert_eq!(notice, "Exported transcript to report.md");
+    let path = workspace.path().join("report.md");
+    assert!(std::fs::read_to_string(&path).unwrap().contains("request"));
+    assert!(session.command("/dump report.md").await.is_err());
+}

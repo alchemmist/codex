@@ -5,6 +5,9 @@ use std::path::Path;
 
 const TMUX_LOG_PROGRAM: &[u8] = include_bytes!("../../extensions/tmux-log/antex_ext_tmux_log.py");
 const TMUX_LOG_DEFINITION: &[u8] = include_bytes!("../../extensions/tmux-log/extension.json");
+const DIAGNOSTICS_PROGRAM: &[u8] =
+    include_bytes!("../../extensions/diagnostics/antex_ext_diagnostics.py");
+const DIAGNOSTICS_DEFINITION: &[u8] = include_bytes!("../../extensions/diagnostics/extension.json");
 const WORKFLOWS_PROGRAM: &[u8] =
     include_bytes!("../../extensions/workflows/antex_ext_workflows.py");
 const WORKFLOWS_DEFINITION: &[u8] = include_bytes!("../../extensions/workflows/extension.json");
@@ -17,6 +20,12 @@ struct Extension {
 }
 
 const EXTENSIONS: &[Extension] = &[
+    Extension {
+        name: "diagnostics",
+        program_name: "antex_ext_diagnostics.py",
+        program: DIAGNOSTICS_PROGRAM,
+        definition: DIAGNOSTICS_DEFINITION,
+    },
     Extension {
         name: "tmux-log",
         program_name: "antex_ext_tmux_log.py",

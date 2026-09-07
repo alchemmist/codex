@@ -49,7 +49,8 @@ impl InteractiveSession {
                 return Err("extension command exceeds its 64-action budget".into());
             }
             for result in self.execute_extension_actions(output.actions).await {
-                if let Some(result_text) = result.data["text"].as_str()
+                if self.extensions.is_none()
+                    && let Some(result_text) = result.data["text"].as_str()
                     && !result_text.is_empty()
                 {
                     rendered.push(result_text.to_owned());

@@ -7,7 +7,10 @@ use super::*;
 #[test]
 fn embedded_extension_install_is_bounded_idempotent_and_non_destructive() {
     let home = tempfile::tempdir().unwrap();
-    assert_eq!(names().collect::<Vec<_>>(), vec!["tmux-log", "workflows"]);
+    assert_eq!(
+        names().collect::<Vec<_>>(),
+        vec!["diagnostics", "tmux-log", "workflows"]
+    );
     install(home.path(), "tmux-log").unwrap();
     let directory = home.path().join("extensions/tmux-log");
     assert_eq!(
