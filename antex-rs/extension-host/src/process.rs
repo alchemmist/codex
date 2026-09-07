@@ -87,6 +87,8 @@ pub enum ExtensionError {
     Cancelled,
     #[error("agent actions require an explicit user command")]
     AgentOrigin,
+    #[error("lifecycle events may only publish terminal log actions")]
+    EventOrigin,
     #[error("extension restart limit reached")]
     RestartLimit,
     #[error("extension exited unexpectedly: {stderr}")]
@@ -200,21 +202,27 @@ impl Extension {
         request: ExtensionRequest,
         cancellation: CancellationToken,
     ) -> Result<ExtensionResponse, ExtensionError> {
-        let (method, params, expects_output, user_command) = match request {
-            ExtensionRequest::Tool(call) => {
-                (Method::ToolCall, serde_json::to_value(call), true, false)
-            }
+        let (method, params, expects_output, user_command, lifecycle_event) = match request {
+            ExtensionRequest::Tool(call) => (
+                Method::ToolCall,
+                serde_json::to_value(call),
+                true,
+                false,
+                false,
+            ),
             ExtensionRequest::Command(command) => (
                 Method::CommandRun,
                 serde_json::to_value(command),
                 true,
                 true,
+                false,
             ),
             ExtensionRequest::Event(event) => (
                 Method::EventNotify,
                 serde_json::to_value(event),
+                true,
                 false,
-                false,
+                true,
             ),
         };
         let value = self
@@ -227,8 +235,18 @@ impl Extension {
         if !expects_output {
             return Ok(ExtensionResponse::Notified);
         }
+        if lifecycle_event && value.is_null() {
+            return Ok(ExtensionResponse::Notified);
+        }
         let output: Output = serde_json::from_value(value).map_err(|_| ProtocolError::Encoding)?;
         output.validate(&self.capabilities)?;
+        if lifecycle_event
+            && output.actions.iter().any(|action| {
+                !matches!(action, antex_extension_protocol::Action::TerminalLog { .. })
+            })
+        {
+            return Err(ExtensionError::EventOrigin);
+        }
         if !user_command
             && output
                 .actions
@@ -320,9 +338,11 @@ impl Extension {
 impl ExtensionError {
     pub(crate) fn is_fatal(&self) -> bool {
         match self {
-            Self::Start(_) | Self::MissingLauncher | Self::AgentOrigin | Self::RestartLimit => {
-                false
-            }
+            Self::Start(_)
+            | Self::MissingLauncher
+            | Self::AgentOrigin
+            | Self::EventOrigin
+            | Self::RestartLimit => false,
             Self::Protocol(ProtocolError::Remote { .. }) => false,
             Self::Transport(_)
             | Self::Protocol(_)

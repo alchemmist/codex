@@ -5,6 +5,7 @@ use std::sync::Arc;
 use antex_extension_host::ExtensionLaunch;
 use antex_extension_host::ExtensionLauncher;
 use antex_extension_host::ExtensionRegistry;
+use antex_extension_host::ExtensionRegistryConfig;
 use antex_extension_protocol::Event;
 use antex_runtime::LocalRuntime;
 use antex_runtime::PermissionProfile;
@@ -48,15 +49,17 @@ async fn registry_delivers_only_subscribed_events_and_isolates_failures() {
     )
     .unwrap();
     let runtime = Arc::new(LocalRuntime::new(workspace.path(), PermissionProfile::Full).unwrap());
-    let loaded = ExtensionRegistry::load(
-        home.path(),
-        workspace.path(),
-        /*project_trusted*/ false,
-        runtime,
-        "0.0.0",
-        "session-1",
-        Arc::new(DirectLauncher),
-    )
+    let states = std::collections::HashMap::from([("fixture".into(), json!({"enabled":true}))]);
+    let loaded = ExtensionRegistry::load(ExtensionRegistryConfig {
+        home: home.path(),
+        workspace: workspace.path(),
+        project_trusted: false,
+        fallback: runtime,
+        antex_version: "0.0.0",
+        session_id: "session-1",
+        launcher: Arc::new(DirectLauncher),
+        states: &states,
+    })
     .await
     .unwrap();
     assert!(loaded.failures.is_empty());
@@ -68,8 +71,17 @@ async fn registry_delivers_only_subscribed_events_and_isolates_failures() {
                 data: json!({"fail":true}),
             })
             .await
+            .failures
             .is_empty()
     );
+    let restored = loaded
+        .registry
+        .notify(Event {
+            name: "turnComplete".into(),
+            data: json!({"state":true}),
+        })
+        .await;
+    assert_eq!(restored.outputs[0].output.text, "{\"enabled\": true}");
     assert_eq!(
         loaded
             .registry
@@ -78,6 +90,7 @@ async fn registry_delivers_only_subscribed_events_and_isolates_failures() {
                 data: json!({"fail":true}),
             })
             .await
+            .failures
             .len(),
         1
     );
@@ -89,6 +102,7 @@ async fn registry_delivers_only_subscribed_events_and_isolates_failures() {
                 data: json!({}),
             })
             .await
+            .failures
             .is_empty()
     );
 }

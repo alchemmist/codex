@@ -169,6 +169,43 @@ async fn model_tool_cannot_request_an_agent_action() {
 }
 
 #[tokio::test]
+async fn lifecycle_events_allow_only_terminal_log_actions() {
+    let mut config = fixture_config();
+    config
+        .capabilities
+        .extend([Capability::Ui, Capability::Shell, Capability::WorkspaceRead]);
+    let extension = Extension::launch(config).await.unwrap();
+    let response = extension
+        .request(
+            ExtensionRequest::Event(Event {
+                name: "turnComplete".into(),
+                data: json!({"terminalLog":true}),
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    let ExtensionResponse::Output(output) = response else {
+        panic!("terminal log event returned no output");
+    };
+    assert!(matches!(
+        output.actions.as_slice(),
+        [antex_extension_protocol::Action::TerminalLog { .. }]
+    ));
+    let result = extension
+        .request(
+            ExtensionRequest::Event(Event {
+                name: "turnComplete".into(),
+                data: json!({"shell":true}),
+            }),
+            CancellationToken::new(),
+        )
+        .await;
+    assert!(matches!(result, Err(ExtensionError::EventOrigin)));
+    extension.shutdown().await.unwrap();
+}
+
+#[tokio::test]
 async fn failed_request_is_not_replayed_and_next_request_restarts_the_process() {
     let managed = ManagedExtension::launch(fixture_config()).await.unwrap();
     let cancelled = CancellationToken::new();

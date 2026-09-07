@@ -315,6 +315,28 @@ impl Session {
         )
     }
 
+    pub fn extension_states(&mut self) -> io::Result<HashMap<String, Value>> {
+        let mut states = HashMap::new();
+        for id in self.selected_records()? {
+            if self.records[&id].kind != Kind::Extension {
+                continue;
+            }
+            let (record, _) = self.read_record(id)?;
+            let Some(name) = record.payload["extension"].as_str() else {
+                continue;
+            };
+            if name.len() > 128
+                || record.payload["data"].to_string().len() > antex_core::MAX_TEXT_BYTES
+            {
+                return Err(io::Error::other(
+                    "extension state exceeds its replay budget",
+                ));
+            }
+            states.insert(name.to_owned(), record.payload["data"].clone());
+        }
+        Ok(states)
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<Uuid> {
         if !self.records.contains_key(&parent) {
             return Err(io::Error::other("branch parent does not exist"));

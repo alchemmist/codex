@@ -322,3 +322,35 @@ fn imported_sessions_preserve_identity_messages_and_ui_state() {
             .is_err()
     );
 }
+
+#[test]
+fn extension_state_reloads_from_the_active_session_branch() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut session = store.create().unwrap();
+    session
+        .append_extension("tmux-log", json!({"enabled":false}))
+        .unwrap();
+    let branch_point = session
+        .append(&Message::User("branch point".into()))
+        .unwrap();
+    session
+        .append_extension("tmux-log", json!({"enabled":true}))
+        .unwrap();
+    session
+        .append_extension("workflow", json!({"step":2}))
+        .unwrap();
+    assert_eq!(
+        session.extension_states().unwrap(),
+        std::collections::HashMap::from([
+            ("tmux-log".into(), json!({"enabled":true})),
+            ("workflow".into(), json!({"step":2})),
+        ])
+    );
+    session.branch(branch_point).unwrap();
+    assert_eq!(
+        session.extension_states().unwrap(),
+        std::collections::HashMap::from([("tmux-log".into(), json!({"enabled":false}))])
+    );
+}

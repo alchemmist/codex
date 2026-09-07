@@ -10,6 +10,7 @@ use antex_core::ToolHost;
 use antex_core::TurnInput;
 use antex_core::UserInput;
 use antex_extension_host::ExtensionRegistry;
+use antex_extension_host::ExtensionRegistryConfig;
 use antex_provider_openai::OpenAiProvider;
 use antex_runtime::Compaction;
 use antex_runtime::Config;
@@ -23,6 +24,7 @@ use antex_tui::Session;
 use antex_tui::SessionView;
 
 use crate::extension_launcher::RuntimeExtensionLauncher;
+use crate::terminal_log::TmuxLog;
 
 pub(crate) struct InteractiveSession {
     home: PathBuf,
@@ -35,6 +37,7 @@ pub(crate) struct InteractiveSession {
     agent: Option<Agent<Arc<OpenAiProvider>>>,
     compaction: Option<Arc<Compaction<OpenAiProvider>>>,
     extensions: Option<ExtensionRegistry>,
+    terminal_log: Option<TmuxLog>,
 }
 
 impl InteractiveSession {
@@ -60,6 +63,7 @@ impl InteractiveSession {
             agent: None,
             compaction: None,
             extensions: None,
+            terminal_log: None,
         })
     }
 
@@ -89,6 +93,10 @@ impl InteractiveSession {
             return Ok(runtime);
         }
         if self.extensions.is_none() {
+            let states = self
+                .conversation
+                .extension_states()
+                .map_err(|error| error.to_string())?;
             let sandbox = ExtensionSandbox::new(
                 &self.home,
                 &self.workspace,
@@ -98,15 +106,17 @@ impl InteractiveSession {
                 &self.context.read_roots,
             )
             .map_err(|error| error.to_string())?;
-            let loaded = ExtensionRegistry::load(
-                &self.home,
-                &self.workspace,
-                self.config.trust_project_extensions,
-                runtime,
-                env!("ANTEX_BUILD_VERSION"),
-                &self.conversation.id().to_string(),
-                Arc::new(RuntimeExtensionLauncher::new(sandbox)),
-            )
+            let session_id = self.conversation.id().to_string();
+            let loaded = ExtensionRegistry::load(ExtensionRegistryConfig {
+                home: &self.home,
+                workspace: &self.workspace,
+                project_trusted: self.config.trust_project_extensions,
+                fallback: runtime,
+                antex_version: env!("ANTEX_BUILD_VERSION"),
+                session_id: &session_id,
+                launcher: Arc::new(RuntimeExtensionLauncher::new(sandbox)),
+                states: &states,
+            })
             .await
             .map_err(|error| error.to_string())?;
             for failure in loaded.failures {
@@ -228,8 +238,35 @@ impl Session for InteractiveSession {
             return Ok(());
         };
         if let Some(extensions) = &self.extensions {
-            for failure in extensions.notify(event).await {
+            let delivery = extensions.notify(event).await;
+            for failure in delivery.failures {
                 eprintln!("antex: extension event failed: {failure}");
+            }
+            for event in delivery.outputs {
+                for record in event.output.records {
+                    self.conversation
+                        .append_extension(&event.extension, record)
+                        .map_err(|error| error.to_string())?;
+                }
+                for action in event.output.actions {
+                    let antex_extension_protocol::Action::TerminalLog { text, .. } = action else {
+                        continue;
+                    };
+                    if self.terminal_log.is_none() {
+                        match TmuxLog::start(&self.home, self.conversation.id()) {
+                            Ok(log) => self.terminal_log = Some(log),
+                            Err(error) => {
+                                eprintln!("antex: tmux command log unavailable: {error}");
+                                continue;
+                            }
+                        }
+                    }
+                    if let Some(log) = &mut self.terminal_log
+                        && let Err(error) = log.append(&text)
+                    {
+                        eprintln!("antex: tmux command log failed: {error}");
+                    }
+                }
             }
         }
         Ok(())

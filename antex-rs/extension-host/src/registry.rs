@@ -47,6 +47,27 @@ pub struct RegistryLoad {
     pub failures: Vec<String>,
 }
 
+pub struct RegistryEventOutput {
+    pub extension: String,
+    pub output: Output,
+}
+
+pub struct RegistryEventDelivery {
+    pub outputs: Vec<RegistryEventOutput>,
+    pub failures: Vec<String>,
+}
+
+pub struct ExtensionRegistryConfig<'a> {
+    pub home: &'a Path,
+    pub workspace: &'a Path,
+    pub project_trusted: bool,
+    pub fallback: Arc<dyn ToolHost>,
+    pub antex_version: &'a str,
+    pub session_id: &'a str,
+    pub launcher: Arc<dyn ExtensionLauncher>,
+    pub states: &'a HashMap<String, serde_json::Value>,
+}
+
 #[derive(Debug, thiserror::Error)]
 pub enum RegistryError {
     #[error(transparent)]
@@ -62,30 +83,27 @@ pub enum RegistryError {
 }
 
 impl ExtensionRegistry {
-    pub async fn load(
-        home: &Path,
-        workspace: &Path,
-        project_trusted: bool,
-        fallback: Arc<dyn ToolHost>,
-        antex_version: &str,
-        session_id: &str,
-        launcher: Arc<dyn ExtensionLauncher>,
-    ) -> Result<RegistryLoad, RegistryError> {
-        let definitions = discover(home, workspace, project_trusted)?;
+    pub async fn load(config: ExtensionRegistryConfig<'_>) -> Result<RegistryLoad, RegistryError> {
+        let definitions = discover(config.home, config.workspace, config.project_trusted)?;
         let mut extensions = Vec::new();
         let mut failures = Vec::new();
         for definition in definitions {
-            let mut config = ExtensionConfig::new(
+            let mut extension_config = ExtensionConfig::new(
                 definition.name.clone(),
                 definition.program,
-                workspace.to_path_buf(),
+                config.workspace.to_path_buf(),
             );
-            config.arguments = definition.arguments.into_iter().map(Into::into).collect();
-            config.antex_version = antex_version.into();
-            config.session_id = session_id.into();
-            config.capabilities = definition.capabilities;
-            config.launcher = Some(Arc::clone(&launcher));
-            match ManagedExtension::launch(config).await {
+            extension_config.arguments = definition.arguments.into_iter().map(Into::into).collect();
+            extension_config.antex_version = config.antex_version.into();
+            extension_config.session_id = config.session_id.into();
+            extension_config.capabilities = definition.capabilities;
+            extension_config.state = config
+                .states
+                .get(&definition.name)
+                .cloned()
+                .unwrap_or(serde_json::Value::Null);
+            extension_config.launcher = Some(Arc::clone(&config.launcher));
+            match ManagedExtension::launch(extension_config).await {
                 Ok(process) => {
                     let process = Arc::new(process);
                     let manifest = process.manifest().await?;
@@ -99,7 +117,7 @@ impl ExtensionRegistry {
         let mut event_targets: HashMap<String, Vec<EventTarget>> = HashMap::new();
         for extension in &extensions {
             for command in &extension.manifest.commands {
-                let name = format!("{}__{}", extension.manifest.name, command.name);
+                let name = command.name.clone();
                 if command_targets
                     .insert(
                         name.clone(),
@@ -130,7 +148,7 @@ impl ExtensionRegistry {
         commands.sort_by(|left, right| left.name.cmp(&right.name));
         Ok(RegistryLoad {
             registry: Self {
-                tool_host: Arc::new(ExtensionToolHost::new(fallback, extensions)?),
+                tool_host: Arc::new(ExtensionToolHost::new(config.fallback, extensions)?),
                 commands,
                 command_targets,
                 event_targets,
@@ -176,13 +194,17 @@ impl ExtensionRegistry {
         }
     }
 
-    pub async fn notify(&self, event: Event) -> Vec<String> {
+    pub async fn notify(&self, event: Event) -> RegistryEventDelivery {
         let Some(targets) = self.event_targets.get(&event.name) else {
-            return Vec::new();
+            return RegistryEventDelivery {
+                outputs: Vec::new(),
+                failures: Vec::new(),
+            };
         };
+        let mut outputs = Vec::new();
         let mut failures = Vec::new();
         for target in targets {
-            if let Err(error) = target
+            match target
                 .process
                 .request(
                     ExtensionRequest::Event(event.clone()),
@@ -190,9 +212,14 @@ impl ExtensionRegistry {
                 )
                 .await
             {
-                failures.push(format!("{}: {error}", target.name));
+                Ok(ExtensionResponse::Output(output)) => outputs.push(RegistryEventOutput {
+                    extension: target.name.clone(),
+                    output,
+                }),
+                Ok(ExtensionResponse::Notified) => {}
+                Err(error) => failures.push(format!("{}: {error}", target.name)),
             }
         }
-        failures
+        RegistryEventDelivery { outputs, failures }
     }
 }

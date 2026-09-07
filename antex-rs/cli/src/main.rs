@@ -25,6 +25,7 @@ use tokio_util::sync::CancellationToken;
 mod extension_launcher;
 mod interactive;
 mod migration;
+mod terminal_log;
 
 #[derive(Parser)]
 #[command(name="antex",version=env!("ANTEX_BUILD_VERSION"),about="Antex terminal coding agent")]

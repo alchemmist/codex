@@ -60,6 +60,12 @@ impl Conversation {
         self.session.append_extension(name, value)
     }
 
+    pub fn extension_states(
+        &mut self,
+    ) -> io::Result<std::collections::HashMap<String, serde_json::Value>> {
+        self.session.extension_states()
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
         self.session.branch(parent)?;
         self.entries = self.session.active_path()?;
