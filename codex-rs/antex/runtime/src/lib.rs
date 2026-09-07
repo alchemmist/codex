@@ -24,6 +24,7 @@ pub use permissions::PermissionProfile;
 pub use project_context::ProjectContext;
 pub use sessions::Session;
 pub use sessions::SessionMessage;
+pub use sessions::SessionPreview;
 pub use sessions::SessionStore;
 pub use shell::Shell;
 pub use shell::ShellResult;

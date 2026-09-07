@@ -29,7 +29,9 @@ use crate::session_codec;
 
 mod checkpoint;
 mod pending;
+mod previews;
 mod ui_state;
+pub use previews::SessionPreview;
 
 const MAX_RECORD_BYTES: u64 = 2 * antex_core::MAX_TRANSCRIPT_BYTES as u64;
 const MAX_RECORDS: usize = 100_000;
@@ -236,11 +238,11 @@ impl SessionStore {
                 .and_then(|name| name.strip_suffix(".jsonl"))
                 .and_then(|id| Uuid::parse_str(id).ok())
             {
-                sessions.push(id);
+                sessions.push((entry.metadata()?.modified()?, id));
             }
         }
-        sessions.sort();
-        Ok(sessions)
+        sessions.sort_by(|left, right| right.0.cmp(&left.0).then_with(|| left.1.cmp(&right.1)));
+        Ok(sessions.into_iter().map(|(_, id)| id).collect())
     }
 }
 

@@ -22,6 +22,27 @@ fn session_file(home: &std::path::Path, id: uuid::Uuid) -> std::path::PathBuf {
 }
 
 #[test]
+fn session_previews_read_committed_requests_without_taking_the_writer_lock() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut session = store.create().unwrap();
+    session
+        .save_ui_state("promptStash", &json!({"text":"unsent private draft"}))
+        .unwrap();
+    session
+        .append(&Message::User("visible\nrequest".into()))
+        .unwrap();
+    assert_eq!(
+        store.previews(/*limit*/ 10).unwrap(),
+        vec![antex_runtime::SessionPreview {
+            id: session.id(),
+            text: "visible request".into()
+        }]
+    );
+}
+
+#[test]
 fn session_round_trip_preserves_messages_images_and_provider_state() {
     let home = tempfile::tempdir().unwrap();
     let workspace = tempfile::tempdir().unwrap();
