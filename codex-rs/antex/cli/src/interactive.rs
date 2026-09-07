@@ -14,12 +14,15 @@ use antex_provider_openai::OpenAiProvider;
 use antex_runtime::Compaction;
 use antex_runtime::Config;
 use antex_runtime::Conversation;
+use antex_runtime::ExtensionSandbox;
 use antex_runtime::LocalRuntime;
 use antex_runtime::ProjectContext;
 use antex_runtime::SessionStore;
 use antex_tui::CommandEffect;
 use antex_tui::Session;
 use antex_tui::SessionView;
+
+use crate::extension_launcher::RuntimeExtensionLauncher;
 
 pub(crate) struct InteractiveSession {
     home: PathBuf,
@@ -86,6 +89,15 @@ impl InteractiveSession {
             return Ok(runtime);
         }
         if self.extensions.is_none() {
+            let sandbox = ExtensionSandbox::new(
+                &self.home,
+                &self.workspace,
+                self.bubblewrap
+                    .clone()
+                    .unwrap_or_else(|| "/usr/bin/bwrap".into()),
+                &self.context.read_roots,
+            )
+            .map_err(|error| error.to_string())?;
             let loaded = ExtensionRegistry::load(
                 &self.home,
                 &self.workspace,
@@ -93,6 +105,7 @@ impl InteractiveSession {
                 runtime,
                 env!("ANTEX_BUILD_VERSION"),
                 &self.conversation.id().to_string(),
+                Arc::new(RuntimeExtensionLauncher::new(sandbox)),
             )
             .await
             .map_err(|error| error.to_string())?;

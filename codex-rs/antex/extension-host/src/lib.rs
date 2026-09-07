@@ -1,4 +1,5 @@
 mod discovery;
+mod launcher;
 mod managed;
 mod process;
 mod registry;
@@ -7,6 +8,8 @@ mod tool_host;
 pub use discovery::DiscoveredExtension;
 pub use discovery::DiscoveryError;
 pub use discovery::discover;
+pub use launcher::ExtensionLaunch;
+pub use launcher::ExtensionLauncher;
 pub use managed::ManagedExtension;
 pub use process::Extension;
 pub use process::ExtensionConfig;

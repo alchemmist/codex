@@ -3,7 +3,7 @@ use std::io;
 use std::io::Seek;
 use std::io::Write;
 
-pub(crate) fn filter() -> io::Result<File> {
+pub(crate) fn filter(deny_network: bool) -> io::Result<File> {
     #[cfg(not(target_arch = "x86_64"))]
     return Err(io::Error::new(
         io::ErrorKind::Unsupported,
@@ -19,8 +19,7 @@ pub(crate) fn filter() -> io::Result<File> {
             (0x45, 0, 1, 0x40000000),
             (0x06, 0, 0, 0x80000000),
         ];
-        for syscall in [
-            libc::SYS_socket,
+        let mut denied = vec![
             libc::SYS_io_uring_setup,
             libc::SYS_ptrace,
             libc::SYS_process_vm_readv,
@@ -29,7 +28,11 @@ pub(crate) fn filter() -> io::Result<File> {
             libc::SYS_umount2,
             libc::SYS_unshare,
             libc::SYS_setns,
-        ] {
+        ];
+        if deny_network {
+            denied.push(libc::SYS_socket);
+        }
+        for syscall in denied {
             instructions.push((0x15, 0, 1, syscall as u32));
             instructions.push((0x06, 0, 0, 0x00050001));
         }

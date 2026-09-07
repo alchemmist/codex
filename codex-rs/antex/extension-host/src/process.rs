@@ -30,13 +30,12 @@ use tokio::io::BufReader;
 use tokio::process::Child;
 use tokio::process::ChildStdin;
 use tokio::process::ChildStdout;
-use tokio::process::Command;
 use tokio::time::timeout;
 use tokio_util::sync::CancellationToken;
 
 const STDERR_BYTES: usize = 32 * 1024;
 
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct ExtensionConfig {
     pub name: String,
     pub program: PathBuf,
@@ -47,6 +46,7 @@ pub struct ExtensionConfig {
     pub capabilities: BTreeSet<Capability>,
     pub state: Value,
     pub timeout: Duration,
+    pub launcher: Option<Arc<dyn crate::ExtensionLauncher>>,
 }
 
 impl ExtensionConfig {
@@ -61,7 +61,13 @@ impl ExtensionConfig {
             capabilities: BTreeSet::new(),
             state: Value::Null,
             timeout: Duration::from_secs(30),
+            launcher: None,
         }
+    }
+
+    pub fn with_launcher(mut self, launcher: Arc<dyn crate::ExtensionLauncher>) -> Self {
+        self.launcher = Some(launcher);
+        self
     }
 }
 
@@ -69,6 +75,8 @@ impl ExtensionConfig {
 pub enum ExtensionError {
     #[error("failed to start extension: {0}")]
     Start(#[source] std::io::Error),
+    #[error("extension sandbox launcher is required")]
+    MissingLauncher,
     #[error("extension transport failed: {0}")]
     Transport(#[source] std::io::Error),
     #[error("extension protocol failed: {0}")]
@@ -114,10 +122,20 @@ pub struct Extension {
 
 impl Extension {
     pub async fn launch(config: ExtensionConfig) -> Result<Self, ExtensionError> {
-        let mut command = Command::new(&config.program);
+        let launcher = config
+            .launcher
+            .as_ref()
+            .ok_or(ExtensionError::MissingLauncher)?;
+        let mut command = launcher
+            .command(crate::ExtensionLaunch {
+                program: &config.program,
+                arguments: &config.arguments,
+                cwd: &config.cwd,
+                capabilities: &config.capabilities,
+            })
+            .await
+            .map_err(ExtensionError::Start)?;
         command
-            .args(&config.arguments)
-            .current_dir(&config.cwd)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
@@ -302,7 +320,9 @@ impl Extension {
 impl ExtensionError {
     pub(crate) fn is_fatal(&self) -> bool {
         match self {
-            Self::Start(_) | Self::AgentOrigin | Self::RestartLimit => false,
+            Self::Start(_) | Self::MissingLauncher | Self::AgentOrigin | Self::RestartLimit => {
+                false
+            }
             Self::Protocol(ProtocolError::Remote { .. }) => false,
             Self::Transport(_)
             | Self::Protocol(_)

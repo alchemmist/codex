@@ -9,6 +9,7 @@ use tokio_util::sync::CancellationToken;
 
 use crate::ExtensionConfig;
 use crate::ExtensionError;
+use crate::ExtensionLauncher;
 use crate::ExtensionRequest;
 use crate::ExtensionResponse;
 use crate::ExtensionToolHost;
@@ -61,6 +62,7 @@ impl ExtensionRegistry {
         fallback: Arc<dyn ToolHost>,
         antex_version: &str,
         session_id: &str,
+        launcher: Arc<dyn ExtensionLauncher>,
     ) -> Result<RegistryLoad, RegistryError> {
         let definitions = discover(home, workspace, project_trusted)?;
         let mut extensions = Vec::new();
@@ -75,6 +77,7 @@ impl ExtensionRegistry {
             config.antex_version = antex_version.into();
             config.session_id = session_id.into();
             config.capabilities = definition.capabilities;
+            config.launcher = Some(Arc::clone(&launcher));
             match ManagedExtension::launch(config).await {
                 Ok(process) => {
                     let process = Arc::new(process);

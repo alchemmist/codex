@@ -108,10 +108,12 @@ version = "0.0.0"
 dependencies = [
  "antex-core",
  "antex-extension-host",
+ "antex-extension-protocol",
  "antex-provider-openai",
  "antex-runtime",
  "antex-tui",
  "clap",
+ "futures",
  "insta",
  "pretty_assertions",
  "serde_json",

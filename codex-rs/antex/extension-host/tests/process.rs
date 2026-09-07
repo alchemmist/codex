@@ -5,15 +5,45 @@ use std::time::Duration;
 use antex_extension_host::Extension;
 use antex_extension_host::ExtensionConfig;
 use antex_extension_host::ExtensionError;
+use antex_extension_host::ExtensionLaunch;
+use antex_extension_host::ExtensionLauncher;
 use antex_extension_host::ExtensionRequest;
 use antex_extension_host::ExtensionResponse;
 use antex_extension_host::ManagedExtension;
 use antex_extension_protocol::Capability;
 use antex_extension_protocol::CommandRun;
 use antex_extension_protocol::ToolCall;
+use futures::future::BoxFuture;
 use pretty_assertions::assert_eq;
 use serde_json::json;
 use tokio_util::sync::CancellationToken;
+
+struct DirectLauncher;
+
+impl ExtensionLauncher for DirectLauncher {
+    fn command<'a>(
+        &'a self,
+        launch: ExtensionLaunch<'a>,
+    ) -> BoxFuture<'a, std::io::Result<tokio::process::Command>> {
+        Box::pin(async move {
+            let mut command = tokio::process::Command::new(launch.program);
+            command.args(launch.arguments).current_dir(launch.cwd);
+            Ok(command)
+        })
+    }
+}
+
+#[tokio::test]
+async fn launching_without_a_sandbox_launcher_fails_closed() {
+    let directory = tempfile::tempdir().unwrap();
+    let result = Extension::launch(ExtensionConfig::new(
+        "fixture",
+        "/does/not/matter",
+        directory.path().into(),
+    ))
+    .await;
+    assert!(matches!(result, Err(ExtensionError::MissingLauncher)));
+}
 
 fn fixture_config() -> ExtensionConfig {
     let fixture = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/conformance.py");
@@ -22,6 +52,7 @@ fn fixture_config() -> ExtensionConfig {
     config.arguments = vec!["python3".into(), fixture.into_os_string()];
     config.session_id = "session-1".into();
     config.timeout = Duration::from_secs(2);
+    config.launcher = Some(std::sync::Arc::new(DirectLauncher));
     config
 }
 
@@ -79,11 +110,10 @@ async fn rust_fixture_passes_the_same_conformance_contract() {
         .status()
         .unwrap();
     assert!(status.success());
-    assert_conformance(ExtensionConfig::new(
-        "fixture",
-        program,
-        directory.path().into(),
-    ))
+    assert_conformance(
+        ExtensionConfig::new("fixture", program, directory.path().into())
+            .with_launcher(std::sync::Arc::new(DirectLauncher)),
+    )
     .await;
 }
 

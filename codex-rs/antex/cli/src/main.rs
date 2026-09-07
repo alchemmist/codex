@@ -22,6 +22,7 @@ use clap::Parser;
 use clap::Subcommand;
 use tokio_util::sync::CancellationToken;
 
+mod extension_launcher;
 mod interactive;
 
 #[derive(Parser)]

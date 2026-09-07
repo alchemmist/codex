@@ -1,3 +1,4 @@
+use std::ffi::OsString;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
@@ -8,6 +9,23 @@ use tokio::process::Command;
 use tokio::sync::OnceCell;
 
 use crate::PermissionProfile;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SandboxWorkspace {
+    Hidden,
+    ReadOnly,
+    ReadWrite,
+}
+
+pub(crate) struct SandboxProgram<'a> {
+    pub workspace: &'a Path,
+    pub access: SandboxWorkspace,
+    pub network: bool,
+    pub program: &'a Path,
+    pub arguments: &'a [OsString],
+    pub temporary: &'a Path,
+    pub read_roots: &'a [PathBuf],
+}
 
 pub(crate) struct Sandbox {
     #[cfg(target_os = "linux")]
@@ -41,6 +59,34 @@ impl Sandbox {
             command.arg("-c").arg(script).stdin(Stdio::null());
             return Ok(command);
         }
+        let access = match profile {
+            PermissionProfile::ReadOnly => SandboxWorkspace::ReadOnly,
+            PermissionProfile::Workspace => SandboxWorkspace::ReadWrite,
+            PermissionProfile::Full => unreachable!(),
+        };
+        let arguments = [OsString::from("-c"), OsString::from(script)];
+        self.program_command(SandboxProgram {
+            workspace,
+            access,
+            network: false,
+            program: Path::new("/bin/sh"),
+            arguments: &arguments,
+            temporary,
+            read_roots,
+        })
+        .await
+    }
+
+    pub async fn program_command(&self, spec: SandboxProgram<'_>) -> io::Result<Command> {
+        let SandboxProgram {
+            workspace,
+            access,
+            network,
+            program,
+            arguments,
+            temporary,
+            read_roots,
+        } = spec;
         #[cfg(target_os = "linux")]
         {
             self.verified.get_or_try_init(|| async {
@@ -65,6 +111,9 @@ impl Sandbox {
                 "--cap-drop",
                 "ALL",
             ]);
+            if network {
+                command.arg("--share-net");
+            }
             for root in ["/usr", "/bin", "/sbin", "/lib", "/lib64", "/etc"] {
                 if Path::new(root).exists() {
                     command.arg("--ro-bind").arg(root).arg(root);
@@ -75,19 +124,26 @@ impl Sandbox {
             for root in read_roots {
                 command.arg("--ro-bind").arg(root).arg(root);
             }
-            let binding = match profile {
-                PermissionProfile::ReadOnly => "--ro-bind",
-                PermissionProfile::Workspace => "--bind",
-                PermissionProfile::Full => unreachable!(),
+            match access {
+                SandboxWorkspace::Hidden => {}
+                SandboxWorkspace::ReadOnly => {
+                    command.arg("--ro-bind").arg(workspace).arg(workspace);
+                }
+                SandboxWorkspace::ReadWrite => {
+                    command.arg("--bind").arg(workspace).arg(workspace);
+                }
+            }
+            attach_seccomp(&mut command, crate::seccomp::filter(!network)?)?;
+            let working_directory = match access {
+                SandboxWorkspace::Hidden => temporary,
+                SandboxWorkspace::ReadOnly | SandboxWorkspace::ReadWrite => workspace,
             };
-            command.arg(binding).arg(workspace).arg(workspace);
-            command
-                .args(["--seccomp", "0"])
-                .stdin(Stdio::from(crate::seccomp::filter()?));
             command
                 .arg("--chdir")
-                .arg(workspace)
-                .args(["--", "/bin/sh", "-c", script]);
+                .arg(working_directory)
+                .arg("--")
+                .arg(program)
+                .args(arguments);
             Ok(command)
         }
         #[cfg(target_os = "macos")]
@@ -102,9 +158,9 @@ impl Sandbox {
                 Path::new("/sbin"),
                 Path::new("/private/etc"),
                 Path::new("/Library/Apple"),
-                workspace,
             ]
             .into_iter()
+            .chain((access != SandboxWorkspace::Hidden).then_some(workspace))
             .chain(read_roots.iter().map(PathBuf::as_path))
             {
                 let root = root
@@ -116,7 +172,7 @@ impl Sandbox {
                 ));
             }
             for root in std::iter::once(temporary)
-                .chain((profile == PermissionProfile::Workspace).then_some(workspace))
+                .chain((access == SandboxWorkspace::ReadWrite).then_some(workspace))
             {
                 let root = root
                     .to_str()
@@ -127,9 +183,10 @@ impl Sandbox {
                 ));
             }
             let mut command = Command::new("/usr/bin/sandbox-exec");
-            command
-                .args(["-p", &policy, "/bin/sh", "-c", script])
-                .stdin(Stdio::null());
+            if network {
+                policy.push_str("(allow network*)");
+            }
+            command.arg("-p").arg(&policy).arg(program).args(arguments);
             Ok(command)
         }
         #[cfg(not(any(target_os = "linux", target_os = "macos")))]
@@ -138,4 +195,27 @@ impl Sandbox {
             "sandboxing is supported only on Linux and macOS",
         ))
     }
+}
+
+#[cfg(target_os = "linux")]
+fn attach_seccomp(command: &mut Command, filter: std::fs::File) -> io::Result<()> {
+    use std::os::fd::AsRawFd;
+    use std::os::unix::process::CommandExt;
+
+    const FILTER_FD: i32 = 3;
+    let source = filter.as_raw_fd();
+    command.args(["--seccomp", "3"]);
+    unsafe {
+        command.as_std_mut().pre_exec(move || {
+            if libc::dup2(source, FILTER_FD) == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            if libc::fcntl(FILTER_FD, libc::F_SETFD, 0) == -1 {
+                return Err(io::Error::last_os_error());
+            }
+            let _ = &filter;
+            Ok(())
+        });
+    }
+    Ok(())
 }
