@@ -39,7 +39,8 @@ impl MigrationPlan {
         let mut descriptions = Vec::new();
         migrate_config(&root, destination, &mut writes, &mut descriptions)?;
         migrate_mcp(&root, destination, &mut writes, &mut descriptions)?;
-        for name in ["sessions", "prompt stash", "skills"] {
+        migrate_skills(source, destination, &mut writes, &mut descriptions)?;
+        for name in ["sessions", "prompt stash"] {
             descriptions.push(format!(
                 "skip {name}: independent migration is not implemented"
             ));
@@ -89,6 +90,98 @@ impl MigrationPlan {
         }
         Ok(())
     }
+}
+
+fn migrate_skills(
+    source: &Path,
+    destination: &Path,
+    writes: &mut Vec<MigrationWrite>,
+    descriptions: &mut Vec<String>,
+) -> io::Result<()> {
+    let source = source.join("skills");
+    if !source.exists() {
+        return Ok(());
+    }
+    let source_metadata = fs::symlink_metadata(&source)?;
+    if source_metadata.file_type().is_symlink() {
+        descriptions.push("skip skills: source is a symbolic link".into());
+        return Ok(());
+    }
+    if !source_metadata.is_dir() {
+        descriptions.push("skip skills: source is not a directory".into());
+        return Ok(());
+    }
+    let canonical_source = source.canonicalize()?;
+    let target = destination.join("skills");
+    if target.exists() {
+        descriptions.push("skip skills: destination already exists".into());
+        return Ok(());
+    }
+    let mut pending = vec![source.clone()];
+    let mut files = Vec::new();
+    let mut total = 0usize;
+    while let Some(directory) = pending.pop() {
+        let mut entries = fs::read_dir(&directory)?.collect::<Result<Vec<_>, _>>()?;
+        entries.sort_by_key(fs::DirEntry::file_name);
+        for entry in entries {
+            let path = entry.path();
+            let kind = entry.file_type()?;
+            if kind.is_symlink() {
+                descriptions.push(format!(
+                    "skip skill path {}: symbolic links are not imported",
+                    path.strip_prefix(&source).unwrap_or(&path).display()
+                ));
+                continue;
+            }
+            if kind.is_dir() {
+                pending.push(path);
+                continue;
+            }
+            if !kind.is_file() {
+                descriptions.push(format!(
+                    "skip skill path {}: unsupported file type",
+                    path.strip_prefix(&source).unwrap_or(&path).display()
+                ));
+                continue;
+            }
+            if files.len() >= 1024 {
+                return Err(io::Error::other("legacy skills exceed the file limit"));
+            }
+            let canonical_path = path.canonicalize()?;
+            if !canonical_path.starts_with(&canonical_source) {
+                return Err(io::Error::other(
+                    "legacy skill path escaped its source directory",
+                ));
+            }
+            let bytes = fs::read(canonical_path)?;
+            if bytes.len() > 1024 * 1024 {
+                return Err(io::Error::other("a legacy skill file exceeds 1 MiB"));
+            }
+            total = total.saturating_add(bytes.len());
+            if total > 16 * 1024 * 1024 {
+                return Err(io::Error::other("legacy skills exceed 16 MiB"));
+            }
+            #[cfg(unix)]
+            let executable = {
+                use std::os::unix::fs::PermissionsExt;
+                entry.metadata()?.permissions().mode() & 0o111 != 0
+            };
+            #[cfg(not(unix))]
+            let executable = false;
+            files.push(MigrationWrite {
+                path: target.join(
+                    path.strip_prefix(&source).map_err(|_| {
+                        io::Error::other("legacy skill escaped its source directory")
+                    })?,
+                ),
+                bytes,
+                executable,
+            });
+        }
+    }
+    descriptions.push(format!("copy skills: {} regular files", files.len()));
+    writes.extend(files);
+    Ok(())
 }
 
 fn migrate_config(
