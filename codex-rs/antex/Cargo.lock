@@ -132,6 +132,20 @@ dependencies = [
 ]
 
 [[package]]
+name = "antex-extension-host"
+version = "0.0.0"
+dependencies = [
+ "antex-extension-protocol",
+ "pretty_assertions",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror 2.0.20",
+ "tokio",
+ "tokio-util",
+]
+
+[[package]]
 name = "antex-extension-protocol"
 version = "0.0.0"
 dependencies = [

@@ -89,11 +89,7 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    let Some(action) = args.command else {
-        return Err(
-            "the direct interactive frontend is still being migrated; use `antex exec`".into(),
-        );
-    };
+    let action = args.command.unwrap_or(Action::Tui);
     let user_home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .ok_or("HOME is unavailable")?
@@ -376,3 +372,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+#[cfg(test)]
+#[path = "main_tests.rs"]
+mod tests;
