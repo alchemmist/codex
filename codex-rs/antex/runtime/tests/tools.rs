@@ -209,3 +209,48 @@ async fn force_push_still_requires_confirmation_in_full_profile() {
         )]
     );
 }
+
+#[tokio::test]
+async fn read_returns_a_native_image_and_session_replay_preserves_it() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = tempfile::tempdir().unwrap();
+    image::RgbaImage::from_pixel(32, 16, image::Rgba([10, 20, 30, 255]))
+        .save(directory.path().join("image.png"))
+        .unwrap();
+    let expected =
+        antex_runtime::ImageAttachment::load(&directory.path().join("image.png")).unwrap();
+    let runtime =
+        Arc::new(LocalRuntime::new(directory.path(), PermissionProfile::Workspace).unwrap());
+    let provider = Provider(Mutex::new(
+        vec![
+            vec![
+                call("read", "read", json!({"path":"image.png"})),
+                ModelEvent::Finished(Usage::default()),
+            ],
+            vec![
+                ModelEvent::Text("seen".into()),
+                ModelEvent::Finished(Usage::default()),
+            ],
+        ]
+        .into(),
+    ));
+    let store = antex_runtime::SessionStore::new(home.path(), directory.path()).unwrap();
+    let mut session = store.create().unwrap();
+    let mut agent = Agent::new(provider, runtime);
+    let mut run = agent.start(input());
+    while let Some(event) = run.events.recv().await {
+        if let AgentEvent::MessageCommitted(message) = event {
+            session.append(&message).unwrap();
+        }
+    }
+    let image = ToolOutput::new("read".into(), ToolOutcome::Success, "Image 32 x 16".into())
+        .with_image(expected.content)
+        .unwrap();
+    assert!(
+        session
+            .active_path()
+            .unwrap()
+            .iter()
+            .any(|entry| entry.message == Message::Tool(image.clone()))
+    );
+}

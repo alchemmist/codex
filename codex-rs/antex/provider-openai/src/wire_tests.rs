@@ -155,3 +155,37 @@ fn project_and_skill_content_is_not_promoted_to_developer_authority() {
         vec!["developer", "user", "user", "user"]
     );
 }
+
+#[test]
+fn user_and_tool_images_use_native_bounded_content_items() {
+    let image = Content::Image {
+        media_type: "image/png".into(),
+        data: vec![1, 2, 3].into(),
+    };
+    let messages = vec![
+        Message::User(antex_core::UserInput {
+            content: vec![Content::Text("inspect".into()), image.clone()],
+            tool_scope: antex_core::ToolScope::Default,
+        }),
+        Message::Tool(
+            ToolOutput::new("read".into(), ToolOutcome::Success, "image".into())
+                .with_image(image)
+                .unwrap(),
+        ),
+    ];
+    let body = encode(ModelRequest {
+        model: "fake".into(),
+        reasoning: None,
+        messages,
+        tools: Vec::new(),
+    })
+    .unwrap();
+    assert_eq!(
+        body["input"],
+        json!([
+            {"role":"user","content":[{"type":"input_text","text":"inspect"}]},
+            {"role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,AQID"}]},
+            {"type":"function_call_output","call_id":"read","output":[{"type":"input_text","text":"image"},{"type":"input_image","image_url":"data:image/png;base64,AQID"}]},
+        ])
+    );
+}
