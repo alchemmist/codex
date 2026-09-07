@@ -1,73 +1,16 @@
 use crate::color::blend;
-use crate::color::is_light;
 use crate::terminal_palette::StdoutColorLevel;
 use crate::terminal_palette::best_color;
 use crate::terminal_palette::default_bg;
 use crate::terminal_palette::default_fg;
-use crate::terminal_palette::effective_stdout_color_level;
 use crate::terminal_palette::rgb_color;
 use crate::terminal_palette::stdout_color_level;
-use ratatui::style::Color;
 use ratatui::style::Style;
 
-const LIGHT_BG_ACCENT_RGB: (u8, u8, u8) = (0, 95, 135);
-
-#[derive(Clone, Copy)]
-pub(crate) enum StatusTone {
-    Success,
-    Attention,
-    Failure,
-}
-
-/// Semantic status colors that preserve the terminal's configured palette.
-pub(crate) fn status_style(tone: StatusTone) -> Style {
-    status_style_for(tone, default_bg(), effective_stdout_color_level())
-}
-
-fn status_style_for(
-    tone: StatusTone,
-    terminal_bg: Option<(u8, u8, u8)>,
-    color_level: StdoutColorLevel,
-) -> Style {
-    let light = terminal_bg.is_some_and(is_light);
-    let color = match (tone, color_level) {
-        (_, StdoutColorLevel::Unknown) => Color::Reset,
-        (StatusTone::Success, _) => Color::Green,
-        (StatusTone::Failure, _) => Color::Red,
-        // Yellow can disappear on light themes; use it only with a known dark background.
-        (StatusTone::Attention, _) if light || terminal_bg.is_none() => Color::Reset,
-        (StatusTone::Attention, _) => Color::Yellow,
-    };
-    Style::default().fg(color).bold()
-}
-// Decorative table rules should remain visible without competing with cell content.
 const TABLE_SEPARATOR_FG_ALPHA: f32 = 0.20;
 
-pub fn user_message_style() -> Style {
-    Style::default()
-}
-
-pub fn proposed_plan_style() -> Style {
-    Style::default()
-}
-
-/// Returns a low-contrast rule style for separators within markdown tables.
 pub(crate) fn table_separator_style() -> Style {
     table_separator_style_for(default_fg(), default_bg(), stdout_color_level())
-}
-
-/// Returns the shared accent style for active or selected TUI controls.
-pub(crate) fn accent_style() -> Style {
-    accent_style_for(default_bg())
-}
-
-/// Returns the shared accent style for the provided terminal background.
-pub(crate) fn accent_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
-    if terminal_bg.is_some_and(is_light) {
-        Style::default().fg(best_color(LIGHT_BG_ACCENT_RGB)).bold()
-    } else {
-        Style::default().fg(Color::Cyan).bold()
-    }
 }
 
 fn table_separator_style_for(
@@ -86,84 +29,11 @@ fn table_separator_style_for(
     }
 }
 
-pub(crate) fn user_message_bg_rgb(terminal_bg: (u8, u8, u8)) -> (u8, u8, u8) {
-    let (top, alpha) = if is_light(terminal_bg) {
-        ((0, 0, 0), 0.04)
-    } else {
-        ((255, 255, 255), 0.12)
-    };
-    blend(top, terminal_bg, alpha)
-}
-
 #[cfg(test)]
 mod tests {
-    use super::*;
     use pretty_assertions::assert_eq;
-    use ratatui::style::Modifier;
 
-    #[test]
-    fn status_colors_preserve_light_terminal_themes() {
-        for level in [StdoutColorLevel::TrueColor, StdoutColorLevel::Ansi256] {
-            for bg in [(255, 255, 255), (130, 130, 130), (220, 210, 180)] {
-                for (tone, color) in [
-                    (StatusTone::Success, Color::Green),
-                    (StatusTone::Attention, Color::Reset),
-                    (StatusTone::Failure, Color::Red),
-                ] {
-                    assert_eq!(
-                        status_style_for(tone, Some(bg), level),
-                        Style::default().fg(color).bold(),
-                    );
-                }
-            }
-            for bg in [(0, 0, 0), (0, 218, 0)] {
-                assert_eq!(
-                    status_style_for(StatusTone::Attention, Some(bg), level),
-                    Style::default().fg(Color::Yellow).bold(),
-                );
-            }
-            assert_eq!(
-                status_style_for(StatusTone::Attention, /*terminal_bg*/ None, level),
-                Style::default().fg(Color::Reset).bold(),
-            );
-        }
-    }
-
-    #[test]
-    fn status_colors_preserve_ansi16_and_no_color_fallbacks() {
-        for (tone, light, dark) in [
-            (StatusTone::Success, Color::Green, Color::Green),
-            (StatusTone::Attention, Color::Reset, Color::Yellow),
-            (StatusTone::Failure, Color::Red, Color::Red),
-        ] {
-            for (bg, expected) in [((255, 255, 255), light), ((0, 0, 0), dark)] {
-                assert_eq!(
-                    status_style_for(tone, Some(bg), StdoutColorLevel::Ansi16),
-                    Style::default().fg(expected).bold()
-                );
-                assert_eq!(
-                    status_style_for(tone, Some(bg), StdoutColorLevel::Unknown),
-                    Style::default().fg(Color::Reset).bold()
-                );
-            }
-        }
-    }
-
-    #[test]
-    fn accent_style_uses_darker_cyan_on_light_backgrounds() {
-        let style = accent_style_for(Some((255, 255, 255)));
-
-        assert_eq!(style.fg, Some(best_color(LIGHT_BG_ACCENT_RGB)));
-        assert!(style.add_modifier.contains(Modifier::BOLD));
-    }
-
-    #[test]
-    fn accent_style_uses_cyan_on_dark_or_unknown_backgrounds() {
-        let expected = Style::default().fg(Color::Cyan).bold();
-
-        assert_eq!(accent_style_for(Some((0, 0, 0))), expected);
-        assert_eq!(accent_style_for(/*terminal_bg*/ None), expected);
-    }
+    use super::*;
 
     #[test]
     fn table_separator_blends_toward_dark_background() {
@@ -172,7 +42,6 @@ mod tests {
             Some((0, 0, 0)),
             StdoutColorLevel::TrueColor,
         );
-
         assert_eq!(style.fg, Some(rgb_color((51, 51, 51))));
     }
 
@@ -183,14 +52,12 @@ mod tests {
             Some((255, 255, 255)),
             StdoutColorLevel::TrueColor,
         );
-
         assert_eq!(style.fg, Some(rgb_color((204, 204, 204))));
     }
 
     #[test]
-    fn table_separator_dims_when_palette_aware_color_is_unavailable() {
+    fn table_separator_dims_without_palette_aware_color() {
         let expected = Style::default().dim();
-
         assert_eq!(
             table_separator_style_for(
                 Some((255, 255, 255)),

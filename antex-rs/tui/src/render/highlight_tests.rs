@@ -184,13 +184,6 @@ fn highlight_empty_string() {
 }
 
 #[test]
-fn highlight_bash_preserves_content() {
-    let script = "echo \"hello world\" && ls -la | grep foo";
-    let lines = highlight_bash_to_lines(script);
-    assert_eq!(reconstructed(&lines), script);
-}
-
-#[test]
 fn highlight_crlf_strips_carriage_return() {
     // Windows-style \r\n line endings must not leave a trailing \r in
     // span text — that would propagate into rendered code blocks.

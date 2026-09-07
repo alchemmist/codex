@@ -47,9 +47,6 @@ use syntect::parsing::SyntaxSet;
 use syntect::util::LinesWithEndings;
 use two_face::theme::EmbeddedThemeName;
 
-#[path = "highlight_streaming.rs"]
-mod streaming;
-
 // -- Global singletons -------------------------------------------------------
 
 static SYNTAX_SET: OnceLock<SyntaxSet> = OnceLock::new();
@@ -326,26 +323,6 @@ fn foreground_style_for_scopes_with_theme(theme: &Theme, scope_names: &[&str]) -
         let fg = highlighter.style_mod_for_stack(&[scope]).foreground?;
         convert_syntect_color(fg).map(|fg| Style::default().fg(fg))
     })
-}
-
-/// Return the configured kebab-case theme name when it resolves; otherwise
-/// return the adaptive auto-detected default theme name.
-///
-/// This intentionally reflects persisted configuration/default selection, not
-/// transient runtime swaps applied via `set_syntax_theme`.
-pub(crate) fn configured_theme_name() -> String {
-    // Explicit user override?
-    if let Some(Some(name)) = THEME_OVERRIDE.get() {
-        if parse_theme_name(name).is_some() {
-            return name.clone();
-        }
-        if let Some(Some(home)) = ANTEX_HOME.get()
-            && load_custom_theme(name, home).is_some()
-        {
-            return name.clone();
-        }
-    }
-    adaptive_default_theme_name().to_string()
 }
 
 /// Resolve a theme name to a `Theme` (bundled or custom). Returns `None`
@@ -692,11 +669,6 @@ pub(crate) fn highlight_code_to_lines(code: &str, lang: &str) -> Vec<Line<'stati
         }
         result
     }
-}
-
-/// Backward-compatible wrapper for bash highlighting used by exec cells.
-pub(crate) fn highlight_bash_to_lines(script: &str) -> Vec<Line<'static>> {
-    highlight_code_to_lines(script, "bash")
 }
 
 /// Highlight code and return per-line styled spans for diff integration.

@@ -49,6 +49,7 @@ pub(crate) fn calculate_add_remove_from_diff(diff: &str) -> (usize, usize) {
 /// This is the convenience entry point used by the theme picker preview and
 /// any caller that does not have syntax spans.  Delegates to the inner
 /// rendering core with `syntax_spans = None`.
+#[cfg(test)]
 pub(crate) fn push_wrapped_diff_line_with_style_context(
     line_number: usize,
     kind: DiffLineType,
@@ -77,6 +78,7 @@ pub(crate) fn push_wrapped_diff_line_with_style_context(
 /// `syntax_spans` (from [`highlight_code_to_styled_spans`]) onto the diff
 /// coloring.  Delete lines receive a `DIM` modifier so syntax colors do not
 /// overpower the removal cue.
+#[cfg(test)]
 pub(crate) fn push_wrapped_diff_line_with_syntax_and_style_context(
     line_number: usize,
     kind: DiffLineType,

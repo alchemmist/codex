@@ -27,6 +27,7 @@ pub(crate) enum QuoteEscaping {
 }
 
 /// Parse one inline, leaf, or container marker from the beginning of `source`.
+#[cfg(test)]
 pub(crate) fn parse_assistant_directive(
     source: &str,
     escaping: QuoteEscaping,

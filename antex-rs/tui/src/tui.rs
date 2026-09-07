@@ -60,6 +60,7 @@ impl FrameRequester {
 
 pub(crate) struct Tui<B: ratatui::backend::Backend<Error = std::io::Error> + std::io::Write> {
     pub(crate) terminal: crate::custom_terminal::Terminal<B>,
+    #[cfg(test)]
     inline: Option<ratatui::layout::Rect>,
 }
 
@@ -72,9 +73,11 @@ impl<B: ratatui::backend::Backend<Error = std::io::Error> + std::io::Write> Tui<
             terminal: crate::custom_terminal::Terminal::with_options_and_cursor_position(
                 backend, cursor,
             )?,
+            #[cfg(test)]
             inline: None,
         })
     }
+    #[cfg(test)]
     pub(crate) fn new(backend: B) -> std::io::Result<Self> {
         Ok(Self {
             terminal: crate::custom_terminal::Terminal::with_options(backend)?,
@@ -82,6 +85,7 @@ impl<B: ratatui::backend::Backend<Error = std::io::Error> + std::io::Write> Tui<
         })
     }
 
+    #[cfg(test)]
     pub(crate) fn enter_alt_screen(&mut self) -> std::io::Result<()> {
         use crossterm::execute;
         execute!(
@@ -97,6 +101,7 @@ impl<B: ratatui::backend::Backend<Error = std::io::Error> + std::io::Write> Tui<
         self.terminal.clear()
     }
 
+    #[cfg(test)]
     pub(crate) fn leave_alt_screen(&mut self) -> std::io::Result<()> {
         use crossterm::execute;
         std::io::Write::write_all(self.terminal.backend_mut(), b"\x1b[?1007l")?;

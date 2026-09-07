@@ -46,7 +46,6 @@ use ratatui::layout::Rect;
 use ratatui::layout::Size;
 use ratatui::style::Color;
 use ratatui::style::Modifier;
-use ratatui::widgets::WidgetRef;
 
 use crate::terminal_palette::terminal_background;
 use crate::terminal_palette::terminal_foreground;
@@ -93,15 +92,6 @@ impl Frame<'_> {
         self.viewport_area
     }
 
-    /// Render a [`WidgetRef`] to the current buffer using [`WidgetRef::render_ref`].
-    ///
-    /// Usually the area argument is the size of the current frame or a sub-area of the current
-    /// frame (which can be obtained using [`Layout`] to split the total area).
-    #[allow(clippy::needless_pass_by_value)]
-    pub fn render_widget_ref<W: WidgetRef>(&mut self, widget: W, area: Rect) {
-        widget.render_ref(area, self.buffer);
-    }
-
     /// After drawing this frame, make the cursor visible and put it at the specified (x, y)
     /// coordinates. If this method is not called, the cursor will be hidden.
     ///
@@ -117,6 +107,7 @@ impl Frame<'_> {
     }
 
     /// After drawing this frame, set the terminal's visible cursor style.
+    #[cfg(test)]
     pub fn set_cursor_style(&mut self, style: SetCursorStyle) {
         self.cursor_style = style;
     }
@@ -180,6 +171,7 @@ where
     B: Write,
 {
     /// Creates a new [`Terminal`] with the given [`Backend`] and [`TerminalOptions`].
+    #[cfg(test)]
     pub fn with_options(mut backend: B) -> io::Result<Self> {
         let screen_size = backend.size()?;
         let cursor_pos = backend.get_cursor_position().unwrap_or_else(|err| {
@@ -277,6 +269,7 @@ where
     }
 
     /// Gets the backend
+    #[cfg(test)]
     pub const fn backend(&self) -> &B {
         &self.backend
     }
@@ -400,6 +393,7 @@ where
     /// previous frame to determine what has changed, and only the changes are written to the
     /// terminal. If the render function does not fully render the frame, the terminal will not be
     /// in a consistent state.
+    #[cfg(test)]
     pub fn try_draw<F, E>(&mut self, render_callback: F) -> io::Result<()>
     where
         F: FnOnce(&mut Frame) -> Result<(), E>,
@@ -487,6 +481,7 @@ where
     }
 
     /// Clear the terminal and force a full redraw on the next draw call.
+    #[cfg(test)]
     pub fn clear(&mut self) -> io::Result<()> {
         if self.viewport_area.is_empty() {
             return Ok(());
@@ -525,25 +520,6 @@ where
         self.backend.clear_region(ClearType::All)?;
         self.set_cursor_position(home)?;
         std::io::Write::flush(&mut self.backend)?;
-        self.visible_history_rows = 0;
-        self.previous_buffer_mut().reset();
-        Ok(())
-    }
-
-    /// Hard-reset scrollback + visible screen using an explicit ANSI sequence.
-    ///
-    /// Some terminals behave more reliably when purge + clear are emitted as a
-    /// single ANSI sequence instead of separate backend commands.
-    pub fn clear_scrollback_and_visible_screen_ansi(&mut self) -> io::Result<()> {
-        if self.viewport_area.is_empty() {
-            return Ok(());
-        }
-
-        // Reset scroll region + style state, home cursor, clear screen, purge scrollback.
-        // The order matches the common shell `clear && printf '\\e[3J'` behavior.
-        write!(self.backend, "\x1b[r\x1b[0m\x1b[H\x1b[2J\x1b[3J\x1b[H")?;
-        std::io::Write::flush(&mut self.backend)?;
-        self.last_known_cursor_pos = Position { x: 0, y: 0 };
         self.visible_history_rows = 0;
         self.previous_buffer_mut().reset();
         Ok(())
