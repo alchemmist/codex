@@ -28,41 +28,62 @@ pub(crate) fn encode(request: ModelRequest) -> Result<Value, ProviderError> {
             Message::Context(fragment) => {
                 let role = match fragment.kind() {
                     antex_core::ContextKind::System => "developer",
-                    antex_core::ContextKind::Project | antex_core::ContextKind::Skill | antex_core::ContextKind::Summary => "user",
+                    antex_core::ContextKind::Project
+                    | antex_core::ContextKind::Skill
+                    | antex_core::ContextKind::Summary => "user",
                 };
-                input.push(json!({"role":role,"content":[{"type":"input_text","text":fragment.text()}]}));
+                input.push(
+                    json!({"role":role,"content":[{"type":"input_text","text":fragment.text()}]}),
+                );
             }
             Message::User(user) => {
-                let mut content = Vec::new();
                 for block in user.content {
-                    match block {
-                        Content::Text(text) => content.push(json!({"type":"input_text","text":text})),
+                    let content = match block {
+                        Content::Text(text) => json!({"type":"input_text","text":text}),
                         Content::Image { media_type, data } => {
                             let encoded = STANDARD.encode(data);
-                            content.push(json!({"type":"input_image","image_url":format!("data:{media_type};base64,{encoded}")}));
+                            json!({"type":"input_image","image_url":format!("data:{media_type};base64,{encoded}")})
                         }
-                        Content::Reasoning(_) | Content::Continuation { .. } => return Err(error(ErrorKind::Protocol, "invalid user content")),
-                    }
+                        Content::Reasoning(_) | Content::Continuation { .. } => {
+                            return Err(error(ErrorKind::Protocol, "invalid user content"));
+                        }
+                    };
+                    input.push(json!({"role":"user","content":[content]}));
                 }
-                input.push(json!({"role":"user","content":content}));
             }
-            Message::Assistant { content, tool_calls } => {
+            Message::Assistant {
+                content,
+                tool_calls,
+            } => {
                 let mut text = Vec::new();
                 let mut replayed_message = false;
                 for block in content {
                     match block {
-                        Content::Text(value) => text.push(json!({"type":"output_text","text":value})),
+                        Content::Text(value) => {
+                            text.push(json!({"type":"output_text","text":value}))
+                        }
                         Content::Continuation { provider, data } if provider == PROVIDER => {
-                            let item: Value = serde_json::from_slice(&data).map_err(|_| error(ErrorKind::Protocol, "invalid OpenAI continuation"))?;
+                            let item: Value = serde_json::from_slice(&data).map_err(|_| {
+                                error(ErrorKind::Protocol, "invalid OpenAI continuation")
+                            })?;
                             let item = crate::continuation::normalize(&item)?;
                             match item["type"].as_str() {
-                                Some("message") if item["role"] == "assistant" => replayed_message = true,
-                                Some("reasoning") => {},
-                                _ => return Err(error(ErrorKind::Protocol, "unsupported OpenAI continuation")),
+                                Some("message") if item["role"] == "assistant" => {
+                                    replayed_message = true
+                                }
+                                Some("reasoning") => {}
+                                _ => {
+                                    return Err(error(
+                                        ErrorKind::Protocol,
+                                        "unsupported OpenAI continuation",
+                                    ));
+                                }
                             }
                             input.push(item);
                         }
-                        Content::Continuation { .. } | Content::Reasoning(_) | Content::Image { .. } => {},
+                        Content::Continuation { .. }
+                        | Content::Reasoning(_)
+                        | Content::Image { .. } => {}
                     }
                 }
                 if !replayed_message && !text.is_empty() {
@@ -72,7 +93,21 @@ pub(crate) fn encode(request: ModelRequest) -> Result<Value, ProviderError> {
                     input.push(json!({"type":"function_call","call_id":call.id,"name":call.name,"arguments":call.arguments}));
                 }
             }
-            Message::Tool(output) => input.push(json!({"type":"function_call_output","call_id":output.call_id,"output":output.text()})),
+            Message::Tool(output) => {
+                let body = match output.image() {
+                    Some(Content::Image { media_type, data }) => json!([
+                        {"type":"input_text","text":output.text()},
+                        {"type":"input_image","image_url":format!("data:{media_type};base64,{}",STANDARD.encode(data))},
+                    ]),
+                    Some(
+                        Content::Text(_) | Content::Reasoning(_) | Content::Continuation { .. },
+                    ) => return Err(error(ErrorKind::Protocol, "invalid tool image")),
+                    None => json!(output.text()),
+                };
+                input.push(
+                    json!({"type":"function_call_output","call_id":output.call_id,"output":body}),
+                );
+            }
         }
     }
     let tools: Vec<_> = request.tools.into_iter().map(|tool| json!({"type":"function","name":tool.name,"description":tool.description,"parameters":tool.parameters,"strict":false})).collect();

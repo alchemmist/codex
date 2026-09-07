@@ -33,7 +33,7 @@ pub(crate) fn encode(message: &Message) -> Value {
             json!({"type":"assistant","content":blocks.iter().map(content).collect::<Vec<_>>(),"tool_calls":tool_calls.iter().map(|call| json!({"id":call.id,"name":call.name,"arguments":call.arguments})).collect::<Vec<_>>()})
         }
         Message::Tool(output) => {
-            json!({"type":"tool_result","call_id":output.call_id,"outcome":match output.outcome {ToolOutcome::Success=>"success",ToolOutcome::Failure=>"failure",ToolOutcome::Cancelled=>"cancelled"},"text":output.text()})
+            json!({"type":"tool_result","call_id":output.call_id,"outcome":match output.outcome {ToolOutcome::Success=>"success",ToolOutcome::Failure=>"failure",ToolOutcome::Cancelled=>"cancelled"},"text":output.text(),"image":output.image().map(content)})
         }
     }
 }
@@ -112,11 +112,14 @@ pub(crate) fn decode(value: &Value) -> io::Result<Message> {
                 "cancelled" => ToolOutcome::Cancelled,
                 _ => return Err(invalid()),
             };
-            Ok(Message::Tool(ToolOutput::new(
-                id.into(),
-                outcome,
-                output.into(),
-            )))
+            let mut output = ToolOutput::new(id.into(), outcome, output.into());
+            if let Some(image) = value.get("image").filter(|image| !image.is_null()) {
+                let image = contents(&json!({"content":[image]}))?
+                    .pop()
+                    .ok_or_else(invalid)?;
+                output = output.with_image(image).map_err(|_| invalid())?;
+            }
+            Ok(Message::Tool(output))
         }
         _ => Err(invalid()),
     }

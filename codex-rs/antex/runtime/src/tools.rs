@@ -109,6 +109,7 @@ impl ToolHost for LocalRuntime {
 
     fn execute(&self, call: ToolCall, context: ToolContext) -> BoxFuture<'_, ToolOutput> {
         Box::pin(async move {
+            let mut attached_image = None;
             let result: Result<String, String> = async {
                 if context.cancellation.is_cancelled() {
                     return Err("tool cancelled".into());
@@ -121,6 +122,13 @@ impl ToolHost for LocalRuntime {
                             .files
                             .read(&input.path)
                             .map_err(|error| error.to_string())?;
+                        if image::guess_format(&bytes).is_ok() {
+                            let image = crate::ImageAttachment::from_bytes(&bytes)
+                                .map_err(|error| error.to_string())?;
+                            let caption = format!("Image {} x {}", image.width, image.height);
+                            attached_image = Some(image.content);
+                            return Ok(caption);
+                        }
                         let text =
                             std::str::from_utf8(&bytes).map_err(|_| "read requires UTF-8 text")?;
                         let offset = input.offset.unwrap_or(1).max(1);
@@ -216,7 +224,15 @@ impl ToolHost for LocalRuntime {
             }
             .await;
             match result {
-                Ok(text) => ToolOutput::new(call.id, ToolOutcome::Success, text),
+                Ok(text) => {
+                    let output = ToolOutput::new(call.id.clone(), ToolOutcome::Success, text);
+                    match attached_image {
+                        Some(image) => output.with_image(image).unwrap_or_else(|error| {
+                            ToolOutput::new(call.id, ToolOutcome::Failure, error.to_string())
+                        }),
+                        None => output,
+                    }
+                }
                 Err(text) => ToolOutput::new(
                     call.id,
                     if context.cancellation.is_cancelled() {

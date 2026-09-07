@@ -1,6 +1,7 @@
 mod config;
 mod edit;
 mod files;
+mod images;
 mod permissions;
 mod project_context;
 mod sandbox;
@@ -14,6 +15,7 @@ mod tools;
 pub use config::Config;
 pub use config::LoadedConfig;
 pub use files::WorkspaceFiles;
+pub use images::ImageAttachment;
 pub use permissions::PermissionProfile;
 pub use project_context::ProjectContext;
 pub use sessions::Session;
