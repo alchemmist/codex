@@ -66,7 +66,7 @@ impl ModelProvider for OpenAiProvider {
             "{}/models?client_version={COMPATIBILITY_REVISION}",
             self.api_base
         );
-        let response = http::authorized(&self.auth, Method::GET, &url, None).await?;
+        let response = http::authorized(&self.auth, Method::GET, &url, /*body*/ None).await?;
         let bytes = crate::body::bounded_body(response, 1024 * 1024).await?;
         let value: Value = serde_json::from_slice(&bytes)
             .map_err(|_| error(ErrorKind::Protocol, "invalid model catalog"))?;

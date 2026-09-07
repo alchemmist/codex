@@ -75,7 +75,7 @@ impl Auth {
         if alias.is_empty() || alias.len() > 128 || alias.chars().any(char::is_control) {
             return Err(error(ErrorKind::Authentication, "invalid account name"));
         }
-        let tokens = tokens_from_response(&value, None)?;
+        let tokens = tokens_from_response(&value, /*previous*/ None)?;
         let _lock = self.store.lock().await?;
         let mut accounts = self.store.load()?;
         if accounts.entries.len() >= 32 && !accounts.entries.contains_key(&alias) {

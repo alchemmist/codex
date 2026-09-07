@@ -45,7 +45,7 @@ impl Store {
     pub async fn lock(&self) -> Result<File, ProviderError> {
         let directory = self.directory.clone();
         let home = self.home.clone();
-        tokio::task::spawn_blocking(move || {
+        let file = tokio::task::spawn_blocking(move || {
             let mut builder = std::fs::DirBuilder::new();
             builder.recursive(true);
             #[cfg(unix)]
@@ -94,12 +94,23 @@ impl Store {
                 std::fs::set_permissions(&directory, std::fs::Permissions::from_mode(0o700))
                     .map_err(storage_error)?;
             }
-            let file = open_private(&directory.join("auth.lock"), OpenMode::Create)?;
-            file.lock().map_err(storage_error)?;
-            Ok(file)
+            open_private(&directory.join("auth.lock"), OpenMode::Create)
         })
         .await
-        .map_err(|_| error(ErrorKind::Authentication, "credential lock task failed"))?
+        .map_err(|_| error(ErrorKind::Authentication, "credential lock task failed"))??;
+        tokio::time::timeout(std::time::Duration::from_secs(30), async move {
+            loop {
+                match file.try_lock() {
+                    Ok(()) => return Ok(file),
+                    Err(std::fs::TryLockError::WouldBlock) => {
+                        tokio::time::sleep(std::time::Duration::from_millis(25)).await
+                    }
+                    Err(std::fs::TryLockError::Error(error)) => return Err(storage_error(error)),
+                }
+            }
+        })
+        .await
+        .map_err(|_| error(ErrorKind::Authentication, "credential store is busy"))?
     }
 
     pub fn load(&self) -> Result<Accounts, ProviderError> {

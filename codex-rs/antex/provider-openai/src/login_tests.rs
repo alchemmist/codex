@@ -160,3 +160,35 @@ async fn credential_store_rejects_symlinked_parent_without_touching_its_target()
     );
     assert_eq!(std::fs::read_dir(outside.path()).unwrap().count(), 0);
 }
+
+#[test]
+fn cancelling_a_busy_credential_lock_does_not_stall_runtime_shutdown() {
+    let home = tempfile::tempdir().unwrap();
+    let store = crate::storage::Store::new(home.path());
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let held = runtime.block_on(store.lock()).unwrap();
+    let second = crate::storage::Store::new(home.path());
+    let (finished, receiver) = std::sync::mpsc::channel();
+    let worker = std::thread::spawn(move || {
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        runtime.block_on(async {
+            assert!(
+                tokio::time::timeout(std::time::Duration::from_millis(50), second.lock())
+                    .await
+                    .is_err()
+            );
+        });
+        drop(runtime);
+        finished.send(()).unwrap();
+    });
+    let result = receiver.recv_timeout(std::time::Duration::from_secs(2));
+    drop(held);
+    worker.join().unwrap();
+    assert!(result.is_ok());
+}
