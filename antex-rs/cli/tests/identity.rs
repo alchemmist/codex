@@ -95,3 +95,33 @@ fn migration_dry_run_does_not_create_the_antex_home() {
     assert!(output.status.success());
     assert!(!destination.exists());
 }
+
+#[test]
+fn single_binary_installs_first_party_extensions_only_on_request() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = directory.path().join("antex");
+    let run = |arguments: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_antex"))
+            .args(arguments)
+            .env("HOME", directory.path())
+            .env("ANTEX_HOME", &home)
+            .output()
+            .unwrap()
+    };
+    let listing = run(&["extensions", "list"]);
+    assert!(listing.status.success());
+    assert_eq!(String::from_utf8(listing.stdout).unwrap(), "tmux-log\n");
+    assert!(!home.exists());
+    let install = run(&["extensions", "install", "tmux-log"]);
+    assert!(install.status.success());
+    assert!(
+        home.join("extensions/tmux-log/antex_ext_tmux_log.py")
+            .exists()
+    );
+    assert_eq!(
+        std::fs::read_dir(home.join("extensions/tmux-log"))
+            .unwrap()
+            .count(),
+        2
+    );
+}

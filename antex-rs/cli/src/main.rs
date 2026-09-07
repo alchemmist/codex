@@ -23,6 +23,7 @@ use clap::Subcommand;
 use tokio_util::sync::CancellationToken;
 
 mod extension_launcher;
+mod first_party_extensions;
 mod interactive;
 mod migration;
 mod terminal_log;
@@ -62,6 +63,10 @@ enum Action {
         #[command(subcommand)]
         source: MigrationSource,
     },
+    Extensions {
+        #[command(subcommand)]
+        action: ExtensionAction,
+    },
     Models,
     Sessions,
     Compact {
@@ -92,6 +97,12 @@ enum MigrationSource {
     },
 }
 
+#[derive(Subcommand)]
+enum ExtensionAction {
+    List,
+    Install { name: String },
+}
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     match run(Args::parse()).await {
@@ -117,6 +128,20 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     let legacy_root = legacy.canonicalize().unwrap_or_else(|_| legacy.clone());
     if requested_home.starts_with(&legacy_root) {
         return Err("Antex home must not be inside the legacy .codex directory".into());
+    }
+    if let Some(Action::Extensions { action }) = &args.command {
+        match action {
+            ExtensionAction::List => {
+                for name in first_party_extensions::names() {
+                    println!("{name}");
+                }
+            }
+            ExtensionAction::Install { name } => {
+                first_party_extensions::install(&requested_home, name)?;
+                println!("Installed Antex extension {name}.");
+            }
+        }
+        return Ok(());
     }
     if let Some(Action::Migrate { source }) = &args.command {
         match source {
@@ -211,6 +236,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         Action::UseAccount { name } => provider.select_account(&name).await?,
         Action::Logout { name } => provider.logout(&name).await?,
         Action::Migrate { .. } => unreachable!(),
+        Action::Extensions { .. } => unreachable!(),
         Action::Models => {
             for model in provider.models().await? {
                 println!("{}\t{}", model.id, model.display_name);
