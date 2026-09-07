@@ -75,7 +75,7 @@ impl<P: ModelProvider + 'static> Session for TestSession<P> {
             input,
         }))
     }
-    fn record(&mut self, event: &AgentEvent) -> Result<(), String> {
+    async fn record(&mut self, event: &AgentEvent) -> Result<(), String> {
         match event {
             AgentEvent::MessageCommitted(message) => self.messages.push(message.clone()),
             AgentEvent::Finished { .. } => self.finished.notify_one(),

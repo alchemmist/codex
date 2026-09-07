@@ -63,3 +63,27 @@ async fn help_page_covers_the_direct_frontend_commands() {
     };
     insta::assert_snapshot!(page.body);
 }
+
+#[test]
+fn agent_events_map_to_bounded_extension_lifecycle_events() {
+    let call = antex_core::ToolCall {
+        id: "call-1".into(),
+        name: "shell".into(),
+        arguments: serde_json::json!({"command":"pwd"}),
+    };
+    let started = extension_event(&AgentEvent::ToolStarted(call)).unwrap();
+    assert_eq!(started.name, "toolStarted");
+    assert_eq!(started.data["name"], "shell");
+
+    let completed = extension_event(&AgentEvent::MessageCommitted(Message::Tool(
+        antex_core::ToolOutput::new(
+            "call-1".into(),
+            antex_core::ToolOutcome::Success,
+            "done".into(),
+        ),
+    )))
+    .unwrap();
+    assert_eq!(completed.name, "toolCompleted");
+    assert_eq!(completed.data["text"], "done");
+    assert!(extension_event(&AgentEvent::TextDelta("ignored".into())).is_none());
+}

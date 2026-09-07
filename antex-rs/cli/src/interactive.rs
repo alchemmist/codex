@@ -220,10 +220,19 @@ impl Session for InteractiveSession {
             }))
     }
 
-    fn record(&mut self, event: &AgentEvent) -> Result<(), String> {
+    async fn record(&mut self, event: &AgentEvent) -> Result<(), String> {
         self.conversation
             .record(event)
-            .map_err(|error| error.to_string())
+            .map_err(|error| error.to_string())?;
+        let Some(event) = extension_event(event) else {
+            return Ok(());
+        };
+        if let Some(extensions) = &self.extensions {
+            for failure in extensions.notify(event).await {
+                eprintln!("antex: extension event failed: {failure}");
+            }
+        }
+        Ok(())
     }
 
     async fn command(&mut self, command: &str) -> Result<CommandEffect, String> {
@@ -301,7 +310,7 @@ impl Session for InteractiveSession {
             "/compact" => {
                 let compaction = self.compaction.as_ref().ok_or("Start a conversation before compacting.")?;
                 let checkpoint = compaction.compact(&self.history()).await.map_err(|error| error.to_string())?;
-                self.record(&AgentEvent::ContextCheckpoint(checkpoint))?;
+                self.record(&AgentEvent::ContextCheckpoint(checkpoint)).await?;
                 Ok(CommandEffect::Notice("Context compacted; original records retained.".into()))
             }
             "/status" => Ok(CommandEffect::Notice(format!("Session {} · {} records", self.conversation.id(), self.conversation.entries().len()))),
@@ -323,6 +332,25 @@ impl Session for InteractiveSession {
             }
         }
     }
+}
+
+fn extension_event(event: &AgentEvent) -> Option<antex_extension_protocol::Event> {
+    let (name, data) = match event {
+        AgentEvent::ToolStarted(call) => (
+            "toolStarted",
+            serde_json::json!({"callId":call.id,"name":call.name,"arguments":call.arguments}),
+        ),
+        AgentEvent::MessageCommitted(Message::Tool(output)) => (
+            "toolCompleted",
+            serde_json::json!({"callId":output.call_id,"outcome":format!("{:?}",output.outcome).to_lowercase(),"text":output.text()}),
+        ),
+        AgentEvent::TurnCompleted => ("turnComplete", serde_json::json!({})),
+        _ => return None,
+    };
+    Some(antex_extension_protocol::Event {
+        name: name.into(),
+        data,
+    })
 }
 
 #[cfg(test)]

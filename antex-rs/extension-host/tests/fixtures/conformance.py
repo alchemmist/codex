@@ -62,7 +62,10 @@ for line in sys.stdin:
     elif method == "command/run":
         respond(request, {"text": "hello", "records": [], "actions": []})
     elif method == "event/notify":
-        respond(request, None)
+        if request["params"]["data"].get("fail"):
+            respond(request, error={"code": -32000, "message": "event failed"})
+        else:
+            respond(request, None)
     elif method == "shutdown":
         respond(request, None)
         break

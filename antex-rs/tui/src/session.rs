@@ -33,7 +33,7 @@ pub trait Session: Send {
         source: crate::ImageSource,
     ) -> impl Future<Output = Result<antex_core::Content, String>> + Send;
     fn start(&mut self, input: UserInput) -> impl Future<Output = Result<AgentRun, String>> + Send;
-    fn record(&mut self, event: &AgentEvent) -> Result<(), String>;
+    fn record(&mut self, event: &AgentEvent) -> impl Future<Output = Result<(), String>> + Send;
     fn command(
         &mut self,
         command: &str,

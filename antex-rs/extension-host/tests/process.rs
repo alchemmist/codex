@@ -12,6 +12,7 @@ use antex_extension_host::ExtensionResponse;
 use antex_extension_host::ManagedExtension;
 use antex_extension_protocol::Capability;
 use antex_extension_protocol::CommandRun;
+use antex_extension_protocol::Event;
 use antex_extension_protocol::ToolCall;
 use futures::future::BoxFuture;
 use pretty_assertions::assert_eq;
@@ -90,6 +91,18 @@ async fn assert_conformance(config: ExtensionConfig) {
         panic!("command returned a notification response");
     };
     assert_eq!(output.text, "hello");
+
+    let response = extension
+        .request(
+            ExtensionRequest::Event(Event {
+                name: "turnComplete".into(),
+                data: json!({}),
+            }),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert!(matches!(response, ExtensionResponse::Notified));
     extension.shutdown().await.unwrap();
 }
 

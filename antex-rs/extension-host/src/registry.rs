@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use antex_core::ToolHost;
 use antex_extension_protocol::CommandRun;
+use antex_extension_protocol::Event;
 use antex_extension_protocol::Output;
 use tokio_util::sync::CancellationToken;
 
@@ -29,10 +30,16 @@ struct CommandTarget {
     remote_name: String,
 }
 
+struct EventTarget {
+    name: String,
+    process: Arc<ManagedExtension>,
+}
+
 pub struct ExtensionRegistry {
     tool_host: Arc<ExtensionToolHost>,
     commands: Vec<RegistryCommand>,
     command_targets: HashMap<String, CommandTarget>,
+    event_targets: HashMap<String, Vec<EventTarget>>,
 }
 
 pub struct RegistryLoad {
@@ -89,6 +96,7 @@ impl ExtensionRegistry {
         }
         let mut commands = Vec::new();
         let mut command_targets = HashMap::new();
+        let mut event_targets: HashMap<String, Vec<EventTarget>> = HashMap::new();
         for extension in &extensions {
             for command in &extension.manifest.commands {
                 let name = format!("{}__{}", extension.manifest.name, command.name);
@@ -109,6 +117,15 @@ impl ExtensionRegistry {
                     description: command.description.clone(),
                 });
             }
+            for event in &extension.manifest.events {
+                event_targets
+                    .entry(event.clone())
+                    .or_default()
+                    .push(EventTarget {
+                        name: extension.manifest.name.clone(),
+                        process: Arc::clone(&extension.process),
+                    });
+            }
         }
         commands.sort_by(|left, right| left.name.cmp(&right.name));
         Ok(RegistryLoad {
@@ -116,6 +133,7 @@ impl ExtensionRegistry {
                 tool_host: Arc::new(ExtensionToolHost::new(fallback, extensions)?),
                 commands,
                 command_targets,
+                event_targets,
             },
             failures,
         })
@@ -156,5 +174,25 @@ impl ExtensionRegistry {
             )
             .into()),
         }
+    }
+
+    pub async fn notify(&self, event: Event) -> Vec<String> {
+        let Some(targets) = self.event_targets.get(&event.name) else {
+            return Vec::new();
+        };
+        let mut failures = Vec::new();
+        for target in targets {
+            if let Err(error) = target
+                .process
+                .request(
+                    ExtensionRequest::Event(event.clone()),
+                    CancellationToken::new(),
+                )
+                .await
+            {
+                failures.push(format!("{}: {error}", target.name));
+            }
+        }
+        failures
     }
 }

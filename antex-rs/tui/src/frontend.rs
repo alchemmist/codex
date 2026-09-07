@@ -242,7 +242,7 @@ where
             _ = frames.next_frame() => {},
             event = next_agent_event(&mut run) => {
                 let Some(event) = event else { run = None; turn_ready = false; continue; };
-                if let Err(error) = session.record(&event) {
+                if let Err(error) = session.record(&event).await {
                     if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
                     return Err(io::Error::other(error));
                 }
