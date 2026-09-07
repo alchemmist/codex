@@ -10,6 +10,8 @@ const DIAGNOSTICS_PROGRAM: &[u8] =
 const DIAGNOSTICS_DEFINITION: &[u8] = include_bytes!("../../extensions/diagnostics/extension.json");
 const AGENTS_PROGRAM: &[u8] = include_bytes!("../../extensions/agents/antex_ext_agents.py");
 const AGENTS_DEFINITION: &[u8] = include_bytes!("../../extensions/agents/extension.json");
+const PLAN_PROGRAM: &[u8] = include_bytes!("../../extensions/plan/antex_ext_plan.py");
+const PLAN_DEFINITION: &[u8] = include_bytes!("../../extensions/plan/extension.json");
 const WORKFLOWS_PROGRAM: &[u8] =
     include_bytes!("../../extensions/workflows/antex_ext_workflows.py");
 const WORKFLOWS_DEFINITION: &[u8] = include_bytes!("../../extensions/workflows/extension.json");
@@ -33,6 +35,12 @@ const EXTENSIONS: &[Extension] = &[
         program_name: "antex_ext_diagnostics.py",
         program: DIAGNOSTICS_PROGRAM,
         definition: DIAGNOSTICS_DEFINITION,
+    },
+    Extension {
+        name: "plan",
+        program_name: "antex_ext_plan.py",
+        program: PLAN_PROGRAM,
+        definition: PLAN_DEFINITION,
     },
     Extension {
         name: "tmux-log",

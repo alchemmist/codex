@@ -1,0 +1,5 @@
+{
+  "name": "plan",
+  "program": "antex_ext_plan.py",
+  "capabilities": ["persist", "ui"]
+}

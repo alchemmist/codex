@@ -112,7 +112,7 @@ fn single_binary_installs_first_party_extensions_only_on_request() {
     assert!(listing.status.success());
     assert_eq!(
         String::from_utf8(listing.stdout).unwrap(),
-        "agents\ndiagnostics\ntmux-log\nworkflows\n"
+        "agents\ndiagnostics\nplan\ntmux-log\nworkflows\n"
     );
     assert!(!home.exists());
     let install = run(&["extensions", "install", "tmux-log"]);
