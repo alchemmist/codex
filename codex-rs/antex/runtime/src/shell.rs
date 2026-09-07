@@ -113,6 +113,19 @@ impl Shell {
         {
             command.env("HOME", home);
         }
+        if profile == PermissionProfile::Full {
+            for name in [
+                "PATH",
+                "CARGO_HOME",
+                "RUSTUP_HOME",
+                "RUSTUP_TOOLCHAIN",
+                "SSH_AUTH_SOCK",
+            ] {
+                if let Some(value) = std::env::var_os(name) {
+                    command.env(name, value);
+                }
+            }
+        }
         #[cfg(unix)]
         command.process_group(0);
         let mut child = command.spawn()?;

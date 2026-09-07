@@ -4,19 +4,26 @@ use std::path::PathBuf;
 use std::process::Stdio;
 
 use tokio::process::Command;
+#[cfg(target_os = "linux")]
 use tokio::sync::OnceCell;
 
 use crate::PermissionProfile;
 
 pub(crate) struct Sandbox {
+    #[cfg(target_os = "linux")]
     program: PathBuf,
+    #[cfg(target_os = "linux")]
     verified: OnceCell<()>,
 }
 
 impl Sandbox {
     pub fn new(program: PathBuf) -> Self {
+        #[cfg(not(target_os = "linux"))]
+        let _ = program;
         Self {
+            #[cfg(target_os = "linux")]
             program,
+            #[cfg(target_os = "linux")]
             verified: OnceCell::new(),
         }
     }
@@ -104,7 +111,7 @@ impl Sandbox {
                     .to_str()
                     .ok_or_else(|| io::Error::other("sandbox path is not UTF-8"))?;
                 policy.push_str(&format!(
-                    "(allow file-read* (subpath {}))",
+                    "(allow file-read* file-map-executable (subpath {}))",
                     serde_json::to_string(root)?
                 ));
             }
@@ -115,7 +122,7 @@ impl Sandbox {
                     .to_str()
                     .ok_or_else(|| io::Error::other("sandbox path is not UTF-8"))?;
                 policy.push_str(&format!(
-                    "(allow file-read* file-write* (subpath {}))",
+                    "(allow file-read* file-write* file-map-executable (subpath {}))",
                     serde_json::to_string(root)?
                 ));
             }
