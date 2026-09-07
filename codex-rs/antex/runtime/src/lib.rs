@@ -26,6 +26,7 @@ pub use sessions::Session;
 pub use sessions::SessionMessage;
 pub use sessions::SessionPreview;
 pub use sessions::SessionStore;
+pub use sessions::TranscriptPage;
 pub use shell::Shell;
 pub use shell::ShellResult;
 pub use tools::LocalRuntime;

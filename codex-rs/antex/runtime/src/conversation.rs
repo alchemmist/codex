@@ -38,8 +38,18 @@ impl Conversation {
         self.session.pending_commands()
     }
 
+    pub fn queue_command(&mut self, command: &antex_core::AgentCommand) -> io::Result<()> {
+        let mut pending = self.session.pending_commands()?;
+        pending.push(command.clone());
+        self.session.save_pending_commands(&pending)
+    }
+
     pub fn load_ui_state(&mut self, name: &str) -> io::Result<Option<serde_json::Value>> {
         self.session.load_ui_state(name)
+    }
+
+    pub fn transcript_page(&mut self, cursor: Option<Uuid>) -> io::Result<crate::TranscriptPage> {
+        self.session.transcript_page(cursor)
     }
 
     pub fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> io::Result<()> {
@@ -83,8 +93,14 @@ impl Conversation {
             }
             AgentEvent::Finished { pending, .. } => {
                 let mut retained = self.session.pending_commands()?;
-                retained.extend(pending.iter().cloned());
-                self.session.save_pending_commands(&retained)?;
+                for command in pending {
+                    if let Some(index) = retained.iter().position(|saved| saved == command) {
+                        retained.remove(index);
+                    }
+                }
+                let mut remaining = pending.clone();
+                remaining.extend(retained);
+                self.session.save_pending_commands(&remaining)?;
             }
             AgentEvent::Interaction { .. }
             | AgentEvent::ToolProgress { .. }

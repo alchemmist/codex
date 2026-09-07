@@ -138,3 +138,72 @@ fn ui_state_survives_resume_and_never_enters_model_history() {
         .unwrap();
     assert_eq!(resumed.load_ui_state("promptStash").unwrap(), None);
 }
+
+#[test]
+fn durable_queue_preserves_duplicate_inputs_without_duplicating_finish_notifications() {
+    use antex_core::AgentCommand;
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = crate::SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut conversation = Conversation::new(store.create().unwrap()).unwrap();
+    conversation
+        .record(&AgentEvent::MessageCommitted(Message::User(
+            "initial".into(),
+        )))
+        .unwrap();
+    let queued = AgentCommand::FollowUp("same".into());
+    conversation.queue_command(&queued).unwrap();
+    conversation.queue_command(&queued).unwrap();
+    let id = conversation.id();
+    drop(conversation);
+    let mut resumed = Conversation::new(store.open(id).unwrap()).unwrap();
+    assert_eq!(
+        resumed.pending_commands().unwrap(),
+        vec![queued.clone(), queued.clone()]
+    );
+    resumed
+        .record(&AgentEvent::MessageCommitted(Message::User("same".into())))
+        .unwrap();
+    resumed
+        .record(&AgentEvent::Finished {
+            reason: FinishReason::Interrupted,
+            pending: vec![queued.clone()],
+        })
+        .unwrap();
+    assert_eq!(resumed.pending_commands().unwrap(), vec![queued]);
+}
+
+#[test]
+fn transcript_pages_retain_original_messages_after_context_compaction() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = crate::SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut conversation = Conversation::new(store.create().unwrap()).unwrap();
+    for index in 0..80 {
+        conversation
+            .record(&AgentEvent::MessageCommitted(Message::User(
+                format!("request-{index:03}").into(),
+            )))
+            .unwrap();
+    }
+    conversation
+        .record(&AgentEvent::ContextCheckpoint(ContextCheckpoint {
+            summary: ContextFragment::new(
+                ContextKind::Summary,
+                "earlier context summarized".into(),
+            )
+            .unwrap(),
+            retained: Vec::new(),
+            tail_start: 79,
+            usage: Default::default(),
+        }))
+        .unwrap();
+    assert_eq!(conversation.entries().len(), 2);
+    let newest = conversation.transcript_page(/*cursor*/ None).unwrap();
+    assert!(newest.text.contains("request-079"));
+    assert!(!newest.text.contains("request-000"));
+    let older = conversation.transcript_page(newest.next_cursor).unwrap();
+    assert!(older.text.contains("request-000"));
+    assert!(!older.text.contains("request-079"));
+    assert!(older.next_cursor.is_none());
+}

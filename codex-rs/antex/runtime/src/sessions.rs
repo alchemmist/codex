@@ -32,6 +32,8 @@ mod pending;
 mod previews;
 mod ui_state;
 pub use previews::SessionPreview;
+mod transcript;
+pub use transcript::TranscriptPage;
 
 const MAX_RECORD_BYTES: u64 = 2 * antex_core::MAX_TRANSCRIPT_BYTES as u64;
 const MAX_RECORDS: usize = 100_000;
@@ -300,6 +302,12 @@ impl Session {
         let mut messages = Vec::new();
         let mut bytes = 0;
         for (position, id) in ids.into_iter().enumerate() {
+            if matches!(
+                self.records[&id].kind,
+                Kind::Session | Kind::ToolCall | Kind::Branch | Kind::Pending | Kind::UiState
+            ) {
+                continue;
+            }
             let (mut record, length) = self.read_record(id)?;
             if record.kind == Kind::Summary && record.payload["type"] == "checkpoint" {
                 if position != 0 {
