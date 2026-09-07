@@ -1,4 +1,5 @@
 mod appearance;
+mod composer;
 mod custom_terminal;
 mod editor_types;
 mod insert_history;
