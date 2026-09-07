@@ -21,6 +21,8 @@ Antex currently provides:
   `antex extensions install tmux-log`;
 - restartable project Python workflows installed with
   `antex extensions install workflows`;
+- explicit agent batches, diagnostic/export commands, and a persistent TODO
+  panel as separately installable first-party extensions;
 - explicit, non-destructive `antex migrate codex` support for compatible data.
 
 The first public release will be `0.0.1`. Until its release gates pass, the

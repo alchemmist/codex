@@ -52,8 +52,7 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 
 - Complete live ChatGPT subscription login, model turn and tool-cycle acceptance.
 - Add streamable HTTP/OAuth MCP support.
-- Complete workflow pause/stop/resume and parallel agent batches; implement the
-  explicit-agents and diagnostic/export extensions.
+- Complete workflow pause/stop/resume and package the PR babysitter workflow.
 - Execute shell, agent, and inspection command actions. `TerminalLog` lifecycle
   actions are connected, and extension state persists in the active session
   branch and reloads after process restart.
@@ -76,9 +75,14 @@ does not affect the base agent loop.
 
 `antex-ext-workflows` is installed explicitly from the single binary and runs
 project `.antex/workflows/<id>.py` functions. Its synchronous `ctx.shell`,
-`ctx.agent`, inspection, checkpoint, progress, and sequential `agent_batch`
-calls continue through a 64-action host loop. Shell actions share the runtime
-sandbox and ephemeral agents run in-process with empty conversation history.
+`ctx.agent`, inspection, checkpoint, progress, and parallel `agent_batch` calls
+continue through a 64-action host loop. Shell actions share the runtime sandbox
+and up to eight ephemeral agents run in-process with empty conversation history.
+
+The explicitly installed `agents`, `diagnostics`, and `plan` extensions own
+`/subagents` and `/agents`, `/context`, `/system-prompt`, `/dump`, and the
+persistent `/todo` panel. The host rejects Agent actions originating from model
+tools or lifecycle observers, so ordinary prompts cannot spawn subagents.
 
 ## Validation on deimos
 
