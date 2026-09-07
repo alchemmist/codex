@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use tokio::sync::mpsc;
 
+use crate::AgentCommand;
 use crate::AgentEvent;
 use crate::CommandSender;
 use crate::ContextHook;
@@ -33,6 +34,7 @@ pub(crate) async fn run<P: ModelProvider>(
     events: mpsc::Sender<AgentEvent>,
     commands: CommandSender,
 ) {
+    let mut pending = Vec::new();
     let result = drive(
         provider.as_ref(),
         tools.as_ref(),
@@ -40,6 +42,7 @@ pub(crate) async fn run<P: ModelProvider>(
         input,
         &events,
         &commands,
+        &mut pending,
     )
     .await;
     let reason = match result {
@@ -50,7 +53,7 @@ pub(crate) async fn run<P: ModelProvider>(
             FinishReason::Failed
         }
     };
-    let pending = commands.close();
+    pending.extend(commands.close());
     let _ = events.send(AgentEvent::Finished { reason, pending }).await;
 }
 
@@ -61,8 +64,20 @@ async fn drive<P: ModelProvider>(
     input: TurnInput,
     events: &mpsc::Sender<AgentEvent>,
     commands: &CommandSender,
+    pending: &mut Vec<AgentCommand>,
 ) -> Result<(), ProviderError> {
     let cancel = &commands.cancel;
+    let mut history = input.history;
+    let mut scope = input.input.tool_scope.clone();
+    commit_input(
+        AgentCommand::FollowUp(input.input),
+        InputCommit::Initial,
+        &mut history,
+        events,
+        cancel,
+        pending,
+    )
+    .await?;
     if input.model.is_empty()
         || input.model.len() > 128
         || input
@@ -72,22 +87,20 @@ async fn drive<P: ModelProvider>(
     {
         return Err(error(ErrorKind::Limit, "invalid model selection"));
     }
-    let mut history = input.history;
-    let mut scope = input.input.tool_scope.clone();
-    history.push(Message::User(input.input));
-    validation::history(&history)?;
-    emit(
-        events,
-        cancel,
-        AgentEvent::MessageCommitted(history.last().unwrap().clone()),
-    )
-    .await?;
     for _ in 0..64 {
-        for input in commands.take_steers() {
-            let message = Message::User(input);
-            history.push(message.clone());
-            validation::history(&history)?;
-            emit(events, cancel, AgentEvent::MessageCommitted(message)).await?;
+        for _ in 0..crate::control::QUEUE_CAPACITY {
+            let Some(input) = commands.take_steer() else {
+                break;
+            };
+            commit_input(
+                AgentCommand::Steer(input),
+                InputCommit::Queued,
+                &mut history,
+                events,
+                cancel,
+                pending,
+            )
+            .await?;
         }
         let toolset = ToolSet::new(tools.definitions(&scope))?;
         let prepared = if let Some(hook) = hook {
@@ -211,15 +224,27 @@ async fn drive<P: ModelProvider>(
             emit(events, cancel, AgentEvent::TurnCompleted).await?;
             match commands.next_or_close() {
                 NextInput::Steer(input) => {
-                    let message = Message::User(input);
-                    history.push(message.clone());
-                    emit(events, cancel, AgentEvent::MessageCommitted(message)).await?;
+                    commit_input(
+                        AgentCommand::Steer(input),
+                        InputCommit::Queued,
+                        &mut history,
+                        events,
+                        cancel,
+                        pending,
+                    )
+                    .await?;
                 }
                 NextInput::FollowUp(input) => {
                     scope = input.tool_scope.clone();
-                    let message = Message::User(input);
-                    history.push(message.clone());
-                    emit(events, cancel, AgentEvent::MessageCommitted(message)).await?;
+                    commit_input(
+                        AgentCommand::FollowUp(input),
+                        InputCommit::Queued,
+                        &mut history,
+                        events,
+                        cancel,
+                        pending,
+                    )
+                    .await?;
                 }
                 NextInput::Done => return Ok(()),
             }
@@ -272,4 +297,38 @@ async fn drive<P: ModelProvider>(
         ErrorKind::Limit,
         "run exceeded its model request budget",
     ))
+}
+
+enum InputCommit {
+    Initial,
+    Queued,
+}
+
+async fn commit_input(
+    command: AgentCommand,
+    mode: InputCommit,
+    history: &mut Vec<Message>,
+    events: &mpsc::Sender<AgentEvent>,
+    cancel: &tokio_util::sync::CancellationToken,
+    pending: &mut Vec<AgentCommand>,
+) -> Result<(), ProviderError> {
+    pending.push(command.clone());
+    if matches!(mode, InputCommit::Queued) && cancel.is_cancelled() {
+        return Err(error(ErrorKind::Cancelled, "input cancelled before commit"));
+    }
+    let input = match command {
+        AgentCommand::Steer(input) | AgentCommand::FollowUp(input) => input,
+        AgentCommand::Interrupt => {
+            return Err(error(ErrorKind::Protocol, "interrupt is not user input"));
+        }
+    };
+    let message = Message::User(input);
+    history.push(message.clone());
+    validation::history(history)?;
+    events
+        .send(AgentEvent::MessageCommitted(message))
+        .await
+        .map_err(|_| error(ErrorKind::Cancelled, "event receiver closed"))?;
+    pending.clear();
+    Ok(())
 }

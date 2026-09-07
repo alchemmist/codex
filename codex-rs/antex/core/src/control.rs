@@ -7,7 +7,7 @@ use tokio_util::sync::CancellationToken;
 use crate::UserInput;
 use crate::validation;
 
-const QUEUE_CAPACITY: usize = 32;
+pub(super) const QUEUE_CAPACITY: usize = 32;
 const QUEUED_BYTES: usize = 4 * 1024 * 1024;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -112,17 +112,14 @@ impl CommandSender {
         Ok(())
     }
 
-    pub(crate) fn take_steers(&self) -> Vec<UserInput> {
+    pub(crate) fn take_steer(&self) -> Option<UserInput> {
         let mut state = self
             .state
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
-        let mut inputs = Vec::with_capacity(state.steers.len());
-        while let Some((input, bytes)) = state.steers.pop_front() {
-            state.bytes -= bytes;
-            inputs.push(input);
-        }
-        inputs
+        let (input, bytes) = state.steers.pop_front()?;
+        state.bytes -= bytes;
+        Some(input)
     }
 
     pub(crate) fn next_or_close(&self) -> NextInput {

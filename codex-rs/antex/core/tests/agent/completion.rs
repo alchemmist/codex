@@ -11,6 +11,43 @@ use super::input;
 
 struct InterruptAtCompletion(Arc<Mutex<Option<CommandSender>>>);
 
+#[tokio::test]
+async fn immediate_interrupt_preserves_the_submitted_request_and_queued_steers() {
+    let provider = super::provider(Vec::new());
+    let mut agent = Agent::new(provider.clone(), Arc::new(Tools::default()));
+    let run = agent.start(input());
+    let queued = AgentCommand::Steer("queued steering".into());
+    run.commands.try_send(queued.clone()).unwrap();
+    run.commands.try_send(AgentCommand::Interrupt).unwrap();
+    assert_eq!(
+        drain(run).await,
+        vec![
+            AgentEvent::MessageCommitted(Message::User("hello".into())),
+            AgentEvent::Finished {
+                reason: FinishReason::Interrupted,
+                pending: vec![queued]
+            }
+        ]
+    );
+    assert!(provider.requests.lock().unwrap().is_empty());
+}
+
+#[tokio::test]
+async fn invalid_history_returns_the_uncommitted_request() {
+    let mut agent = Agent::new(super::provider(Vec::new()), Arc::new(Tools::default()));
+    let mut turn = input();
+    turn.history
+        .push(Message::User("x".repeat(MAX_TEXT_BYTES + 1).into()));
+    let events = drain(agent.start(turn)).await;
+    assert_eq!(
+        events.last(),
+        Some(&AgentEvent::Finished {
+            reason: FinishReason::Failed,
+            pending: vec![AgentCommand::FollowUp("hello".into())]
+        })
+    );
+}
+
 impl ModelProvider for InterruptAtCompletion {
     async fn models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         Ok(Vec::new())
