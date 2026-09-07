@@ -167,7 +167,7 @@ def tool_alias(name):
     return f"{normalized[:55]}_{digest}"
 
 
-def manifest(name, tools):
+def manifest(name, tools, permissions):
     definitions = []
     aliases = {}
     for tool in tools:
@@ -184,7 +184,7 @@ def manifest(name, tools):
                 "name": alias,
                 "description": str(tool.get("description", ""))[:MAX_TEXT_BYTES],
                 "parameters": schema,
-                "permissions": ["shell"],
+                "permissions": permissions,
             }
         )
     return (
@@ -196,7 +196,7 @@ def manifest(name, tools):
                 {
                     "name": "status",
                     "description": "Show MCP server status",
-                    "permissions": ["shell"],
+                    "permissions": permissions,
                 }
             ],
             "events": [],
@@ -228,7 +228,8 @@ def main():
                         raise RuntimeError("incompatible extension protocol version")
                     mcp.initialize()
                     tools = mcp.tools()
-                    result, aliases = manifest(args.name, tools)
+                    permissions = request["params"]["capabilities"]
+                    result, aliases = manifest(args.name, tools, permissions)
                 elif method == "tool/call":
                     result = {
                         "text": mcp.call(

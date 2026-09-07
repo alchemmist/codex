@@ -24,6 +24,7 @@ use tokio_util::sync::CancellationToken;
 
 mod extension_launcher;
 mod interactive;
+mod migration;
 
 #[derive(Parser)]
 #[command(name="antex",version=env!("ANTEX_BUILD_VERSION"),about="Antex terminal coding agent")]
@@ -56,6 +57,10 @@ enum Action {
     Logout {
         name: String,
     },
+    Migrate {
+        #[command(subcommand)]
+        source: MigrationSource,
+    },
     Models,
     Sessions,
     Compact {
@@ -78,6 +83,14 @@ enum Action {
     },
 }
 
+#[derive(Subcommand)]
+enum MigrationSource {
+    Codex {
+        #[arg(long)]
+        dry_run: bool,
+    },
+}
+
 #[tokio::main]
 async fn main() -> std::process::ExitCode {
     match run(Args::parse()).await {
@@ -90,27 +103,39 @@ async fn main() -> std::process::ExitCode {
 }
 
 async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
-    let action = args.command.unwrap_or(Action::Tui);
     let user_home = std::env::var_os("HOME")
         .map(PathBuf::from)
         .ok_or("HOME is unavailable")?
         .canonicalize()?;
-    let home = match args.home {
-        Some(home) => home.canonicalize()?,
-        None => {
-            let home = user_home.join(".antex");
-            if home.exists() {
-                home.canonicalize()?
-            } else {
-                std::fs::create_dir(&home)?;
-                home
-            }
-        }
+    let requested_home = match &args.home {
+        Some(home) if home.is_absolute() => home.clone(),
+        Some(home) => std::env::current_dir()?.join(home),
+        None => user_home.join(".antex"),
     };
     let legacy = user_home.join(".codex");
-    if home.starts_with(legacy.canonicalize().unwrap_or(legacy)) {
+    let legacy_root = legacy.canonicalize().unwrap_or_else(|_| legacy.clone());
+    if requested_home.starts_with(&legacy_root) {
         return Err("Antex home must not be inside the legacy .codex directory".into());
     }
+    if let Some(Action::Migrate { source }) = &args.command {
+        match source {
+            MigrationSource::Codex { dry_run } => {
+                let plan = migration::MigrationPlan::codex(&legacy, &requested_home)?;
+                for line in plan.describe() {
+                    println!("{line}");
+                }
+                if !dry_run {
+                    plan.apply()?;
+                }
+            }
+        }
+        return Ok(());
+    }
+    if !requested_home.exists() {
+        std::fs::create_dir(&requested_home)?;
+    }
+    let home = requested_home.canonicalize()?;
+    let action = args.command.unwrap_or(Action::Tui);
     let provider = OpenAiProvider::new(&home)?;
     let loaded = Config::load(&home)?;
     for warning in loaded.warnings {
@@ -184,6 +209,7 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
         }
         Action::UseAccount { name } => provider.select_account(&name).await?,
         Action::Logout { name } => provider.logout(&name).await?,
+        Action::Migrate { .. } => unreachable!(),
         Action::Models => {
             for model in provider.models().await? {
                 println!("{}\t{}", model.id, model.display_name);

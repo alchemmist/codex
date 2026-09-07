@@ -73,3 +73,25 @@ fn failed_provider_turn_is_persisted_and_can_be_resumed_without_credentials() {
         ]
     );
 }
+
+#[test]
+fn migration_dry_run_does_not_create_the_antex_home() {
+    let directory = tempfile::tempdir().unwrap();
+    let legacy = directory.path().join(".codex");
+    let destination = directory.path().join("not-created");
+    std::fs::create_dir(&legacy).unwrap();
+    std::fs::write(legacy.join("config.toml"), "model = 'test'\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_antex"))
+        .args([
+            "--home",
+            destination.to_str().unwrap(),
+            "migrate",
+            "codex",
+            "--dry-run",
+        ])
+        .env("HOME", directory.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(!destination.exists());
+}
