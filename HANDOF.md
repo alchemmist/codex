@@ -51,8 +51,7 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
   extensions plus diagnostic/export packages.
 - Execute extension command actions and persist/reload extension state through
   the host seam.
-- Split the remaining production TUI keymap module over 800 lines and remove retained
-  dead presentation paths/warnings.
+- Remove any newly exposed dead presentation paths as the remaining extensions are migrated.
 - Finish Antex installer/release tests and quantitative binary/startup/RSS gates.
 - Rename the GitHub repository and origin only at final cutover.
 - Publish `antex-v0.0.1` only after every Phase 10 gate succeeds.
@@ -60,8 +59,9 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 Portable Codex JSONL sessions and plain prompt stashes now migrate explicitly
 without provider credentials or hidden instructions. The runtime/CLI validation
 passed 55 tests on deimos. Rich legacy stash state is reported and skipped.
-The module-size inventory now reports only `tui/src/keymap.rs` over 800 lines;
-`custom_terminal.rs`, `terminal_probe.rs`, and `wrapping.rs` are below the gate.
+The module-size inventory reports no production module over 800 lines. The full
+TUI suite passes 782 tests with one existing skip, and workspace release Clippy
+passes with `-D warnings` on deimos.
 
 ## Validation on deimos
 
