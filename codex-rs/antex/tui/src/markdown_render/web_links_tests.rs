@@ -1,12 +1,12 @@
 use super::WebLinkDisplay;
 use crate::markdown_render::render_markdown_lines_with_width_cwd_and_hidden_link_destinations;
 use crate::markdown_render::render_streaming_markdown_lines_with_width_and_cwd;
+use crate::terminal_detection::Multiplexer;
+use crate::terminal_detection::TerminalInfo;
+use crate::terminal_detection::TerminalName;
 use crate::terminal_hyperlinks::HyperlinkLine;
 use crate::terminal_hyperlinks::TerminalHyperlink;
 use crate::terminal_hyperlinks::visible_lines;
-use codex_terminal_detection::Multiplexer;
-use codex_terminal_detection::TerminalInfo;
-use codex_terminal_detection::TerminalName;
 use insta::assert_debug_snapshot;
 use pretty_assertions::assert_eq;
 use ratatui::style::Stylize;

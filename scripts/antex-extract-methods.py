@@ -50,12 +50,9 @@ def main():
             if not any(child.type == "visibility_modifier" for child in node.children):
                 offset = node.start_byte - start
                 extracted = extracted[:offset] + b"pub(super) " + extracted[offset:]
+        header = source[implementation.start_byte : body.start_byte]
         args.destination.write_bytes(
-            b"use super::*;\n\nimpl "
-            + args.type.encode()
-            + b" {\n    "
-            + extracted
-            + b"\n}\n"
+            b"use super::*;\n\n" + header + b"{\n    " + extracted + b"\n}\n"
         )
         args.source.write_bytes(source[:start] + source[end:])
         return

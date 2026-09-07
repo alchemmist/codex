@@ -3,9 +3,9 @@
 //! Terminal identity is a conservative heuristic, not end-to-end capability negotiation. Unknown
 //! terminals and multiplexers retain the destination so a label never hides the only usable URL.
 
-use codex_terminal_detection::TerminalInfo;
-use codex_terminal_detection::TerminalName;
-use codex_terminal_detection::terminal_info;
+use crate::terminal_detection::TerminalInfo;
+use crate::terminal_detection::TerminalName;
+use crate::terminal_detection::terminal_info;
 use std::io::IsTerminal;
 use std::sync::LazyLock;
 

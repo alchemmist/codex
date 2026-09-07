@@ -466,6 +466,29 @@ runtime integration, and remaining presentation extraction are still pending.
 The legacy TUI also passes all 4,352 selected tests after extraction (six
 pre-existing skips; 22.410 seconds after compilation) on deimos.
 
+The explicit `antex tui` command now runs the terminal directly against
+`AgentRun`, with a runtime-owned durable conversation projection. Its first
+real-kernel terminal fixture covers submission, streaming, persistence, and
+inline scrollback. Additional fixtures cover deny-by-default approvals,
+explicit one-shot allowance, and cancellation/draining after terminal EOF.
+Interrupted input queues are stored separately from model history and reconciled
+against subsequently committed user messages during resume. Both console and
+interactive paths share this persistence adapter. A clean-config tmux smoke on
+deimos exercised editable startup without network, `/status`, narrow resize,
+and `/quit` (exit 0), using an isolated unauthenticated home. Retained ant startup
+rendering is now attached to the direct frontend. Original Markdown, syntax
+highlighting, palette/probe, table, hyperlink, and diff presentation modules are
+now shared by both paths. The direct frontend renders Markdown and explicitly
+proposed edit/write previews, bounds displayed content, and coalesces streaming
+redraws while keeping keyboard input immediate. Large Markdown and diff modules
+were split along parser/rendering responsibilities. Deimos validation: 761 TUI
+and CLI tests passed in 4.880 seconds, and 4,371 legacy TUI/terminal-detection
+tests passed in 21.747 seconds (six existing skips). Scoped Clippy completed;
+unused-import diagnostics were disabled for that invocation because retained
+source-path bridges still have consumers in the legacy crate. Picker UX,
+clipboard plumbing, complete stash controls/persistence, and remaining baseline
+interactions still need completion before replacing the default entry.
+
 #### Work
 
 - Create or reduce `antex-tui` so it talks directly to `AgentRun` events and commands.

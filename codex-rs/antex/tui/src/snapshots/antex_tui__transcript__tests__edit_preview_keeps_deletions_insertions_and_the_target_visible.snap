@@ -1,0 +1,11 @@
+---
+source: tui/src/transcript_tests.rs
+assertion_line: 28
+expression: text
+---
+Proposed edit of the matching text
+• Edit src/main.rs (+1 -1)
+    1  fn main() {
+    2 -    old();
+    2 +    new();
+    3  }

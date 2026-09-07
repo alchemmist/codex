@@ -7,7 +7,7 @@ use antex_core::UserInput;
 
 pub struct SessionView {
     pub model: String,
-    pub directory: String,
+    pub directory: std::path::PathBuf,
     pub permissions: String,
     pub session_id: String,
 }

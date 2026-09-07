@@ -70,7 +70,7 @@ impl Session for InteractiveSession {
                 .model
                 .clone()
                 .unwrap_or_else(|| "select model on first turn".into()),
-            directory: self.workspace.display().to_string(),
+            directory: self.workspace.clone(),
             permissions: format!("{:?}", self.config.permissions),
             session_id: self.conversation.id().to_string(),
         }

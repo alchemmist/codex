@@ -2,5 +2,9 @@ load("//:defs.bzl", "codex_rust_crate")
 
 codex_rust_crate(
     name = "terminal-detection",
+    compile_data = [
+        "//codex-rs/antex/tui/src:terminal_detection.rs",
+        "//codex-rs/antex/tui/src:terminal_tests.rs",
+    ],
     crate_name = "codex_terminal_detection",
 )

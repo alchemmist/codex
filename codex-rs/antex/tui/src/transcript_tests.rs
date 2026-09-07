@@ -16,3 +16,22 @@ fn large_display_content_is_bounded_without_splitting_unicode() {
     assert!(visible.len() < 66 * 1024);
     assert!(visible.ends_with("[display truncated; full content remains in the session]"));
 }
+
+#[test]
+fn edit_preview_keeps_deletions_insertions_and_the_target_visible() {
+    let call = antex_core::ToolCall {
+        id: "edit-1".into(),
+        name: "edit".into(),
+        arguments: serde_json::json!({"path":"src/main.rs","old_text":"fn main() {\n    old();\n}\n","new_text":"fn main() {\n    new();\n}\n"}),
+    };
+    let lines = tool_preview(&call, /*width*/ 48, std::path::Path::new("/project"));
+    let text = lines
+        .iter()
+        .map(ToString::to_string)
+        .collect::<Vec<_>>()
+        .join("\n");
+    assert!(text.contains("old()"));
+    assert!(text.contains("new()"));
+    assert!(text.contains("src/main.rs"));
+    insta::assert_snapshot!(text);
+}

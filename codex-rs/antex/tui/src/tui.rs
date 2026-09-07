@@ -64,6 +64,17 @@ pub(crate) struct Tui<B: ratatui::backend::Backend<Error = std::io::Error> + std
 }
 
 impl<B: ratatui::backend::Backend<Error = std::io::Error> + std::io::Write> Tui<B> {
+    pub(crate) fn with_cursor(
+        backend: B,
+        cursor: ratatui::layout::Position,
+    ) -> std::io::Result<Self> {
+        Ok(Self {
+            terminal: crate::custom_terminal::Terminal::with_options_and_cursor_position(
+                backend, cursor,
+            )?,
+            inline: None,
+        })
+    }
     pub(crate) fn new(backend: B) -> std::io::Result<Self> {
         Ok(Self {
             terminal: crate::custom_terminal::Terminal::with_options(backend)?,

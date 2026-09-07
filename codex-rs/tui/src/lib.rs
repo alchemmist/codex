@@ -117,6 +117,7 @@ mod clipboard_copy;
 mod clipboard_html;
 mod clipboard_paste;
 mod collaboration_modes;
+#[path = "../../antex/tui/src/color.rs"]
 mod color;
 mod config_update;
 #[path = "../../antex/tui/src/custom_terminal.rs"]
@@ -126,12 +127,16 @@ mod experimental_features;
 mod permission_discovery;
 mod pets;
 pub use custom_terminal::Terminal;
+#[path = "../../antex/tui/src/assistant_directives.rs"]
 mod assistant_directives;
 mod auto_review_denials;
 mod cwd_prompt;
 mod debug_config;
+#[path = "../../antex/tui/src/diff_model.rs"]
 mod diff_model;
+#[path = "../../antex/tui/src/diff_render.rs"]
 mod diff_render;
+mod display_paths;
 mod dynamic_tools;
 mod dynamic_tools_mcp;
 mod exec_cell;
@@ -169,8 +174,13 @@ mod editor_types;
 mod local_chatgpt_auth;
 mod managed_new_thread_defaults;
 mod markdown;
+#[path = "../../antex/tui/src/markdown_normalize.rs"]
+mod markdown_normalize;
+mod markdown_paths;
+#[path = "../../antex/tui/src/markdown_render.rs"]
 mod markdown_render;
 mod markdown_stream;
+#[path = "../../antex/tui/src/markdown_text_merge.rs"]
 mod markdown_text_merge;
 #[path = "../../antex/tui/src/mascot_palette.rs"]
 mod mascot_palette;
@@ -187,6 +197,7 @@ pub(crate) mod onboarding;
 mod oss_selection;
 mod pager_overlay;
 pub(crate) mod public_widgets;
+#[path = "../../antex/tui/src/render/mod.rs"]
 mod render;
 mod resize_reflow_cap;
 mod resume_picker;
@@ -208,12 +219,16 @@ mod startup_preflight;
 mod status;
 mod status_indicator_widget;
 mod streaming;
+#[path = "../../antex/tui/src/style.rs"]
 mod style;
 mod task_mentions;
 mod temporary_structured_request;
+mod terminal_detection;
 #[path = "../../antex/tui/src/terminal_hyperlinks.rs"]
 mod terminal_hyperlinks;
+#[path = "../../antex/tui/src/terminal_palette.rs"]
 mod terminal_palette;
+#[path = "../../antex/tui/src/terminal_probe.rs"]
 mod terminal_probe;
 mod terminal_title;
 mod terminal_visualization_instructions;
@@ -251,6 +266,7 @@ mod workspace_messages;
 #[path = "../../antex/tui/src/wrapping.rs"]
 mod wrapping;
 
+#[path = "../../antex/tui/src/table_detect.rs"]
 mod table_detect;
 #[cfg(test)]
 #[path = "../../antex/tui/src/test_backend.rs"]

@@ -14,6 +14,7 @@
 use std::time::Duration;
 
 #[cfg(unix)]
+#[path = "terminal_probe/startup_replay.rs"]
 mod startup_replay;
 
 #[cfg(any(windows, test))]

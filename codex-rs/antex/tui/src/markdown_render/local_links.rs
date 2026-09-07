@@ -7,8 +7,8 @@
 //! canonical target to avoid duplicate file references.
 //!
 
-use codex_utils_path_uri::PathUri;
-use codex_utils_string::normalize_markdown_hash_location_suffix;
+use crate::markdown_paths::file_uri_path;
+use crate::markdown_paths::normalize_markdown_hash_location_suffix;
 use regex_lite::Regex;
 use std::path::Path;
 use std::sync::LazyLock;
@@ -115,8 +115,8 @@ fn parse_local_link_target(dest_url: &str) -> Option<(String, Option<String>)> {
     if dest_url.starts_with("file://") {
         let url = Url::parse(dest_url).ok()?;
         // Infer the path's OS from the URI, not the host running the TUI.
-        let path = PathUri::parse(&url[..url::Position::AfterPath]).ok()?;
-        let path_text = normalize_local_link_path_text(&path.inferred_native_path_string());
+        let path = file_uri_path(&url[..url::Position::AfterPath])?;
+        let path_text = normalize_local_link_path_text(&path);
         let location_suffix = url
             .fragment()
             .and_then(normalize_hash_location_suffix_fragment);

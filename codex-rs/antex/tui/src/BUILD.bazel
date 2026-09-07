@@ -8,6 +8,8 @@ exports_files(
         "mascot.rs",
         "mascot_palette.rs",
         "mascot_tests.rs",
+        "terminal_detection.rs",
+        "terminal_tests.rs",
     ],
     visibility = ["//visibility:public"],
 )
@@ -46,6 +48,49 @@ filegroup(
 filegroup(
     name = "keymap_sources",
     srcs = glob(["keymap/**"]) + ["keymap_tests.rs"],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "diff_sources",
+    srcs = glob(["diff_render/**"]) + [
+        "diff_model.rs",
+        "diff_render.rs",
+        "diff_render_tests.rs",
+        "render/mod.rs",
+        "render/renderable.rs",
+        "render/renderable_tests.rs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "markdown_sources",
+    srcs = glob([
+        "markdown_render/**",
+        "render/highlight*.rs",
+        "render/snapshots/**",
+    ]) + [
+        "assistant_directives.rs",
+        "assistant_directives_tests.rs",
+        "markdown_normalize.rs",
+        "markdown_render.rs",
+        "markdown_render_tests.rs",
+        "markdown_render_unit_tests.rs",
+        "markdown_text_merge.rs",
+        "table_detect.rs",
+    ],
+    visibility = ["//visibility:public"],
+)
+
+filegroup(
+    name = "palette_sources",
+    srcs = glob(["terminal_probe/**"]) + [
+        "color.rs",
+        "style.rs",
+        "terminal_palette.rs",
+        "terminal_probe.rs",
+    ],
     visibility = ["//visibility:public"],
 )
 

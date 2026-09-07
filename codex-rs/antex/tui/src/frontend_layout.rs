@@ -28,9 +28,10 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         .map(|panel| panel.lines(size.width))
         .unwrap_or_default();
     let header_height = header.len().min(usize::from(size.height.saturating_sub(3))) as u16;
-    let live_lines = crate::wrapping::word_wrap_lines(
-        live.lines().map(Line::from),
-        usize::from(size.width.max(1)),
+    let live_lines = crate::markdown::render_markdown_agent_with_links_and_cwd(
+        live,
+        Some(usize::from(size.width)),
+        Some(&view.directory),
     );
     let live_height =
         (live_lines.len().min(8) as u16).min(size.height.saturating_sub(header_height + 3));
@@ -71,7 +72,11 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         let first = live_lines
             .len()
             .saturating_sub(usize::from(live_area.height));
-        Paragraph::new(live_lines[first..].to_vec()).render(live_area, frame.buffer_mut());
+        crate::terminal_hyperlinks::HyperlinkParagraph::new(
+            &live_lines[first..],
+            ratatui::style::Style::default(),
+        )
+        .render(live_area, frame.buffer_mut());
         let editor_area = Rect {
             y: area.y + live_area.height,
             height: area.height.saturating_sub(live_area.height + 2),
@@ -87,10 +92,12 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         let mut footer = safe_text(&format!(
             "{} · {} · {}",
             view.model,
-            view.directory,
+            view.directory.display(),
             view.permissions,
         ));
-        if let Some(mode) = composer.mode_label() { footer.push_str(&format!(" · {mode}")); }
+        if let Some(mode) = composer.mode_label() {
+            footer.push_str(&format!(" · {mode}"));
+        }
         if area.height >= 2 {
             Line::from(footer.dim()).render(
                 Rect {

@@ -20,8 +20,8 @@ use crate::frontend_layout::draw;
 use crate::insert_history::insert_history_lines;
 use crate::keymap::RuntimeKeymap;
 use crate::terminal_guard::TerminalGuard;
-use crate::transcript::message_lines;
 use crate::transcript::safe_text;
+use crate::transcript::write_message;
 use crate::tui::Tui;
 
 pub async fn run(session: &mut impl Session) -> io::Result<()> {
@@ -30,8 +30,22 @@ pub async fn run(session: &mut impl Session) -> io::Result<()> {
             "interactive mode requires a terminal; use antex exec for pipes",
         ));
     }
-    let mut tui = Tui::new(CrosstermBackend::new(io::stdout()))?;
-    let _guard = TerminalGuard::enter()?;
+    let mut guard = TerminalGuard::enter()?;
+    let probe = crate::terminal_probe::startup(
+        crate::terminal_probe::DEFAULT_TIMEOUT,
+        crate::terminal_probe::StartupKeyboardEnhancementProbe::Query,
+    )
+    .ok();
+    crate::terminal_palette::set_default_colors_from_startup_probe(
+        probe.and_then(|probe| probe.default_colors),
+    );
+    if probe.is_some_and(|probe| probe.keyboard_enhancement_supported == Some(true)) {
+        guard.enable_enhanced_keys()?;
+    }
+    let cursor = probe
+        .and_then(|probe| probe.cursor_position)
+        .unwrap_or_default();
+    let mut tui = Tui::with_cursor(CrosstermBackend::new(io::stdout()), cursor)?;
     run_terminal(&mut tui, session, EventStream::new()).await
 }
 
@@ -73,21 +87,31 @@ where
         insert_history_lines(&mut tui.terminal, panel.final_lines(width))?;
     }
     for message in history {
-        insert_history_lines(&mut tui.terminal, message_lines(&message))?;
+        write_message(&mut tui.terminal, &message, &session.view().directory)?;
     }
+    let frame_budget = std::time::Duration::from_millis(33);
+    let mut last_draw = std::time::Instant::now();
+    let mut force_draw = true;
     loop {
         if closing && run.is_none() {
             break;
         }
-        draw(
-            tui,
-            &mut composer,
-            session,
-            &status,
-            &live,
-            &mut prompt,
-            &startup,
-        )?;
+        let elapsed = last_draw.elapsed();
+        if force_draw || elapsed >= frame_budget {
+            draw(
+                tui,
+                &mut composer,
+                session,
+                &status,
+                &live,
+                &mut prompt,
+                &startup,
+            )?;
+            last_draw = std::time::Instant::now();
+            force_draw = false;
+        } else {
+            frames.schedule_frame_in(frame_budget - elapsed);
+        }
         tokio::select! {
             _ = frames.next_frame() => {},
             event = next_agent_event(&mut run) => {
@@ -111,10 +135,14 @@ where
                             let width = tui.terminal.last_known_screen_size.width;
                             insert_history_lines(&mut tui.terminal, panel.final_lines(width))?;
                         }
-                        insert_history_lines(&mut tui.terminal, message_lines(&message))?;
+                        write_message(&mut tui.terminal, &message, &session.view().directory)?;
                         live.clear();
                     }
-                    AgentEvent::ToolStarted(call) => status = format!("Running {}", safe_text(&call.name)),
+                    AgentEvent::ToolStarted(call) => {
+                        status = format!("Running {}", safe_text(&call.name));
+                        let preview = crate::transcript::tool_preview(&call, usize::from(tui.terminal.last_known_screen_size.width), &session.view().directory);
+                        if !preview.is_empty() { insert_history_lines(&mut tui.terminal, preview)?; }
+                    },
                     AgentEvent::ToolProgress { text, .. } => status = safe_text(&text),
                     AgentEvent::Interaction { request, .. } => {
                         let pane = crate::prompt::Prompt::new(request);
@@ -141,7 +169,9 @@ where
                     if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
                     continue;
                 };
+                force_draw = true;
                 match event? {
+                    Event::Key(key) if key.kind == crossterm::event::KeyEventKind::Release => continue,
                     Event::Key(key) if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') => {
                         if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
                         else { break; }
@@ -194,7 +224,7 @@ where
                                                 CommandEffect::Reset(messages) => {
                                                     pending = session.pending_commands().map_err(io::Error::other)?;
                                                     tui.terminal.clear_visible_screen()?;
-                                                    for message in messages { insert_history_lines(&mut tui.terminal, message_lines(&message))?; }
+                                                    for message in messages { write_message(&mut tui.terminal, &message, &session.view().directory)?; }
                                                 }
                                             }
                                         }
