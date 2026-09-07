@@ -60,7 +60,9 @@ impl Pager {
     }
 
     pub(crate) fn key(&mut self, key: KeyEvent) -> OverlayAction {
-        if crate::key_hint::plain(crossterm::event::KeyCode::Esc).is_press(key) { return OverlayAction::Close; }
+        if crate::key_hint::plain(crossterm::event::KeyCode::Esc).is_press(key) {
+            return OverlayAction::Close;
+        }
         let map = &self.keymap.pager;
         if map.close.is_pressed(key) || map.close_transcript.is_pressed(key) {
             return OverlayAction::Close;

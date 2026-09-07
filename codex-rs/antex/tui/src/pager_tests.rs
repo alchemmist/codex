@@ -34,5 +34,8 @@ fn transcript_pager_renders_markdown_and_requests_an_older_page() {
         panic!("expected older page");
     };
     assert_eq!(command, "/transcript older-id");
-    assert!(matches!(pager.key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)), OverlayAction::Close));
+    assert!(matches!(
+        pager.key(KeyEvent::new(KeyCode::Esc, KeyModifiers::NONE)),
+        OverlayAction::Close
+    ));
 }
