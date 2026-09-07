@@ -44,6 +44,7 @@ use crate::style::table_separator_style;
 use crate::terminal_hyperlinks::HyperlinkLine;
 use crate::terminal_hyperlinks::annotate_web_urls_in_line;
 use crate::terminal_hyperlinks::remap_wrapped_line;
+#[cfg(test)]
 use crate::terminal_hyperlinks::visible_lines;
 use crate::terminal_hyperlinks::web_destination;
 use crate::width::char_width;
@@ -63,6 +64,7 @@ use pulldown_cmark::TagEnd;
 use ratatui::style::Style;
 use ratatui::text::Line;
 use ratatui::text::Span;
+#[cfg(test)]
 use ratatui::text::Text;
 use std::ops::Range;
 use std::path::Path;
@@ -293,6 +295,7 @@ struct TableColumnMetrics {
 /// example, snapshot tests or contexts that intentionally defer wrapping). If
 /// a viewport width is known, prefer [`render_markdown_text_with_width`] so
 /// table fallback and line wrapping decisions match the visible terminal.
+#[cfg(test)]
 pub fn render_markdown_text(input: &str) -> Text<'static> {
     render_markdown_text_with_width(input, /*width*/ None)
 }
@@ -304,6 +307,7 @@ pub fn render_markdown_text(input: &str) -> Text<'static> {
 /// readably. Passing `None` keeps intrinsic line widths and disables
 /// width-driven wrapping in the markdown writer. Local file links render
 /// relative to the current process working directory.
+#[cfg(test)]
 pub(crate) fn render_markdown_text_with_width(input: &str, width: Option<usize>) -> Text<'static> {
     let cwd = std::env::current_dir().ok();
     render_markdown_text_with_width_and_cwd(input, width, cwd.as_deref())
@@ -314,6 +318,7 @@ pub(crate) fn render_markdown_text_with_width(input: &str, width: Option<usize>)
 /// The `cwd` parameter controls how absolute local targets are shortened before display. Passing
 /// the session cwd keeps full renders, history cells, and streamed deltas visually aligned even
 /// when rendering happens away from the process cwd.
+#[cfg(test)]
 pub(crate) fn render_markdown_text_with_width_and_cwd(
     input: &str,
     width: Option<usize>,
@@ -326,6 +331,7 @@ pub(crate) fn render_markdown_text_with_width_and_cwd(
 
 /// Keep destinations visible by default, including for callers that discard hyperlink metadata.
 /// Semantic output paths supply their hidden-destination policy explicitly.
+#[cfg(test)]
 pub(crate) fn render_markdown_lines_with_width_and_cwd(
     input: &str,
     width: Option<usize>,
@@ -339,10 +345,12 @@ pub(crate) fn render_markdown_lines_with_width_and_cwd(
     )
 }
 
+#[cfg(test)]
 fn never_hide_link_destination(_: &str) -> bool {
     false
 }
 
+#[cfg(test)]
 pub(crate) fn render_markdown_lines_with_width_cwd_and_hidden_link_destinations(
     input: &str,
     width: Option<usize>,

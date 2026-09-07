@@ -15,7 +15,9 @@ use ratatui::buffer::Buffer;
 use ratatui::buffer::CellDiffOption;
 use ratatui::buffer::CellWidth;
 use ratatui::layout::Rect;
+#[cfg(test)]
 use ratatui::style::Color;
+#[cfg(test)]
 use ratatui::style::Modifier;
 use ratatui::text::Line;
 use ratatui::text::Span;
@@ -43,6 +45,7 @@ pub(crate) struct TerminalHyperlink {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 enum DestinationKind {
     Web,
+    #[cfg(test)]
     TrustedFile,
 }
 
@@ -55,6 +58,7 @@ impl TerminalHyperlink {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn retarget_to_trusted_file(&mut self, destination: &Url) {
         // Keep file URLs out of the general Markdown link path. Only generated visualization links
         // are promoted to this destination kind.
@@ -74,6 +78,7 @@ impl TerminalHyperlink {
     fn terminal_destination(&self) -> Option<String> {
         match self.destination_kind {
             DestinationKind::Web => web_destination(&self.destination),
+            #[cfg(test)]
             DestinationKind::TrustedFile => trusted_file_destination(&self.destination),
         }
     }
@@ -133,6 +138,7 @@ impl From<String> for HyperlinkLine {
     }
 }
 
+#[cfg(test)]
 pub(crate) fn visible_lines(lines: Vec<HyperlinkLine>) -> Vec<Line<'static>> {
     lines.into_iter().map(|line| line.line).collect()
 }
@@ -338,6 +344,7 @@ pub(crate) fn web_destination(destination: &str) -> Option<String> {
     Some(safe_destination)
 }
 
+#[cfg(test)]
 fn trusted_file_destination(destination: &str) -> Option<String> {
     let safe_destination = sanitized_destination(destination)?;
     let parsed = Url::parse(&safe_destination).ok()?;
@@ -351,6 +358,7 @@ fn sanitized_destination(destination: &str) -> Option<String> {
     Some(destination.chars().filter(|ch| !ch.is_control()).collect())
 }
 
+#[cfg(test)]
 pub(crate) fn osc8_hyperlink(destination: &str, text: &str) -> String {
     let Some(safe_destination) = web_destination(destination) else {
         return text.to_string();
@@ -541,18 +549,21 @@ pub(crate) fn mark_buffer_hyperlinks(
     }
 }
 
+#[cfg(test)]
 pub(crate) fn mark_url_hyperlink(buf: &mut Buffer, area: Rect, destination: &str) {
     mark_matching_cells(buf, area, destination, |cell| {
         cell.fg == Color::Cyan && cell.modifier.contains(Modifier::UNDERLINED)
     });
 }
 
+#[cfg(test)]
 pub(crate) fn mark_underlined_hyperlink(buf: &mut Buffer, area: Rect, destination: &str) {
     mark_matching_cells(buf, area, destination, |cell| {
         cell.modifier.contains(Modifier::UNDERLINED)
     });
 }
 
+#[cfg(test)]
 fn mark_matching_cells(
     buf: &mut Buffer,
     area: Rect,

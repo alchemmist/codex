@@ -21,6 +21,7 @@
 use crate::key_hint;
 use crate::key_hint::KeyBinding;
 use crate::key_hint::KeyBindingListExt;
+#[cfg(test)]
 use crate::key_hint::ShortcutHint;
 use crate::keymap_config::KeybindingsSpec;
 use crate::keymap_config::MAX_FUNCTION_KEY;
@@ -45,7 +46,9 @@ pub(crate) use vim_search::VimSearchKeymap;
 mod conflict_tests;
 
 pub(crate) use bindings::KeymapContext;
+#[cfg(test)]
 pub(crate) use bindings::bindings_for_action;
+#[cfg(test)]
 pub(crate) use bindings::keymap_action_id;
 use bindings::runtime_action_bindings;
 pub(crate) use chords::KeyChordMatch;
@@ -384,6 +387,7 @@ pub(crate) struct ApprovalKeymap {
 ///
 /// Rendering code should prefer this for concise hints while preserving all
 /// bindings for actual input matching.
+#[cfg(test)]
 pub(crate) fn primary_binding(bindings: &[KeyBinding]) -> Option<KeyBinding> {
     user_bindings(bindings).first().copied()
 }

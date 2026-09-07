@@ -1,6 +1,7 @@
 use super::*;
 
 impl TextArea {
+    #[cfg(test)]
     pub(crate) fn render_ref_masked(
         &self,
         area: Rect,
@@ -103,6 +104,7 @@ impl TextArea {
     }
 
     /// Renders width-preserving mask glyphs without writing outside the textarea viewport.
+    #[cfg(test)]
     pub(super) fn render_lines_masked(
         &self,
         area: Rect,

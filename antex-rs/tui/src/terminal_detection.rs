@@ -184,6 +184,7 @@ impl TerminalInfo {
     }
 
     /// Returns whether the active terminal multiplexer is Zellij.
+    #[cfg(test)]
     pub fn is_zellij(&self) -> bool {
         matches!(self.multiplexer, Some(Multiplexer::Zellij { .. }))
     }

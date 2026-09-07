@@ -400,6 +400,7 @@ impl RuntimeKeymap {
     }
 
     /// Resolve the visible primary shortcut from configured declaration order.
+    #[cfg(test)]
     pub(crate) fn primary_hint(
         &self,
         context: KeymapContext,

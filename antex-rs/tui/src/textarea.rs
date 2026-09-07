@@ -138,10 +138,12 @@ fn text_for_display(text: &str) -> Cow<'_, str> {
 
 #[derive(Debug, Clone)]
 struct TextElement {
+    #[cfg(test)]
     id: u64,
     range: Range<usize>,
 }
 
+#[cfg(test)]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct TextElementSnapshot {
     pub(crate) id: u64,
@@ -164,6 +166,7 @@ pub(crate) struct TextArea {
     wrap_cache: RefCell<Option<WrapCache>>,
     preferred_col: Option<usize>,
     elements: Vec<TextElement>,
+    #[cfg(test)]
     next_element_id: u64,
     kill_buffer: String,
     kill_buffer_kind: KillBufferKind,
@@ -214,6 +217,7 @@ impl TextArea {
             wrap_cache: RefCell::new(None),
             preferred_col: None,
             elements: Vec::new(),
+            #[cfg(test)]
             next_element_id: 1,
             kill_buffer: String::new(),
             kill_buffer_kind: KillBufferKind::Characterwise,
@@ -283,8 +287,10 @@ impl TextArea {
                 if start >= end {
                     continue;
                 }
+                #[cfg(test)]
                 let id = self.next_element_id();
                 self.elements.push(TextElement {
+                    #[cfg(test)]
                     id,
                     range: start..end,
                 });

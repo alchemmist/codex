@@ -47,6 +47,7 @@ pub(crate) struct KeyBinding {
 
 /// A user-visible shortcut made from one key or a two-key chord.
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
+#[cfg(test)]
 pub(crate) enum ShortcutHint {
     Single(KeyBinding),
     Chord {
@@ -55,6 +56,7 @@ pub(crate) enum ShortcutHint {
     },
 }
 
+#[cfg(test)]
 impl ShortcutHint {
     pub(crate) fn display_label(self) -> String {
         match self {
@@ -66,6 +68,7 @@ impl ShortcutHint {
     }
 }
 
+#[cfg(test)]
 impl From<KeyBinding> for ShortcutHint {
     fn from(binding: KeyBinding) -> Self {
         Self::Single(binding)
@@ -223,6 +226,7 @@ impl From<&KeyBinding> for Span<'static> {
     }
 }
 
+#[cfg(test)]
 impl From<ShortcutHint> for Span<'static> {
     fn from(hint: ShortcutHint) -> Self {
         Span::styled(hint.display_label(), key_hint_style())

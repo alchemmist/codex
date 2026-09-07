@@ -26,6 +26,7 @@ impl TextArea {
             .collect()
     }
 
+    #[cfg(test)]
     pub(crate) fn text_element_snapshots(&self) -> Vec<TextElementSnapshot> {
         self.elements
             .iter()
@@ -60,9 +61,16 @@ impl TextArea {
     }
 
     pub(super) fn add_element(&mut self, range: Range<usize>) -> u64 {
+        #[cfg(test)]
         let id = self.next_element_id();
-        self.elements.push(TextElement { id, range });
+        self.elements.push(TextElement {
+            #[cfg(test)]
+            id,
+            range,
+        });
         self.elements.sort_by_key(|e| e.range.start);
+        #[cfg(not(test))]
+        let id = 0;
         id
     }
 
@@ -70,6 +78,7 @@ impl TextArea {
     ///
     /// This is used to convert already-typed tokens (like `/plan`) into elements
     /// so they render and edit atomically. Overlapping or duplicate ranges are ignored.
+    #[cfg(test)]
     pub fn add_element_range(&mut self, range: Range<usize>) -> Option<u64> {
         let start = self.clamp_pos_to_char_boundary(range.start.min(self.text.len()));
         let end = self.clamp_pos_to_char_boundary(range.end.min(self.text.len()));
@@ -94,6 +103,7 @@ impl TextArea {
         Some(id)
     }
 
+    #[cfg(test)]
     pub(super) fn next_element_id(&mut self) -> u64 {
         let id = self.next_element_id;
         self.next_element_id = self.next_element_id.saturating_add(1);

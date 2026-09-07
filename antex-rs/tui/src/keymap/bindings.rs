@@ -119,6 +119,7 @@ macro_rules! runtime_group_mut {
 macro_rules! define_runtime_action_bindings {
     ($($context:literal => $context_id:ident, $group:ident, $config_group:ident [$($action:ident),+ $(,)?]),+ $(,)?) => {
         /// Resolve a config context/action pair to its runtime identity.
+        #[cfg(test)]
         pub(crate) fn keymap_action_id(
             context: &str,
             action: &str,
@@ -178,6 +179,7 @@ macro_rules! define_runtime_action_bindings {
         }
 
         /// Return resolved bindings for one stable config context and action.
+        #[cfg(test)]
         pub(crate) fn bindings_for_action<'a>(
             runtime_keymap: &'a RuntimeKeymap,
             context: &str,

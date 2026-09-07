@@ -171,6 +171,7 @@ or a two-stroke chord such as `ctrl-x ctrl-t`.",
         Ok(keymap_chords)
     }
 
+    #[cfg(test)]
     pub(crate) fn configured_specs(&self, action: KeymapActionId) -> Option<&[String]> {
         self.configured_specs
             .iter()
@@ -180,6 +181,7 @@ or a two-stroke chord such as `ctrl-x ctrl-t`.",
     }
 
     /// Return the user's first configured shortcut without exposing dispatch tokens.
+    #[cfg(test)]
     pub(crate) fn primary_hint(
         &self,
         action: KeymapActionId,

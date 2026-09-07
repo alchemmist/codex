@@ -29,6 +29,7 @@ impl<'a> HyperlinkParagraph<'a> {
         }
     }
 
+    #[cfg(test)]
     pub(crate) fn scroll(mut self, rows: u16) -> Self {
         self.scroll_rows = rows;
         self
