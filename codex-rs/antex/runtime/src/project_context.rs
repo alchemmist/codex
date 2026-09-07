@@ -17,6 +17,7 @@ use futures::future::BoxFuture;
 
 const MAX_CONTEXT_BYTES: usize = 64 * 1024;
 
+#[derive(Clone)]
 pub struct ProjectContext {
     fragments: Vec<ContextFragment>,
     pub read_roots: Vec<PathBuf>,

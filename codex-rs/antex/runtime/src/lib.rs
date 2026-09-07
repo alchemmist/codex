@@ -1,5 +1,6 @@
 mod compaction;
 mod config;
+mod conversation;
 mod edit;
 mod files;
 mod images;
@@ -16,6 +17,7 @@ mod tools;
 pub use compaction::Compaction;
 pub use config::Config;
 pub use config::LoadedConfig;
+pub use conversation::Conversation;
 pub use files::WorkspaceFiles;
 pub use images::ImageAttachment;
 pub use permissions::PermissionProfile;
