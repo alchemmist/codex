@@ -126,35 +126,42 @@ impl Shell {
                 }
             }
         }
-        #[cfg(unix)]
-        command.process_group(0);
-        let mut child = command.spawn()?;
-        let group = ProcessGroup(child.id().filter(|id| *id > 0));
-        let stdout = child
-            .stdout
-            .take()
-            .ok_or_else(|| io::Error::other("missing shell stdout"))?;
-        let stderr = child
-            .stderr
-            .take()
-            .ok_or_else(|| io::Error::other("missing shell stderr"))?;
-        let execution = async {
-            let (status, stdout, stderr) =
-                tokio::join!(child.wait(), capture(stdout), capture(stderr));
-            Ok(ShellResult {
-                exit_code: status?.code(),
-                stdout: stdout?,
-                stderr: stderr?,
-            })
-        };
-        let result = tokio::select! {
-            biased;
-            _ = cancellation.cancelled() => Err(io::Error::new(io::ErrorKind::Interrupted,"shell command cancelled")),
-            result = tokio::time::timeout(self.timeout,execution) => result.map_err(|_| io::Error::new(io::ErrorKind::TimedOut,"shell command timed out"))?,
-        };
-        drop(group);
-        result
+        execute_command(command, self.timeout, cancellation).await
     }
+}
+
+pub(crate) async fn execute_command(
+    mut command: tokio::process::Command,
+    timeout: Duration,
+    cancellation: CancellationToken,
+) -> io::Result<ShellResult> {
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut child = command.spawn()?;
+    let group = ProcessGroup(child.id().filter(|id| *id > 0));
+    let stdout = child
+        .stdout
+        .take()
+        .ok_or_else(|| io::Error::other("missing shell stdout"))?;
+    let stderr = child
+        .stderr
+        .take()
+        .ok_or_else(|| io::Error::other("missing shell stderr"))?;
+    let execution = async {
+        let (status, stdout, stderr) = tokio::join!(child.wait(), capture(stdout), capture(stderr));
+        Ok(ShellResult {
+            exit_code: status?.code(),
+            stdout: stdout?,
+            stderr: stderr?,
+        })
+    };
+    let result = tokio::select! {
+        biased;
+        _ = cancellation.cancelled() => Err(io::Error::new(io::ErrorKind::Interrupted,"shell command cancelled")),
+        result = tokio::time::timeout(timeout,execution) => result.map_err(|_| io::Error::new(io::ErrorKind::TimedOut,"shell command timed out"))?,
+    };
+    drop(group);
+    result
 }
 
 struct ProcessGroup(Option<u32>);

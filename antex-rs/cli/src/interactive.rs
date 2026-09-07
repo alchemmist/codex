@@ -26,6 +26,9 @@ use antex_tui::SessionView;
 use crate::extension_launcher::RuntimeExtensionLauncher;
 use crate::terminal_log::TmuxLog;
 
+#[path = "interactive/actions.rs"]
+mod actions;
+
 pub(crate) struct InteractiveSession {
     home: PathBuf,
     workspace: PathBuf,
@@ -252,18 +255,7 @@ impl Session for InteractiveSession {
                     let antex_extension_protocol::Action::TerminalLog { text, .. } = action else {
                         continue;
                     };
-                    if self.terminal_log.is_none() {
-                        match TmuxLog::start(&self.home, self.conversation.id()) {
-                            Ok(log) => self.terminal_log = Some(log),
-                            Err(error) => {
-                                eprintln!("antex: tmux command log unavailable: {error}");
-                                continue;
-                            }
-                        }
-                    }
-                    if let Some(log) = &mut self.terminal_log
-                        && let Err(error) = log.append(&text)
-                    {
+                    if let Err(error) = self.append_terminal_log(&text) {
                         eprintln!("antex: tmux command log failed: {error}");
                     }
                 }
@@ -362,10 +354,7 @@ impl Session for InteractiveSession {
                 let Some(extensions) = self.extensions.as_ref() else { return Err("Unknown command. Use /help.".into()); };
                 if !extensions.commands().iter().any(|command| command.name == extension_name) { return Err("Unknown command. Use /help.".into()); }
                 let output = extensions.run_command(extension_name, argument.into(), tokio_util::sync::CancellationToken::new()).await.map_err(|error| error.to_string())?;
-                if !output.actions.is_empty() { return Err("Extension command actions are not connected yet.".into()); }
-                for record in output.records { self.conversation.append_extension(extension_name, record).map_err(|error| error.to_string())?; }
-                if let Some(panel) = output.panel { return Ok(CommandEffect::Page(antex_tui::TextPage { title: panel.title, body: panel.text, older_command: None })); }
-                Ok(CommandEffect::Notice(output.status.unwrap_or(output.text)))
+                self.apply_extension_output(extension_name, output).await
             }
         }
     }

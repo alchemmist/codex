@@ -7,6 +7,7 @@ use antex_runtime::ExtensionSandbox;
 use antex_runtime::ExtensionWorkspace;
 use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+use tokio_util::sync::CancellationToken;
 
 fn sandbox(home: &std::path::Path, workspace: &std::path::Path) -> ExtensionSandbox {
     let bubblewrap = std::env::var_os("ANTEX_BWRAP")
@@ -106,4 +107,32 @@ async fn workspace_and_network_grants_change_only_the_declared_capability() {
             .unwrap();
         assert_eq!(status.success(), succeeds);
     }
+}
+
+#[tokio::test]
+async fn workflow_shell_actions_share_bounded_sandbox_execution() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let result = sandbox(home.path(), workspace.path())
+        .run_shell(
+            "printf output; printf error >&2; printf data > written",
+            ExtensionWorkspace::ReadWrite,
+            /*network*/ false,
+            std::time::Duration::from_secs(/*secs*/ 2),
+            CancellationToken::new(),
+        )
+        .await
+        .unwrap();
+    assert_eq!(
+        result,
+        antex_runtime::ShellResult {
+            exit_code: Some(0),
+            stdout: "output".into(),
+            stderr: "error".into(),
+        }
+    );
+    assert_eq!(
+        std::fs::read_to_string(workspace.path().join("written")).unwrap(),
+        "data"
+    );
 }

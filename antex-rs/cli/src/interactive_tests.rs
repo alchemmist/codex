@@ -87,3 +87,39 @@ fn agent_events_map_to_bounded_extension_lifecycle_events() {
     assert_eq!(completed.data["text"], "done");
     assert!(extension_event(&AgentEvent::TextDelta("ignored".into())).is_none());
 }
+
+#[tokio::test]
+async fn explicit_extension_inspection_uses_the_current_in_process_context() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let provider = OpenAiProvider::new(home.path()).unwrap();
+    let mut session = InteractiveSession::new(
+        home.path().into(),
+        workspace.path().into(),
+        Config::default(),
+        /*bubblewrap*/ None,
+        provider,
+    )
+    .unwrap();
+    let effect = session
+        .apply_extension_output(
+            "diagnostics",
+            antex_extension_protocol::Output {
+                actions: vec![antex_extension_protocol::Action::Inspect {
+                    id: "system".into(),
+                    target: antex_extension_protocol::Inspection::SystemPrompt,
+                }],
+                ..Default::default()
+            },
+        )
+        .await
+        .unwrap();
+    let CommandEffect::Notice(text) = effect else {
+        panic!("expected inspection output");
+    };
+    assert!(text.starts_with("Antex\nYou are Antex"));
+    assert_eq!(
+        session.conversation.extension_states().unwrap()["diagnostics"]["actionResult"]["id"],
+        "system"
+    );
+}

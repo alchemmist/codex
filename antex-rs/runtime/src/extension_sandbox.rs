@@ -2,12 +2,17 @@ use std::ffi::OsString;
 use std::io;
 use std::path::Path;
 use std::path::PathBuf;
+use std::process::Stdio;
+use std::time::Duration;
 
 use tokio::process::Command;
+use tokio_util::sync::CancellationToken;
 
 use crate::sandbox::Sandbox;
 use crate::sandbox::SandboxProgram;
 use crate::sandbox::SandboxWorkspace;
+use crate::shell::ShellResult;
+use crate::shell::execute_command;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ExtensionWorkspace {
@@ -94,5 +99,24 @@ impl ExtensionSandbox {
             .env("LANG", "C.UTF-8")
             .env("TERM", "dumb");
         Ok(command)
+    }
+
+    pub async fn run_shell(
+        &self,
+        script: &str,
+        workspace: ExtensionWorkspace,
+        network: bool,
+        timeout: Duration,
+        cancellation: CancellationToken,
+    ) -> io::Result<ShellResult> {
+        let arguments = [OsString::from("-c"), OsString::from(script)];
+        let mut command = self
+            .command(Path::new("/bin/sh"), &arguments, workspace, network)
+            .await?;
+        command
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .kill_on_drop(true);
+        execute_command(command, timeout.min(Duration::from_secs(900)), cancellation).await
     }
 }
