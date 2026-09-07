@@ -84,13 +84,13 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         if let Some(cursor) = cursor {
             frame.set_cursor_position(cursor);
         }
-        let footer = safe_text(&format!(
-            "{} · {} · {} {}",
+        let mut footer = safe_text(&format!(
+            "{} · {} · {}",
             view.model,
             view.directory,
             view.permissions,
-            composer.mode_label().unwrap_or("")
         ));
+        if let Some(mode) = composer.mode_label() { footer.push_str(&format!(" · {mode}")); }
         if area.height >= 2 {
             Line::from(footer.dim()).render(
                 Rect {

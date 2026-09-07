@@ -182,6 +182,7 @@ dependencies = [
  "chrono",
  "crossterm",
  "derive_more",
+ "futures",
  "insta",
  "itertools",
  "pretty_assertions",

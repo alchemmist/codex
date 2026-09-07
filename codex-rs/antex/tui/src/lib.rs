@@ -2,6 +2,7 @@ mod appearance;
 mod composer;
 mod custom_terminal;
 mod editor_types;
+mod frontend;
 mod frontend_layout;
 mod insert_history;
 mod key_hint;
@@ -27,6 +28,7 @@ mod width;
 mod wrapping;
 
 pub use appearance::StartupMascotSkin;
+pub use frontend::run;
 pub use session::CommandEffect;
 pub use session::Session;
 pub use session::SessionView;
