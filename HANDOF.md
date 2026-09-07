@@ -7,6 +7,11 @@ promoted to `antex-rs/`; the legacy `codex-rs`, app-server, V8/code-mode, cloud,
 enterprise, voice, Windows, Bazel, npm, upstream SDK and legacy release
 infrastructure were removed from Git.
 
+The workspace exposes exactly one binary target, `antex`. Authentication,
+provider turns, tools, sessions, and the TUI are composed in-process; no daemon,
+app-server, IPC service, or companion binary is required. The baseline gate now
+rejects additional binary targets and system prompts larger than 4 KiB.
+
 This is still a development checkpoint, not release readiness. No `antex-v*`
 tag or GitHub Release has been published, and the GitHub repository has not yet
 been renamed.
@@ -42,6 +47,8 @@ reports 35,517 production Rust lines, seven crates and no forbidden dependency.
 - The stdio MCP bridge passes an end-to-end host → sandbox → MCP server tool call.
 - `/Users/antonmoss/.local/bin/codex` remains unchanged with SHA-256
   `be16a880b76ea5c6d4a38e61ff1f4fa86de15306078513d639cc1716df3528b2`.
+- The current system prompt is 1,601 bytes, `antex-core` is 1,576 production
+  lines, and the workspace inventory reports only the `antex` executable.
 
 ## Remaining product work
 

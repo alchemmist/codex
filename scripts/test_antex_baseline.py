@@ -11,6 +11,37 @@ SPEC.loader.exec_module(BASELINE)
 
 
 class ProductionGraphTests(unittest.TestCase):
+    def test_inventory_reports_every_workspace_binary(self):
+        root = BASELINE.ROOT
+        metadata = {
+            "workspace_members": ["cli", "helper"],
+            "packages": [
+                {
+                    "id": "cli",
+                    "name": "antex-cli",
+                    "manifest_path": str(root / "antex-rs/cli/Cargo.toml"),
+                    "targets": [{"name": "antex", "kind": ["bin"]}],
+                },
+                {
+                    "id": "helper",
+                    "name": "helper",
+                    "manifest_path": str(root / "antex-rs/helper/Cargo.toml"),
+                    "targets": [{"name": "hidden-daemon", "kind": ["bin"]}],
+                },
+            ],
+            "resolve": {
+                "nodes": [
+                    {
+                        "id": "cli",
+                        "deps": [{"pkg": "helper", "dep_kinds": [{"kind": None}]}],
+                    },
+                    {"id": "helper", "deps": []},
+                ]
+            },
+        }
+        report = BASELINE.inventory(metadata, "antex-cli", [])
+        self.assertEqual(report["shipped_executables"], ["antex", "hidden-daemon"])
+
     def test_excludes_dev_edges_and_retains_build_edges_and_cycles(self):
         metadata = {
             "packages": [

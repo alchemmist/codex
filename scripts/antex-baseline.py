@@ -56,12 +56,30 @@ def inventory(metadata, root_name, forbidden):
             ):
                 continue
             files[str(path.relative_to(ROOT))] = len(path.read_text().splitlines())
+    executables = sorted(
+        target["name"]
+        for key in members
+        for target in packages[key]["targets"]
+        if "bin" in target["kind"]
+    )
+    crate_lines = {
+        packages[key]["name"]: sum(
+            lines
+            for path, lines in files.items()
+            if Path(packages[key]["manifest_path"])
+            .parent.resolve()
+            in (ROOT / path).resolve().parents
+        )
+        for key in local
+    }
     return {
         "workspace_crates": sorted(packages[key]["name"] for key in members),
         "production_workspace_crates": sorted(packages[key]["name"] for key in local),
         "dependency_nodes": len(reached),
         "dependency_scope": "resolved normal and build edges, all targets; dev edges excluded",
         "production_source_lines_upper_bound": sum(files.values()),
+        "production_crate_lines": dict(sorted(crate_lines.items())),
+        "shipped_executables": executables,
         "source_count_method": "src/**/*.rs excluding dedicated tests; includes inline tests and comments",
         "modules_over_800_lines": {
             path: lines for path, lines in files.items() if lines > 800
@@ -115,6 +133,8 @@ def main():
             "measurement_note": "null means unmeasured, never a passing gate; --version is not prompt startup",
         }
     )
+    system_prompt = workspace / "runtime/src/system_prompt.md"
+    report["system_prompt_bytes"] = len(system_prompt.read_bytes())
     if args.binary:
         binary = args.binary.resolve(strict=True)
         digest = hashlib.sha256()
@@ -137,8 +157,11 @@ def main():
     if args.check:
         return int(
             bool(report["forbidden_dependencies"])
+            or report["shipped_executables"] != ["antex"]
             or len(report["production_workspace_crates"]) > 10
             or report["production_source_lines_upper_bound"] > 100000
+            or report["production_crate_lines"].get("antex-core", 0) > 12000
+            or report["system_prompt_bytes"] > 4096
             or bool(report["modules_over_800_lines"])
         )
     return 0

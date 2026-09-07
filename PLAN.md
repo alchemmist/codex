@@ -26,6 +26,8 @@ The migration is complete only when the repository builds and releases Antex wit
 The migration is done when all of the following are true:
 
 - `antex` is the only shipped executable.
+- Login, model turns, built-in tools, sessions, and the TUI run in that process;
+  no app-server, daemon, IPC service, or companion executable is required.
 - A clean checkout builds with Cargo and does not build V8, app-server, daemon, cloud tasks, voice, realtime, desktop, or enterprise policy code.
 - The final workspace has at most 10 production crates, excluding a dedicated test-support crate.
 - The production Rust source is at most 100,000 lines; `antex-core` is at most 12,000 lines.
@@ -35,6 +37,8 @@ The migration is done when all of the following are true:
 - Idle resident memory is below 60 MiB on macOS and Linux.
 - The complete local test suite finishes within 5 minutes on the maintainer's machine after a warm build.
 - The default model receives only the system prompt, bounded project instructions/skills, conversation context, and tools actually enabled for the session.
+- The built-in system prompt is at most 4 KiB. Multi-step orchestration belongs
+  to explicit workflows rather than the kernel prompt or agent loop.
 - A maintainer can understand the agent loop, tool host, and session store in one focused afternoon.
 - `make install-local`, `make install-mac`, and `make install-linux` install `antex` without any `codex-*` companion binary.
 - `make release-patch` from development version `0.0.0` creates `antex-v0.0.1` and publishes working macOS/Linux artifacts.

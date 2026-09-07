@@ -87,7 +87,7 @@ pub(crate) struct RuntimeKeymap {
 
 #[derive(Clone, Debug)]
 pub(crate) struct AppKeymap {
-    /// Open the daemon-wide agent-session overview.
+    /// Open the explicit agent-session overview.
     pub(crate) open_agents: Vec<KeyBinding>,
     /// Open transcript overlay.
     pub(crate) open_transcript: Vec<KeyBinding>,
