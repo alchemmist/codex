@@ -109,6 +109,7 @@ dependencies = [
  "antex-core",
  "antex-provider-openai",
  "antex-runtime",
+ "antex-tui",
  "clap",
  "pretty_assertions",
  "tempfile",

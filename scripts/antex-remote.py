@@ -14,6 +14,7 @@ def main():
     parser.add_argument("--checkout", required=True)
     parser.add_argument("--tools", required=True)
     parser.add_argument("--jobs", type=int, default=16)
+    parser.add_argument("--tty", action="store_true")
     parser.add_argument("command", nargs=argparse.REMAINDER)
     args = parser.parse_args()
     if not args.host or not args.command or args.jobs < 1:
@@ -41,7 +42,15 @@ def main():
     remote = f"umask 022 && cd {shlex.quote(args.checkout + '/' + workspace)} && "
     remote += shlex.join(["env", *environment, *command])
     return subprocess.run(
-        ["ssh", "-o", "BatchMode=yes", "--", args.host, remote]
+        [
+            "ssh",
+            *(["-tt"] if args.tty else []),
+            "-o",
+            "BatchMode=yes",
+            "--",
+            args.host,
+            remote,
+        ]
     ).returncode
 
 

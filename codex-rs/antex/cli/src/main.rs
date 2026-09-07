@@ -12,6 +12,7 @@ use antex_core::TurnInput;
 use antex_provider_openai::OpenAiProvider;
 use antex_runtime::Compaction;
 use antex_runtime::Config;
+use antex_runtime::Conversation;
 use antex_runtime::ImageAttachment;
 use antex_runtime::LocalRuntime;
 use antex_runtime::PermissionProfile;
@@ -20,6 +21,8 @@ use antex_runtime::SessionStore;
 use clap::Parser;
 use clap::Subcommand;
 use tokio_util::sync::CancellationToken;
+
+mod interactive;
 
 #[derive(Parser)]
 #[command(name="antex",version=env!("ANTEX_BUILD_VERSION"),about="Antex terminal coding agent")]
@@ -38,6 +41,7 @@ struct Args {
 
 #[derive(Subcommand)]
 enum Action {
+    Tui,
     Login {
         #[arg(long)]
         device_code: bool,
@@ -117,6 +121,30 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
     }
     let config = loaded.config;
     match action {
+        Action::Tui => {
+            let workspace = args
+                .cwd
+                .unwrap_or(std::env::current_dir()?)
+                .canonicalize()?;
+            let mut config = config;
+            if let Some(profile) = args.permissions {
+                config.permissions = match profile.as_str() {
+                    "read-only" => PermissionProfile::ReadOnly,
+                    "workspace" => PermissionProfile::Workspace,
+                    "full" => PermissionProfile::Full,
+                    _ => return Err("invalid permission profile".into()),
+                };
+            }
+            let mut session = interactive::InteractiveSession::new(
+                home,
+                workspace,
+                config,
+                args.bubblewrap,
+                provider,
+            )
+            .map_err(std::io::Error::other)?;
+            antex_tui::run(&mut session).await?;
+        }
         Action::Login {
             device_code,
             account,
@@ -285,17 +313,9 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
             if let Some(parent) = fork_at {
                 session.branch(parent.parse()?)?;
             }
-            let recovered = session.recover_pending_tools()?;
-            if recovered > 0 {
-                eprintln!("antex: recovered {recovered} interrupted tool calls");
-            }
-            let entries = session.active_path()?;
-            let mut record_ids = entries
-                .iter()
-                .map(|entry| entry.record_id)
-                .collect::<Vec<_>>();
-            let history = entries.into_iter().map(|entry| entry.message).collect();
-            eprintln!("Session: {}", session.id());
+            let mut conversation = Conversation::new(session)?;
+            let history = conversation.messages();
+            eprintln!("Session: {}", conversation.id());
             let provider = Arc::new(provider);
             let compaction = Compaction::new(
                 provider.clone(),
@@ -320,32 +340,10 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                 let _ = commands.send(AgentCommand::Interrupt).await;
             });
             while let Some(event) = run.events.recv().await {
+                conversation.record(&event)?;
                 match event {
-                    AgentEvent::ContextCheckpoint(checkpoint) => {
-                        let retained = checkpoint
-                            .retained
-                            .iter()
-                            .map(|index| {
-                                record_ids
-                                    .get(*index)
-                                    .copied()
-                                    .ok_or("missing retained session record")
-                            })
-                            .collect::<Result<Vec<_>, _>>()?;
-                        let tail = *record_ids
-                            .get(checkpoint.tail_start)
-                            .ok_or("missing session checkpoint tail")?;
-                        let id = session.checkpoint(checkpoint.summary, &retained, tail)?;
-                        if id.is_some() {
-                            eprintln!("antex: context compacted");
-                        }
-                        let id = id
-                            .or_else(|| record_ids.first().copied())
-                            .ok_or("missing checkpoint record")?;
-                        record_ids = std::iter::once(id)
-                            .chain(retained)
-                            .chain(record_ids[checkpoint.tail_start..].iter().copied())
-                            .collect();
+                    AgentEvent::ContextCheckpoint(_) => {
+                        eprintln!("antex: context compacted");
                     }
                     AgentEvent::TextDelta(text) => {
                         print!("{text}");
@@ -358,16 +356,13 @@ async fn run(args: Args) -> Result<(), Box<dyn std::error::Error>> {
                     AgentEvent::Error(error) => eprintln!("\nantex: {error}"),
                     AgentEvent::Finished { reason, .. } => {
                         signal.abort();
-                        session.finish_turn()?;
                         println!();
                         if reason != FinishReason::Completed {
                             return Err(format!("run ended: {reason:?}").into());
                         }
                     }
-                    AgentEvent::MessageCommitted(message) => {
-                        record_ids.push(session.append(&message)?);
-                    }
-                    AgentEvent::ReasoningDelta(_)
+                    AgentEvent::MessageCommitted(_)
+                    | AgentEvent::ReasoningDelta(_)
                     | AgentEvent::Quota(_)
                     | AgentEvent::ToolStarted(_)
                     | AgentEvent::ToolProgress { .. }
