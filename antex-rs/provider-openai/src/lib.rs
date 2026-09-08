@@ -20,3 +20,6 @@ mod tests;
 #[cfg(test)]
 #[path = "login_tests.rs"]
 mod login_tests;
+
+#[cfg(all(test, target_os = "linux"))]
+mod tls_tests;

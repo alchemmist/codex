@@ -10,7 +10,7 @@ base64 = "0.22"
 async-stream = "0.3"
 futures.workspace = true
 rand = "0.9"
-reqwest = { version = "0.12", default-features = false, features = ["rustls-tls", "json", "stream"] }
+reqwest = { version = "0.12", default-features = false, features = ["rustls-tls-native-roots", "json", "stream"] }
 serde = { version = "1", features = ["derive"] }
 serde_json.workspace = true
 sha2 = "0.10"
