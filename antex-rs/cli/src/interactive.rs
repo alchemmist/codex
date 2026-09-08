@@ -29,6 +29,9 @@ use crate::terminal_log::TmuxLog;
 #[path = "interactive/actions.rs"]
 mod actions;
 
+#[path = "interactive/action_executor.rs"]
+mod action_executor;
+
 pub(crate) struct InteractiveSession {
     home: PathBuf,
     workspace: PathBuf,
