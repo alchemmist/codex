@@ -118,7 +118,11 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
             footer.spans.insert(0, "  stashed · ".dim());
         }
         if area.height >= 2 {
-            footer.render(
+            crate::line_truncation::truncate_line_with_ellipsis_if_overflow(
+                footer,
+                usize::from(area.width),
+            )
+            .render(
                 Rect {
                     y: area.bottom() - 2,
                     height: 1,

@@ -22,3 +22,12 @@ had become a separate chevron line, and the composer had lost its rail/insets.
 They now use the original rendering contract, not the migration's replacement
 snapshots. Complete visual and behavioral parity remains an acceptance gate;
 do not infer it from successful login, a model response or a passing build.
+
+The first native visual pass found an additional migration regression: resize
+left terminal-wrapped historical rows instead of rebuilding from message source.
+The restored reflow path follows the fork's reset/replay lifecycle, 75 ms resize
+debounce and 1000-row fallback cap. It retains startup rendering, rebuilds user
+rails at the new width and also replays when the syntax theme revision changes.
+The focused resize fixture checks rail continuity and repeated-replay stability.
+The final TUI run passed 786 tests with one existing skip and one reported leaky
+test; the leaky-test observation is not a completed lifecycle acceptance gate.

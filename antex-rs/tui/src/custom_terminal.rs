@@ -482,6 +482,19 @@ where
         Ok(())
     }
 
+    pub(crate) fn clear_scrollback_and_visible_screen_ansi(&mut self) -> io::Result<()> {
+        if self.viewport_area.is_empty() {
+            return Ok(());
+        }
+        self.backend
+            .write_all(b"\x1b[r\x1b[0m\x1b[H\x1b[2J\x1b[3J\x1b[H")?;
+        std::io::Write::flush(&mut self.backend)?;
+        self.last_known_cursor_pos = Position { x: 0, y: 0 };
+        self.visible_history_rows = 0;
+        self.previous_buffer_mut().reset();
+        Ok(())
+    }
+
     pub(crate) fn note_history_rows_inserted(&mut self, inserted_rows: u16) {
         self.visible_history_rows = self
             .visible_history_rows

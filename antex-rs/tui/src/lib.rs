@@ -63,6 +63,7 @@ pub use session::CommandEffect;
 #[cfg(test)]
 mod fork_visual_tests;
 
+mod history_reflow;
 mod status_line;
 pub use session::Session;
 pub use session::SessionView;

@@ -99,6 +99,9 @@ where
     let mut buffered_input = std::collections::VecDeque::new();
     let frames = crate::tui::FrameRequester::new();
     let mut startup = Some(crate::startup::Startup::new(&settings, frames.clone()));
+    let mut history_startup = None;
+    let mut reflow_at = None;
+    let mut theme_revision = crate::render::highlight::syntax_theme_revision();
     draw(
         tui,
         &mut composer,
@@ -114,6 +117,7 @@ where
     {
         let width = tui.terminal.last_known_screen_size.width;
         insert_history_lines(&mut tui.terminal, panel.final_lines(width, &session.view()))?;
+        history_startup = Some(panel);
     }
     for message in history {
         if let Some(text) = crate::transcript::assistant_text(&message) {
@@ -193,6 +197,7 @@ where
                             }
                         }
                         CommandEffect::Reset(messages) => {
+                            history_startup = None;
                             status = format!("Session {}", session.view().session_id);
                             crate::presentation_commands::restore(&settings, session)
                                 .map_err(io::Error::other)?;
@@ -221,6 +226,29 @@ where
                 }
             }
             force_draw = true;
+        }
+        let current_revision = crate::render::highlight::syntax_theme_revision();
+        if current_revision != theme_revision {
+            theme_revision = current_revision;
+            reflow_at = Some(std::time::Instant::now());
+        }
+        if let Some(deadline) = reflow_at {
+            if std::time::Instant::now() >= deadline && prompt.is_none() {
+                let width = tui.terminal.size()?.width;
+                crate::history_reflow::replay(
+                    tui,
+                    &session.history(),
+                    history_startup.as_ref(),
+                    &session.view(),
+                    composer.height(width).min(8) + 2,
+                )?;
+                reflow_at = None;
+                force_draw = true;
+            } else if std::time::Instant::now() < deadline {
+                frames.schedule_frame_in(
+                    deadline.saturating_duration_since(std::time::Instant::now()),
+                );
+            }
         }
         let elapsed = last_draw.elapsed();
         if force_draw || elapsed >= frame_budget {
@@ -270,6 +298,7 @@ where
                             draw(tui, &mut composer, session, &status, &live, &mut prompt, &startup)?;
                             let width = tui.terminal.last_known_screen_size.width;
                             insert_history_lines(&mut tui.terminal, panel.final_lines(width, &session.view()))?;
+                            history_startup = Some(panel);
                         }
                         write_message(&mut tui.terminal, &message, &session.view().directory)?;
                         live.clear();
@@ -418,7 +447,11 @@ where
                         let result = match &mut prompt { Some(pane) => pane.paste(&text), None => composer.paste(&text) };
                         if let Err(error) = result { status = error.into(); }
                     },
-                    Event::Resize(_, _) => tui.terminal.autoresize()?,
+                    Event::Resize(_, _) => {
+                        tui.terminal.autoresize()?;
+                        reflow_at = Some(std::time::Instant::now() + std::time::Duration::from_millis(75));
+                        frames.schedule_frame_in(std::time::Duration::from_millis(75));
+                    },
                     Event::FocusGained => tui.terminal.invalidate_viewport(),
                     Event::FocusLost | Event::Mouse(_) => {}
                 }
