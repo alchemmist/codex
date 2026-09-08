@@ -9,6 +9,18 @@ use ratatui::style::Style;
 
 const TABLE_SEPARATOR_FG_ALPHA: f32 = 0.20;
 
+pub(crate) fn accent_style() -> Style {
+    accent_style_for(default_bg())
+}
+
+pub(crate) fn accent_style_for(terminal_bg: Option<(u8, u8, u8)>) -> Style {
+    if terminal_bg.is_some_and(crate::color::is_light) {
+        Style::default().fg(best_color((0, 95, 135))).bold()
+    } else {
+        Style::default().fg(ratatui::style::Color::Cyan).bold()
+    }
+}
+
 pub(crate) fn table_separator_style() -> Style {
     table_separator_style_for(default_fg(), default_bg(), stdout_color_level())
 }
