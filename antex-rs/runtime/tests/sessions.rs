@@ -324,6 +324,35 @@ fn imported_sessions_preserve_identity_messages_and_ui_state() {
 }
 
 #[test]
+fn extension_action_events_do_not_replace_checkpoint_state_after_reopen() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let store = SessionStore::new(home.path(), workspace.path()).unwrap();
+    let mut session = store.create().unwrap();
+    let id = session.id();
+    let state = json!({"workflow":"check","phase":"running","state":{"step":2}});
+    let checkpoint = session
+        .append_extension("workflows", state.clone())
+        .unwrap();
+    session
+        .append_extension_event(
+            "workflows",
+            json!({"actionResult":{"id":"shell","succeeded":true}}),
+        )
+        .unwrap();
+    session
+        .append_extension_event("diagnostics", json!({"actionResult":{"id":"inspect"}}))
+        .unwrap();
+    drop(session);
+    let mut reopened = store.open(id).unwrap();
+    let expected = std::collections::HashMap::from([("workflows".to_owned(), state)]);
+    assert_eq!(reopened.extension_states().unwrap(), expected);
+    reopened.branch(checkpoint).unwrap();
+    assert_eq!(reopened.extension_states().unwrap(), expected);
+    assert_eq!(reopened.active_path().unwrap(), Vec::new());
+}
+
+#[test]
 fn extension_state_reloads_from_the_active_session_branch() {
     let home = tempfile::tempdir().unwrap();
     let workspace = tempfile::tempdir().unwrap();

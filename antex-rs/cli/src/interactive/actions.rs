@@ -56,7 +56,7 @@ impl InteractiveSession {
                     rendered.push(result_text.to_owned());
                 }
                 self.conversation
-                    .append_extension(
+                    .append_extension_event(
                         extension,
                         serde_json::json!({"actionResult":result.clone()}),
                     )

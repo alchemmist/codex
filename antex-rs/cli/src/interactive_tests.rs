@@ -119,8 +119,8 @@ async fn explicit_extension_inspection_uses_the_current_in_process_context() {
     };
     assert!(text.starts_with("Antex\nYou are Antex"));
     assert_eq!(
-        session.conversation.extension_states().unwrap()["diagnostics"]["actionResult"]["id"],
-        "system"
+        session.conversation.extension_states().unwrap(),
+        std::collections::HashMap::new()
     );
 }
 
@@ -146,6 +146,22 @@ async fn personal_workflows_are_readable_without_exposing_adjacent_credentials()
         provider,
     )
     .unwrap();
+    let CommandEffect::Picker(picker) = session.command("/workflow").await.unwrap() else {
+        panic!("expected workflow picker");
+    };
+    insta::assert_snapshot!(
+        "personal_workflow_picker",
+        format!(
+            "{}\n{}",
+            picker.title,
+            picker
+                .items
+                .iter()
+                .map(|item| format!("{} | {} | {}", item.label, item.description, item.command))
+                .collect::<Vec<_>>()
+                .join("\n")
+        )
+    );
     let CommandEffect::Notice(text) = session.command("/workflow check").await.unwrap() else {
         panic!("expected workflow result");
     };

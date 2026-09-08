@@ -322,6 +322,9 @@ impl Session {
                 continue;
             }
             let (record, _) = self.read_record(id)?;
+            if record.payload.get("event").is_some() {
+                continue;
+            }
             let Some(name) = record.payload["extension"].as_str() else {
                 continue;
             };
@@ -335,6 +338,17 @@ impl Session {
             states.insert(name.to_owned(), record.payload["data"].clone());
         }
         Ok(states)
+    }
+
+    pub fn append_extension_event(&mut self, name: &str, event: Value) -> io::Result<Uuid> {
+        if name.len() > 128 || event.to_string().len() > antex_core::MAX_TEXT_BYTES {
+            return Err(io::Error::other("extension event exceeds its budget"));
+        }
+        self.append_record(
+            Kind::Extension,
+            json!({"extension":name,"event":event}),
+            Some(self.head),
+        )
     }
 
     pub fn branch(&mut self, parent: Uuid) -> io::Result<Uuid> {

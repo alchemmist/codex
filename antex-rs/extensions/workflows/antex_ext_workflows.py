@@ -171,7 +171,9 @@ class Context:
 class Runner:
     def __init__(self, cwd, restored):
         self.cwd = pathlib.Path(cwd).resolve()
-        self.restored = restored if isinstance(restored, dict) else {}
+        self.restored = dict(restored) if isinstance(restored, dict) else {}
+        if self.restored.get("phase") == "running":
+            self.restored["phase"] = "interrupted"
         self.pending = queue.Queue(maxsize=1)
         self.results = queue.Queue(maxsize=1)
         self.thread = None
@@ -179,34 +181,50 @@ class Runner:
         self.metadata = None
 
     def start(self, arguments):
+        if arguments.strip() == "status":
+            return {"text": self.restored.get("phase", "No workflow run recorded."),
+                    "records": [self.restored] if self.restored else [], "actions": []}
         if self.thread is not None and self.thread.is_alive():
             raise RuntimeError("a workflow is already running")
         workflow_id, separator, encoded = arguments.strip().partition(" ")
+        resuming = workflow_id == "resume"
+        if resuming:
+            if separator or self.restored.get("phase") not in {"failed", "interrupted", "stopped"}:
+                raise ValueError("no interrupted workflow to resume")
+            workflow_id = self.restored.get("workflow", "")
         if not workflow_id or workflow_id == "list":
             return {"text": "\n".join(workflow_paths(self.cwd)) or "No trusted workflows found.", "records": [], "actions": []}
         if not ID.fullmatch(workflow_id):
             raise ValueError("usage: /workflow <id> [json-params]")
-        params = json.loads(encoded) if separator else {}
+        params = self.restored.get("params", {}) if resuming else json.loads(encoded) if separator else {}
         if not isinstance(params, dict):
             raise ValueError("workflow parameters must be a JSON object")
         path = workflow_paths(self.cwd).get(workflow_id)
         if path is None:
             raise ValueError(f"workflow not found: {workflow_id}")
-        with path.open("rb") as source_file:
-            source_bytes = source_file.read(4097)
+        if resuming:
+            source_bytes = self.restored.get("source", "").encode("utf-8")
+            if hashlib.sha256(source_bytes).hexdigest() != self.restored.get("sourceSha256"):
+                raise ValueError("workflow source snapshot hash mismatch")
+        else:
+            with path.open("rb") as source_file:
+                source_bytes = source_file.read(4097)
         if len(source_bytes) > 4096:
             raise ValueError("workflow source exceeds its 4096-byte snapshot budget")
         source = source_bytes.decode("utf-8")
         self.metadata = {"workflow": workflow_id, "runId": uuid.uuid4().hex,
                          "source": source, "sourceSha256": hashlib.sha256(source_bytes).hexdigest(),
                          "params": params, "startedAt": int(time.time()), "phase": "running"}
+        if resuming:
+            self.metadata.update({"runId": self.restored["runId"],
+                                  "startedAt": self.restored["startedAt"], "resumedAt": int(time.time())})
         if encoded_size(self.metadata) > 6000:
             raise ValueError("workflow source and parameters exceed their record budget")
         module = types.ModuleType(f"antex_workflow_{workflow_id}")
         module.__file__ = str(path)
         self.pending = queue.Queue(maxsize=1)
         self.results = queue.Queue(maxsize=1)
-        context = Context(params, {}, self.pending, self.results)
+        context = Context(params, self.restored.get("state", {}) if resuming else {}, self.pending, self.results)
 
         def run():
             try:

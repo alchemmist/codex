@@ -108,8 +108,10 @@ binary; configured MCP instances are emitted by `antex migrate codex`:
   tests pass.
 - Current workspace `just clippy -- -D warnings` passes on deimos.
 - Current HTTP MCP Codex-migration test passes on deimos.
-- The full workspace suite has not been rerun after the latest extension slices;
-  run it before claiming Phase 7 or release readiness.
+- On 2026-09-08 the user approved the full workspace run: 905 passed, one
+  existing skip, 4.914 seconds after 22.37 seconds of compilation on deimos.
+  All 16 Python extension acceptance tests passed there as well. This approval
+  remains valid for the remaining migration validation.
 
 deimos filled its filesystem during linking. Only the disposable directory
 `/home/antonmoss/antex-work/validation-host/antex-rs/target` was removed and
@@ -125,14 +127,15 @@ timestamps and completion/failure metadata. Agent batches honor parallelism;
 unsupported agent options fail explicitly. Seven Python acceptance tests and
 19 CLI tests passed; local `just fmt` and remote scoped `just fix` passed.
 The personal-workflow sandbox test verifies adjacent credentials stay hidden.
-Background control, picker and interrupted-run recovery remain unfinished.
+The following slice adds the workflow picker, status and explicit snapshot-based
+resume. Host action events no longer replace extension checkpoint state after
+reopening or branching a session. Nine Python tests and 68 runtime/CLI tests
+passed, followed by local formatting and scoped remote Clippy fix with warnings
+denied. The subsequent full-suite evidence is recorded above.
 
 1. Finish workflow control and discovery:
    - make workflow execution non-blocking from the TUI command dispatcher;
-   - implement `/workflow pause`, `/workflow stop`, `/workflow resume`, and a
-     workflow picker;
-   - discover personal `~/.antex/workflows` alongside trusted project workflows;
-   - persist interrupted/failed run metadata and snapshot the source;
+   - implement `/workflow pause` and `/workflow stop`;
    - package the PR babysitter as a workflow.
 2. Finish MCP OAuth according to the current official MCP authorization spec:
    - parse `WWW-Authenticate` and RFC 9728 protected-resource metadata;

@@ -66,6 +66,14 @@ impl Conversation {
         self.session.extension_states()
     }
 
+    pub fn append_extension_event(
+        &mut self,
+        name: &str,
+        event: serde_json::Value,
+    ) -> io::Result<Uuid> {
+        self.session.append_extension_event(name, event)
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
         self.session.branch(parent)?;
         self.entries = self.session.active_path()?;

@@ -362,6 +362,11 @@ impl Session for InteractiveSession {
                 let extension_name = name.strip_prefix('/').unwrap_or(name);
                 let Some(extensions) = self.extensions.as_ref() else { return Err("Unknown command. Use /help.".into()); };
                 if !extensions.commands().iter().any(|command| command.name == extension_name) { return Err("Unknown command. Use /help.".into()); }
+                if extension_name == "workflow" && argument.is_empty() {
+                    let output = extensions.run_command(extension_name, "list".into(), tokio_util::sync::CancellationToken::new()).await.map_err(|error| error.to_string())?;
+                    let items = output.output.text.lines().filter(|id| !id.is_empty() && id.len() <= 64 && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))).take(256).map(|id| antex_tui::PickerItem { label: id.into(), description: "Run workflow".into(), command: format!("/workflow {id}") }).collect();
+                    return Ok(CommandEffect::Picker(antex_tui::PickerSpec { title: "Choose a workflow".into(), items }));
+                }
                 let output = extensions.run_command(extension_name, argument.into(), tokio_util::sync::CancellationToken::new()).await.map_err(|error| error.to_string())?;
                 self.apply_extension_output(&output.extension, output.output).await
             }

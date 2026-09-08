@@ -75,6 +75,27 @@ class DiscoveryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unsupported"):
             context.agent_batch(["task"], developer_instructions="instructions")
 
+    def test_resume_uses_checkpoint_and_saved_source_after_the_file_changes(self):
+        source = "WORKFLOW={'id':'check'}\ndef run(ctx):\n if ctx.state.get('done'): return True\n ctx.checkpoint({'done':True})\n raise RuntimeError('interrupted')\n"
+        path = self.personal / "check.py"
+        path.write_text(source)
+        record = WORKFLOWS.Runner(self.root, None).start("check")["records"][0]
+        path.write_text("raise RuntimeError('edited source must not run')\n")
+        restored = WORKFLOWS.Runner(self.root, record)
+        result = restored.start("resume")
+        self.assertEqual(result["text"], "true")
+        self.assertEqual(result["records"][0]["runId"], record["runId"])
+        self.assertEqual(result["records"][0]["source"], source)
+        self.assertEqual(result["records"][0]["state"], {"done": True})
+
+    def test_running_checkpoint_reopens_as_interrupted_and_rejects_corrupt_source(self):
+        (self.personal / "check.py").write_text(SOURCE)
+        runner = WORKFLOWS.Runner(self.root, {"workflow": "check", "phase": "running",
+                                            "source": SOURCE, "sourceSha256": "wrong"})
+        self.assertEqual(runner.start("status")["text"], "interrupted")
+        with self.assertRaisesRegex(ValueError, "hash mismatch"):
+            runner.start("resume")
+
 
 if __name__ == "__main__":
     unittest.main()

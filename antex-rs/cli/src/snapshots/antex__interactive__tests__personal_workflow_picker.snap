@@ -1,0 +1,6 @@
+---
+source: cli/src/interactive_tests.rs
+expression: "format!(\"{}\\n{}\", picker.title, picker.items.iter().map(|item| format!(\"{} | {} | {}\", item.label, item.description, item.command)).collect::<Vec<_>>().join(\"\\n\"))"
+---
+Choose a workflow
+check | Run workflow | /workflow check
