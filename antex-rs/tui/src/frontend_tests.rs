@@ -8,6 +8,37 @@ use tokio::sync::mpsc;
 
 struct Provider;
 
+#[test]
+fn working_status_is_above_the_composer() {
+    let session = TestSession {
+        agent: Agent::new(Provider, Arc::new(Tools)),
+        messages: Vec::new(),
+        finished: Arc::new(Notify::new()),
+        requested: Arc::new(Notify::new()),
+    };
+    let mut composer = Composer::new(Arc::new(RuntimeKeymap::defaults()));
+    composer.configure(&crate::Settings {
+        animations: false,
+        ..Default::default()
+    });
+    composer.set_working(true);
+    let mut tui = Tui::new(crate::test_backend::VT100Backend::new(80, 10)).unwrap();
+    draw(
+        &mut tui,
+        &mut composer,
+        &session,
+        "Working…",
+        "",
+        &mut None,
+        &None,
+    )
+    .unwrap();
+    let visible = tui.terminal.backend().vt100().screen().contents();
+    assert!(visible.find("Working (").unwrap() < visible.find("┃").unwrap());
+    assert!(visible.contains("esc to interrupt"));
+    assert!(!visible.contains("Working…"));
+}
+
 impl ModelProvider for Provider {
     async fn models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         Ok(Vec::new())

@@ -26,7 +26,13 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         .as_ref()
         .map(crate::overlay::Overlay::height)
         .unwrap_or_else(|| composer.height(size.width).min(8));
-    let header_room = size.height.saturating_sub(input_height + 2);
+    let working = prompt
+        .is_none()
+        .then(|| composer.working_line(size.width))
+        .flatten();
+    let working_height = u16::from(working.is_some());
+    let reserved = 1 + working_height;
+    let header_room = size.height.saturating_sub(input_height + reserved);
     let header = if prompt.is_some() || header_room < 2 {
         Vec::new()
     } else {
@@ -55,9 +61,11 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
     } else {
         crate::transcript::assistant_lines(live, usize::from(size.width), &view.directory)
     };
-    let live_height = (live_lines.len().min(8) as u16)
-        .min(size.height.saturating_sub(header_height + input_height + 2));
-    let height = (header_height + input_height + live_height + 2).min(size.height);
+    let live_height = (live_lines.len().min(8) as u16).min(
+        size.height
+            .saturating_sub(header_height + input_height + reserved),
+    );
+    let height = (header_height + input_height + live_height + reserved).min(size.height);
     let previous = tui.terminal.viewport_area;
     let y = previous.y.min(size.height.saturating_sub(height));
     if previous.y + height > size.height {
@@ -98,9 +106,15 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
             ratatui::style::Style::default(),
         )
         .render(live_area, frame.buffer_mut());
+        if let Some(working) = working {
+            working.render(
+                Rect::new(area.x, area.y + live_area.height, area.width, 1),
+                frame.buffer_mut(),
+            );
+        }
         let editor_area = Rect {
-            y: area.y + live_area.height,
-            height: area.height.saturating_sub(live_area.height + 2),
+            y: area.y + live_area.height + working_height,
+            height: area.height.saturating_sub(live_area.height + reserved),
             ..area
         };
         let cursor = match prompt {
@@ -110,27 +124,23 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         if let Some(cursor) = cursor {
             frame.set_cursor_position(cursor);
         }
-        let mut footer = composer.footer(&view);
+        let mut footer = if working_height == 0 && !status.is_empty() {
+            Line::from(format!("  {status}").dim())
+        } else {
+            composer.footer(&view)
+        };
         if let Some(mode) = composer.mode_label() {
             footer.spans.push(format!(" · {mode}").dim());
         }
         if composer.has_stash() {
             footer.spans.insert(0, "  stashed · ".dim());
         }
-        if area.height >= 2 {
+        if area.height >= 1 {
             crate::line_truncation::truncate_line_with_ellipsis_if_overflow(
                 footer,
                 usize::from(area.width),
             )
             .render(
-                Rect {
-                    y: area.bottom() - 2,
-                    height: 1,
-                    ..area
-                },
-                frame.buffer_mut(),
-            );
-            Line::from(status.to_owned().dim()).render(
                 Rect {
                     y: area.bottom() - 1,
                     height: 1,

@@ -65,6 +65,7 @@ mod fork_visual_tests;
 
 mod history_reflow;
 mod status_line;
+mod working_indicator;
 pub use session::Session;
 pub use session::SessionView;
 pub use settings::Settings;

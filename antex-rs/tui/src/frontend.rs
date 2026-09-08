@@ -130,6 +130,14 @@ where
     let mut force_draw = true;
     let mut ui_command: Option<(String, CommandOrigin)> = None;
     loop {
+        composer.set_working(run.is_some());
+        if run.is_some() {
+            frames.schedule_frame_in(std::time::Duration::from_millis(if settings.animations {
+                32
+            } else {
+                1000
+            }));
+        }
         if composer.flush_paste(std::time::Instant::now()) {
             force_draw = true;
         }
@@ -240,7 +248,9 @@ where
                     &session.history(),
                     history_startup.as_ref(),
                     &session.view(),
-                    composer.height(width).min(8) + 2,
+                    composer.height(width).min(8)
+                        + 1
+                        + u16::from(composer.working_line(width).is_some()),
                 )?;
                 reflow_at = None;
                 force_draw = true;
@@ -318,7 +328,14 @@ where
                     AgentEvent::Error(error) => status = safe_text(&error.to_string()),
                     AgentEvent::Finished { reason, .. } => {
                         pending = session.pending_commands().map_err(io::Error::other)?;
-                        status = if pending.is_empty() && reason == antex_core::FinishReason::Completed { String::new() } else { format!("{reason:?}; {} unsent inputs retained", pending.len()) };
+                        status = match reason {
+                            antex_core::FinishReason::Completed => String::new(),
+                            antex_core::FinishReason::Interrupted => "Interrupted".into(),
+                            antex_core::FinishReason::Failed => if status.is_empty() || status == "Working…" { "Run failed".into() } else { status },
+                        };
+                        if !pending.is_empty() {
+                            status = format!("{} unsent inputs retained · /retry-pending", pending.len());
+                        }
                         run = None;
                         turn_ready = false;
                         prompt = None;
@@ -338,6 +355,9 @@ where
                 force_draw = true;
                 match event? {
                     Event::Key(key) if key.kind == crossterm::event::KeyEventKind::Release => continue,
+                    Event::Key(key) if key.code == KeyCode::Esc && key.modifiers.is_empty() && prompt.is_none() && composer.escape_interrupts() => {
+                        if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
+                    }
                     Event::Key(key) if key.modifiers.contains(KeyModifiers::CONTROL) && key.code == KeyCode::Char('c') => {
                         if let Some(active) = &run { let _ = active.commands.try_send(AgentCommand::Interrupt); }
                         else if !composer.cancel_search() && prompt.take().is_none() { break; }

@@ -49,6 +49,61 @@ impl ToolHost for ApprovalTool {
 
 struct WaitingProvider(Arc<Notify>);
 
+#[tokio::test]
+async fn escape_interrupts_a_running_turn_without_closing_the_terminal() {
+    let started = Arc::new(Notify::new());
+    let finished = Arc::new(Notify::new());
+    let mut session = TestSession {
+        agent: Agent::new(WaitingProvider(started.clone()), Arc::new(Tools)),
+        messages: Vec::new(),
+        finished: finished.clone(),
+        requested: Arc::new(Notify::new()),
+    };
+    let mut tui = Tui::new(crate::test_backend::VT100Backend::new(80, 20)).unwrap();
+    let (sender, receiver) = mpsc::channel(4);
+    let input = Box::pin(futures::stream::unfold(
+        receiver,
+        |mut receiver| async move { receiver.recv().await.map(|event| (event, receiver)) },
+    ));
+    let driver = async {
+        sender.send(Ok(Event::Paste("hello".into()))).await.unwrap();
+        sender
+            .send(Ok(Event::Key(KeyEvent::new(
+                KeyCode::Enter,
+                KeyModifiers::NONE,
+            ))))
+            .await
+            .unwrap();
+        started.notified().await;
+        sender
+            .send(Ok(Event::Key(KeyEvent::new(
+                KeyCode::Esc,
+                KeyModifiers::NONE,
+            ))))
+            .await
+            .unwrap();
+        finished.notified().await;
+        sender.send(Ok(Event::Paste("/quit".into()))).await.unwrap();
+        sender
+            .send(Ok(Event::Key(KeyEvent::new(
+                KeyCode::Enter,
+                KeyModifiers::NONE,
+            ))))
+            .await
+            .unwrap();
+    };
+    let (result, ()) = tokio::time::timeout(std::time::Duration::from_secs(3), async {
+        tokio::join!(
+            run_terminal(&mut tui, &mut session, input, crate::Settings::default()),
+            driver
+        )
+    })
+    .await
+    .unwrap();
+    result.unwrap();
+    assert_eq!(session.messages, vec![Message::User("hello".into())]);
+}
+
 impl ModelProvider for WaitingProvider {
     async fn models(&self) -> Result<Vec<ModelInfo>, ProviderError> {
         Ok(Vec::new())

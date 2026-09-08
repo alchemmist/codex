@@ -104,6 +104,7 @@ pub(crate) struct Composer {
     burst_enabled: bool,
     status_line: Vec<String>,
     status_line_use_colors: bool,
+    working: crate::working_indicator::WorkingIndicator,
 }
 
 impl Composer {
@@ -125,6 +126,7 @@ impl Composer {
             burst_enabled: true,
             status_line: Vec::new(),
             status_line_use_colors: false,
+            working: crate::working_indicator::WorkingIndicator::default(),
         }
     }
 
@@ -132,6 +134,7 @@ impl Composer {
         self.keymap = settings.keymap.clone();
         self.status_line = settings.status_line.clone();
         self.status_line_use_colors = settings.status_line_use_colors;
+        self.working.animations = settings.animations;
         self.editor.set_keymap_bindings(&self.keymap);
         self.editor.set_vim_mode_start(settings.vim_start);
         self.vim_start = settings.vim_start;
@@ -337,6 +340,22 @@ impl Composer {
         self.editor.desired_height(width.saturating_sub(4)).max(1)
             + 2
             + u16::from(self.editor.vim_query().is_some())
+    }
+
+    pub(crate) fn set_working(&mut self, running: bool) {
+        self.working.set_running(running);
+    }
+
+    pub(crate) fn escape_interrupts(&self) -> bool {
+        self.working.is_running() && !self.search_active() && self.editor.vim_query().is_none()
+    }
+
+    pub(crate) fn working_line(&self, width: u16) -> Option<Line<'static>> {
+        if self.escape_interrupts() {
+            self.working.line(width)
+        } else {
+            None
+        }
     }
 
     pub(crate) fn footer(&self, view: &crate::SessionView) -> Line<'static> {
