@@ -37,6 +37,21 @@ arm64 executable. Local signature verification, startup and `/status` passed.
 The TUI remained usable at 100x30 and 32x16. An idle process measured 19,376 KiB
 RSS. This is an observed sample, not the full startup/memory acceptance campaign.
 
+The refreshed artifact uses source commit `4de17cf218` and reports
+`antex 0.0.0+4de17cf218`. Its signed size is 15,801,072 bytes. The unsigned
+transfer checksum matched deimos; after local ad-hoc signing its SHA-256 is
+`0b14a263d447d093d06389d5ca99f3be45a958d4b4d7a96c16fc25ccce265bdf`.
+The refresh took 1m36s on deimos. Five CLI identity tests, 26 clipboard tests and
+scoped Clippy fix passed before the final remote build.
+
+The maintainer completed a separate OAuth login on the Mac. Local discovery
+returned seven models. A live write/edit/read/shell round trip returned
+ANTEX_MAC_OK and left acceptance.txt containing beta in the isolated workspace.
+The direct TUI selected gpt-5.4-mini and returned ANTEX_TUI_MAC_OK with zero unsent
+inputs. These checks used the initial macOS artifact; the refreshed artifact
+adds correct build provenance and a Linux-only cfg for unused WSL detection.
+Its signature and version were checked again locally.
+
 Local smoke uses a separate home under `dist/antex-macos-arm64/home`; it does not
 import credentials from deimos or the installed Codex fallback. Release/platform
 gates remain open until all required interactive and installer checks pass.

@@ -154,15 +154,17 @@ denied. The subsequent full-suite evidence is recorded above.
 3. Run the complete workspace suite on deimos with
    `ANTEX_BWRAP=/home/antonmoss/antex-tools/bin/bwrap`, then release Clippy,
    baseline, and extension conformance.
-4. Perform live manual ChatGPT Plus/Pro acceptance: login, model catalog, plain
-   turn, shell tool cycle, edit task, interrupt, resume, and fork. No live
-   subscription success is currently claimed.
+4. Finish live interruption and the remaining interactive acceptance scenarios.
+   Device login, model discovery, plain turns, write/edit/read/shell, resume and
+   fork succeeded on deimos. A separately authenticated macOS binary completed
+   model discovery, the four-tool task and a direct TUI turn. See
+   `migration/live-acceptance.md` and `migration/macos-cross-build.md`.
 5. Resolve the OpenAI identification experiment: remove the compatibility
    revision if the endpoint accepts native Antex identification, otherwise keep
    the private contract pin and document its update procedure.
 6. Complete supported-platform preflight:
-   - real Apple Silicon macOS build/run (the deimos cross-build lacks Apple SDK
-     support for `ring`);
+   - complete Apple Silicon macOS acceptance using the successful deimos
+     cross-build with the maintainer's SDK and local ad-hoc signing;
    - Linux x86_64 fresh clone;
    - stripped binary size below 40 MiB on both;
    - editable prompt below 150 ms;
