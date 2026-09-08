@@ -180,6 +180,19 @@ impl ExtensionRegistry {
         &self.commands
     }
 
+    pub async fn reset(
+        &self,
+        extension: &str,
+        state: serde_json::Value,
+    ) -> Result<(), RegistryError> {
+        let process = self
+            .extension_targets
+            .get(extension)
+            .ok_or_else(|| RegistryError::UnknownCommand(extension.into()))?;
+        process.reset(state).await;
+        Ok(())
+    }
+
     pub async fn run_command(
         &self,
         name: &str,

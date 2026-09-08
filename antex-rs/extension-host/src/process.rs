@@ -339,7 +339,7 @@ impl Extension {
         }
     }
 
-    async fn terminate(&self) {
+    pub(crate) async fn terminate(&self) {
         let mut guard = self.transport.lock().await;
         if let Some(mut transport) = guard.take() {
             let _ = transport.child.kill().await;

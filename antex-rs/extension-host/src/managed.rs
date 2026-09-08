@@ -17,12 +17,14 @@ pub struct ManagedExtension {
     config: ExtensionConfig,
     process: Mutex<Option<Arc<Extension>>>,
     failures: AtomicU8,
+    restored: Mutex<serde_json::Value>,
 }
 
 impl ManagedExtension {
     pub async fn launch(config: ExtensionConfig) -> Result<Self, ExtensionError> {
         let process = Extension::launch(config.clone()).await?;
         Ok(Self {
+            restored: Mutex::new(config.state.clone()),
             config,
             process: Mutex::new(Some(Arc::new(process))),
             failures: AtomicU8::new(0),
@@ -69,6 +71,14 @@ impl ManagedExtension {
         }
     }
 
+    pub async fn reset(&self, state: serde_json::Value) {
+        *self.restored.lock().await = state;
+        if let Some(process) = self.process.lock().await.take() {
+            process.terminate().await;
+        }
+        self.failures.store(0, Ordering::Relaxed);
+    }
+
     async fn process(&self) -> Result<Arc<Extension>, ExtensionError> {
         let mut process = self.process.lock().await;
         if let Some(process) = process.as_ref() {
@@ -78,7 +88,9 @@ impl ManagedExtension {
         if failures >= MAX_RESTARTS {
             return Err(ExtensionError::RestartLimit);
         }
-        match Extension::launch(self.config.clone()).await {
+        let mut config = self.config.clone();
+        config.state = self.restored.lock().await.clone();
+        match Extension::launch(config).await {
             Ok(restarted) => {
                 let restarted = Arc::new(restarted);
                 *process = Some(Arc::clone(&restarted));
