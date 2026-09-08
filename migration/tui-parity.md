@@ -31,3 +31,12 @@ rails at the new width and also replays when the syntax theme revision changes.
 The focused resize fixture checks rail continuity and repeated-replay stability.
 The final TUI run passed 786 tests with one existing skip and one reported leaky
 test; the leaky-test observation is not a completed lifecycle acceptance gate.
+
+Native confirmation used the cross-built `0.0.0+9de274b516` on the maintainer's
+Mac. The conversation view was checked at 100x30, resized to 32x16 and widened
+again; the card stopped wrapping incorrectly and every wrapped user line kept
+its rail. A light tmux pane and `/theme ansi` replay preserved readable native
+colors and did not duplicate the message. The test sessions were closed.
+The signed binary is installed at `/Users/antonmoss/.local/bin/antex`; interactive
+zsh resolves and runs it. Its SHA-256 is
+`0d53769f35ed392c097908d31ec1b3a768cf3af9d6a1aaa18fdb05790a5a314b`.

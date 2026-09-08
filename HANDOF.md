@@ -22,6 +22,16 @@ Do not replace it before every Phase 10 cutover gate passes.
 
 ## Repository state
 
+Local development install on 2026-09-08:
+`/Users/antonmoss/.local/bin/antex`, version `0.0.0+9de274b516`.
+It was cross-built on deimos, transferred with matching checksum and ad-hoc
+signed on macOS. Interactive zsh resolves `antex` to this exact path; `.zshrc`
+already included `~/.local/bin`, so no shell configuration edit was needed.
+Only the maintainer's ANSI/Vim/status-line preferences were copied into the new
+`~/.antex/config.toml`; the Codex fallback and its config were not modified.
+The TUI restoration and remaining parity gate are documented in
+`migration/tui-parity.md`. Do not equate this development install with Phase 10.
+
 - Rust workspace: `antex-rs/`.
 - Seven production crates: CLI, core, runtime, OpenAI provider, TUI, extension
   protocol, and extension host.
