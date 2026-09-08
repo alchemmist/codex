@@ -7,6 +7,11 @@ live in `~/.antex/workflows/<id>.py` (or the selected Antex home's `workflows/`)
 Duplicate IDs fail explicitly, and symlinked files are excluded. `/workflow list`
 lists the available IDs without importing their Python code.
 `/workflow` opens the TUI picker. `/workflow status` reports the latest run.
+Execution runs in the background, leaving the composer and ordinary model turns
+available. `/workflow pause` prevents the next host action from starting; the
+current action may finish. `/workflow resume` continues a paused run.
+`/workflow stop` terminates the active action and the workflow process, retaining
+the latest checkpoint. Stop a workflow before changing model, workspace or session.
 
 ```python
 WORKFLOW = {"id": "check", "title": "Check"}
@@ -33,3 +38,5 @@ saved source and checkpoint. The workflow function starts at the beginning;
 use `ctx.state` to skip already completed steps. It must not assume automatic
 replay or exactly-once external effects. The workflow must still be discoverable
 under the current trust policy. A normal `/workflow <id>` starts a new run.
+Inspection and agent project context use the snapshot captured at workflow start.
+`print()` and `ctx.log()` go to extension stderr; stdout remains protocol-only.

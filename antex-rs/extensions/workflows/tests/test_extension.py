@@ -187,7 +187,10 @@ class ExtensionTest(unittest.TestCase):
         response = json.loads(process.stdout.readline())
         self.assertEqual(response["id"], request_id)
         self.assertNotIn("error", response)
-        return response["result"]
+        result = response["result"]
+        if isinstance(result, dict) and "records" in result and not result["actions"] and (not result["records"] or result["records"][-1]["phase"] == "running"):
+            return self.request(process, request_id, "command/run", {"name": "workflow", "arguments": "poll"})
+        return result
 
 
 if __name__ == "__main__":

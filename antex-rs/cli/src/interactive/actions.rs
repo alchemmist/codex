@@ -55,6 +55,9 @@ impl InteractiveSession {
                 }
             }
         }
+        self.conversation
+            .flush()
+            .map_err(|error| error.to_string())?;
         if let Some(panel) = panel {
             return Ok(CommandEffect::Page(antex_tui::TextPage {
                 title: panel.title,

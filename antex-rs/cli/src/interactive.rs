@@ -32,6 +32,9 @@ mod actions;
 #[path = "interactive/action_executor.rs"]
 mod action_executor;
 
+#[path = "interactive/workflow.rs"]
+mod workflow;
+
 pub(crate) struct InteractiveSession {
     home: PathBuf,
     workspace: PathBuf,
@@ -42,7 +45,8 @@ pub(crate) struct InteractiveSession {
     conversation: Conversation,
     agent: Option<Agent<Arc<OpenAiProvider>>>,
     compaction: Option<Arc<Compaction<OpenAiProvider>>>,
-    extensions: Option<ExtensionRegistry>,
+    extensions: Option<Arc<ExtensionRegistry>>,
+    workflow: Option<workflow::Workflow>,
     terminal_log: Option<TmuxLog>,
 }
 
@@ -69,6 +73,7 @@ impl InteractiveSession {
             agent: None,
             compaction: None,
             extensions: None,
+            workflow: None,
             terminal_log: None,
         })
     }
@@ -137,7 +142,7 @@ impl InteractiveSession {
             for failure in loaded.failures {
                 eprintln!("antex: extension failed: {failure}");
             }
-            self.extensions = Some(loaded.registry);
+            self.extensions = Some(Arc::new(loaded.registry));
         }
         Ok(self
             .extensions
@@ -148,6 +153,9 @@ impl InteractiveSession {
 }
 
 impl Session for InteractiveSession {
+    async fn background_notice(&mut self) -> Result<String, String> {
+        self.next_workflow_update().await
+    }
     fn queue_command(&mut self, command: &antex_core::AgentCommand) -> Result<(), String> {
         self.conversation
             .queue_command(command)
@@ -282,6 +290,14 @@ impl Session for InteractiveSession {
             .split_once(char::is_whitespace)
             .unwrap_or((command.trim(), ""));
         let argument = argument.trim();
+        if self.workflow.is_some() && matches!(name, "/cd" | "/resume" | "/fork" | "/model") {
+            return Err("Stop the workflow before changing session, directory or model.".into());
+        }
+        if name == "/workflow"
+            && let Some(effect) = self.workflow_control(argument).await?
+        {
+            return Ok(effect);
+        }
         let name = if name == "/resume" && argument.is_empty() {
             "/sessions"
         } else {
@@ -365,6 +381,9 @@ impl Session for InteractiveSession {
                 let extension_name = name.strip_prefix('/').unwrap_or(name);
                 let Some(extensions) = self.extensions.as_ref() else { return Err("Unknown command. Use /help.".into()); };
                 if !extensions.commands().iter().any(|command| command.name == extension_name) { return Err("Unknown command. Use /help.".into()); }
+                if extension_name == "workflow" && !argument.is_empty() && !matches!(argument, "list" | "status" | "pause" | "stop") {
+                    return self.start_workflow(argument);
+                }
                 if extension_name == "workflow" && argument.is_empty() {
                     let output = extensions.run_command(extension_name, "list".into(), tokio_util::sync::CancellationToken::new()).await.map_err(|error| error.to_string())?;
                     let items = output.output.text.lines().filter(|id| !id.is_empty() && id.len() <= 64 && id.bytes().all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'_' | b'-'))).take(256).map(|id| antex_tui::PickerItem { label: id.into(), description: "Run workflow".into(), command: format!("/workflow {id}") }).collect();
@@ -399,3 +418,7 @@ fn extension_event(event: &AgentEvent) -> Option<antex_extension_protocol::Event
 #[cfg(test)]
 #[path = "interactive_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "interactive/workflow_tests.rs"]
+mod workflow_tests;

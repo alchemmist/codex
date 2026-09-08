@@ -1,6 +1,22 @@
 use super::*;
 use pretty_assertions::assert_eq;
 
+pub(super) async fn complete_workflow(session: &mut InteractiveSession, command: &str) -> String {
+    session.command(command).await.unwrap();
+    tokio::time::timeout(std::time::Duration::from_secs(5), async {
+        let mut last = String::new();
+        while session.workflow.is_some() {
+            let text = session.background_notice().await.unwrap();
+            if !text.is_empty() {
+                last = text;
+            }
+        }
+        last
+    })
+    .await
+    .unwrap()
+}
+
 #[tokio::test]
 async fn image_commands_normalize_selected_files_without_contacting_the_provider() {
     let home = tempfile::tempdir().unwrap();
@@ -162,9 +178,7 @@ async fn personal_workflows_are_readable_without_exposing_adjacent_credentials()
                 .join("\n")
         )
     );
-    let CommandEffect::Notice(text) = session.command("/workflow check").await.unwrap() else {
-        panic!("expected workflow result");
-    };
+    let text = complete_workflow(&mut session, "/workflow check").await;
     assert_eq!(text, "{\"private\": true}");
     assert_eq!(
         session.conversation.extension_states().unwrap()["workflows"]["phase"],
@@ -197,9 +211,7 @@ async fn installed_python_workflow_branches_through_the_in_process_action_loop()
         provider,
     )
     .unwrap();
-    let CommandEffect::Notice(text) = session.command("/workflow check").await.unwrap() else {
-        panic!("expected workflow result");
-    };
+    let text = complete_workflow(&mut session, "/workflow check").await;
     assert_eq!(text, "{\"exit\": 0}");
     assert_eq!(
         std::fs::read_to_string(workspace.path().join("workflow-result")).unwrap(),

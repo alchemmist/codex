@@ -133,10 +133,14 @@ reopening or branching a session. Nine Python tests and 68 runtime/CLI tests
 passed, followed by local formatting and scoped remote Clippy fix with warnings
 denied. The subsequent full-suite evidence is recorded above.
 
-1. Finish workflow control and discovery:
-   - make workflow execution non-blocking from the TUI command dispatcher;
-   - implement `/workflow pause` and `/workflow stop`;
-   - package the PR babysitter as a workflow.
+1. Package the PR babysitter as a workflow. Background workflow execution,
+   pause at host-action boundaries, stop with process-group cancellation and
+   checkpoint-based resume are implemented. Session writes are acknowledged
+   before actions start. Full deimos validation passed 906 tests (one existing
+   skip); the final persistence adjustment passed 69 runtime/CLI tests. Python
+   workflow tests and final workspace Clippy fix passed. Control notices have
+   reviewed snapshots, and a shell test verifies stopped descendants cannot
+   write later and that the run can resume from its checkpoint.
 2. Finish MCP OAuth according to the current official MCP authorization spec:
    - parse `WWW-Authenticate` and RFC 9728 protected-resource metadata;
    - discover RFC 8414 authorization-server metadata;

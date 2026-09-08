@@ -22,6 +22,9 @@ pub enum CommandEffect {
 
 /// Composes runtime persistence and agent runs without exposing provider or filesystem internals to the terminal.
 pub trait Session: Send {
+    fn background_notice(&mut self) -> impl Future<Output = Result<String, String>> + Send {
+        std::future::pending()
+    }
     fn view(&self) -> SessionView;
     fn history(&self) -> Vec<Message>;
     fn pending_commands(&mut self) -> Result<Vec<antex_core::AgentCommand>, String>;

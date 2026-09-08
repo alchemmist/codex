@@ -239,6 +239,14 @@ where
             frames.schedule_frame_in(frame_budget - elapsed);
         }
         tokio::select! {
+            notice = session.background_notice() => {
+                match notice {
+                    Ok(text) if !text.is_empty() => status = safe_text(&text),
+                    Ok(_) => {},
+                    Err(error) => status = safe_text(&error),
+                }
+                force_draw = true;
+            }
             _ = frames.next_frame() => {},
             event = next_agent_event(&mut run) => {
                 let Some(event) = event else { run = None; turn_ready = false; continue; };
@@ -345,7 +353,9 @@ where
                                 let user = draft.input();
                                 let text = user.content.iter().filter_map(|content| match content { antex_core::Content::Text(text) => Some(text.as_str()), _ => None }).collect::<String>();
                                 if user.content.is_empty() { continue; }
-                                if let Some(active) = &run {
+                                if text.split_whitespace().next() == Some("/workflow") && !user.content.iter().any(|content| matches!(content, antex_core::Content::Image { .. })) {
+                                    ui_command = Some((text, CommandOrigin::Composer));
+                                } else if let Some(active) = &run {
                                     if !turn_ready { status = "The turn is starting; your draft is retained.".into(); continue; }
                                     if !pending.is_empty() {
                                         status = "Recover the remaining unsent inputs before queueing more.".into();

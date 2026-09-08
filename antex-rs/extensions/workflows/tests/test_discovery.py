@@ -4,6 +4,7 @@ import os
 import pathlib
 import tempfile
 import unittest
+import time
 from unittest.mock import patch
 
 
@@ -12,6 +13,16 @@ SPEC = importlib.util.spec_from_file_location("workflows", PROGRAM)
 WORKFLOWS = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(WORKFLOWS)
 SOURCE = "WORKFLOW={'id':'check'}\ndef run(ctx):\n return {'ok':True}\n"
+
+
+def run_to_output(runner, arguments):
+    result = runner.start(arguments)
+    deadline = time.monotonic() + 2
+    while not result["actions"] and (not result["records"] or result["records"][-1]["phase"] == "running"):
+        if time.monotonic() > deadline:
+            raise AssertionError("workflow did not complete")
+        result = runner.start("poll")
+    return result
 
 
 class DiscoveryTest(unittest.TestCase):
@@ -35,26 +46,26 @@ class DiscoveryTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "not found"):
             runner.start("check")
         with patch.dict(os.environ, {"ANTEX_TRUST_PROJECT_WORKFLOWS": "1"}):
-            result = runner.start("check")
+            result = run_to_output(runner, "check")
         self.assertEqual(result["text"], '{"ok": true}')
 
     def test_personal_workflow_retains_exact_source_and_new_run_identity(self):
         (self.personal / "check.py").write_text(SOURCE)
         runner = WORKFLOWS.Runner(self.root, {"workflow": "check", "state": {"old": True}})
-        result = runner.start("check")
+        result = run_to_output(runner, "check")
         record = result["records"][0]
         self.assertEqual(record["source"], SOURCE)
         self.assertEqual(record["sourceSha256"], hashlib.sha256(SOURCE.encode()).hexdigest())
         self.assertEqual(record["phase"], "completed")
         self.assertEqual(record["state"], {})
         runner.thread.join()
-        second = runner.start("check")
+        second = run_to_output(runner, "check")
         self.assertNotEqual(second["records"][0]["runId"], record["runId"])
 
     def test_failed_import_is_persisted_with_its_source(self):
         source = "raise RuntimeError('broken workflow')\n"
         (self.personal / "check.py").write_text(source)
-        result = WORKFLOWS.Runner(self.root, None).start("check")
+        result = run_to_output(WORKFLOWS.Runner(self.root, None), "check")
         self.assertEqual(result["text"], "Workflow failed: broken workflow")
         self.assertEqual(result["records"][0]["phase"], "failed")
         self.assertEqual(result["records"][0]["source"], source)
@@ -79,10 +90,10 @@ class DiscoveryTest(unittest.TestCase):
         source = "WORKFLOW={'id':'check'}\ndef run(ctx):\n if ctx.state.get('done'): return True\n ctx.checkpoint({'done':True})\n raise RuntimeError('interrupted')\n"
         path = self.personal / "check.py"
         path.write_text(source)
-        record = WORKFLOWS.Runner(self.root, None).start("check")["records"][0]
+        record = run_to_output(WORKFLOWS.Runner(self.root, None), "check")["records"][0]
         path.write_text("raise RuntimeError('edited source must not run')\n")
         restored = WORKFLOWS.Runner(self.root, record)
-        result = restored.start("resume")
+        result = run_to_output(restored, "resume")
         self.assertEqual(result["text"], "true")
         self.assertEqual(result["records"][0]["runId"], record["runId"])
         self.assertEqual(result["records"][0]["source"], source)

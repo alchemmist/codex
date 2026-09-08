@@ -1,0 +1,5 @@
+---
+source: cli/src/interactive/workflow_tests.rs
+expression: stopped
+---
+Workflow stopped.

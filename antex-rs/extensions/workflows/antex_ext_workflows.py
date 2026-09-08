@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import hashlib
+import contextlib
 import json
 import os
 import pathlib
@@ -16,6 +17,7 @@ import uuid
 MAX_FRAME_BYTES = 256 * 1024
 MAX_TEXT_BYTES = 8000
 ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+PROTOCOL_STDOUT = sys.stdout
 
 
 def encoded_size(value):
@@ -51,7 +53,7 @@ def respond(request, result=None, error=None):
         message["result"] = result
     else:
         message["error"] = {"code": -32000, "message": str(error)[:512]}
-    print(json.dumps(message, separators=(",", ":")), flush=True)
+    print(json.dumps(message, separators=(",", ":")), file=PROTOCOL_STDOUT, flush=True)
 
 
 class Context:
@@ -181,6 +183,8 @@ class Runner:
         self.metadata = None
 
     def start(self, arguments):
+        if arguments.strip() == "poll":
+            return self.next(self.metadata["workflow"])
         if arguments.strip() == "status":
             return {"text": self.restored.get("phase", "No workflow run recorded."),
                     "records": [self.restored] if self.restored else [], "actions": []}
@@ -228,18 +232,20 @@ class Runner:
 
         def run():
             try:
-                exec(compile(source, str(path), "exec"), module.__dict__)
-                manifest = getattr(module, "WORKFLOW", {})
-                if manifest.get("id") != workflow_id or not callable(getattr(module, "run", None)):
-                    raise ValueError("workflow manifest or run function is invalid")
-                result = module.run(context)
+                with contextlib.redirect_stdout(sys.stderr):
+                    exec(compile(source, str(path), "exec"), module.__dict__)
+                    manifest = getattr(module, "WORKFLOW", {})
+                    if manifest.get("id") != workflow_id or not callable(getattr(module, "run", None)):
+                        raise ValueError("workflow manifest or run function is invalid")
+                    result = module.run(context)
                 self.pending.put(("done", result, context.snapshot()))
             except Exception as error:
                 self.pending.put(("error", str(error), context.snapshot()))
 
         self.thread = threading.Thread(target=run, name="antex-workflow", daemon=True)
+        self.restored = {**self.metadata, "state": context.state}
         self.thread.start()
-        return self.next(workflow_id)
+        return {"text": "Workflow running.", "records": [self.restored], "actions": []}
 
     def resume(self, workflow_id, result):
         if self.thread is None or not self.thread.is_alive():
@@ -251,7 +257,12 @@ class Runner:
         return self.next(workflow_id)
 
     def next(self, workflow_id):
-        kind, value, snapshot = self.pending.get(timeout=900)
+        if self.awaiting:
+            raise RuntimeError("workflow action results are still pending")
+        try:
+            kind, value, snapshot = self.pending.get(timeout=0.05)
+        except queue.Empty:
+            return {"text": "", "records": [], "actions": []}
         record = {**self.metadata, "state": snapshot["state"]}
         record["phase"] = {"done": "completed", "error": "failed"}.get(kind, "running")
         if kind == "error":

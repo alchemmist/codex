@@ -74,6 +74,10 @@ impl Conversation {
         self.session.append_extension_event(name, event)
     }
 
+    pub fn flush(&self) -> io::Result<()> {
+        self.session.finish_turn()
+    }
+
     pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
         self.session.branch(parent)?;
         self.entries = self.session.active_path()?;
