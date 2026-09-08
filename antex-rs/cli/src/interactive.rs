@@ -100,13 +100,18 @@ impl InteractiveSession {
                 .conversation
                 .extension_states()
                 .map_err(|error| error.to_string())?;
+            let workflows = self.home.join("workflows");
+            let mut read_roots = self.context.read_roots.clone();
+            if workflows.is_dir() && !workflows.is_symlink() {
+                read_roots.push(workflows.clone());
+            }
             let sandbox = ExtensionSandbox::new(
                 &self.home,
                 &self.workspace,
                 self.bubblewrap
                     .clone()
                     .unwrap_or_else(|| "/usr/bin/bwrap".into()),
-                &self.context.read_roots,
+                &read_roots,
             )
             .map_err(|error| error.to_string())?;
             let session_id = self.conversation.id().to_string();
@@ -117,7 +122,11 @@ impl InteractiveSession {
                 fallback: runtime,
                 antex_version: env!("ANTEX_BUILD_VERSION"),
                 session_id: &session_id,
-                launcher: Arc::new(RuntimeExtensionLauncher::new(sandbox)),
+                launcher: Arc::new(RuntimeExtensionLauncher::new(
+                    sandbox,
+                    workflows,
+                    self.config.trust_project_extensions,
+                )),
                 states: &states,
             })
             .await

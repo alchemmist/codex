@@ -126,6 +126,38 @@ async fn explicit_extension_inspection_uses_the_current_in_process_context() {
 
 #[cfg(unix)]
 #[tokio::test]
+async fn personal_workflows_are_readable_without_exposing_adjacent_credentials() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    crate::first_party_extensions::install(home.path(), "workflows").unwrap();
+    let workflows = home.path().join("workflows");
+    std::fs::create_dir(&workflows).unwrap();
+    std::fs::write(home.path().join("auth.json"), "private").unwrap();
+    std::fs::write(
+        workflows.join("check.py"),
+        "from pathlib import Path\nWORKFLOW={'id':'check'}\ndef run(ctx):\n try:\n  Path(__file__).parent.parent.joinpath('auth.json').read_text()\n except OSError:\n  return {'private':True}\n raise RuntimeError('credentials exposed')\n",
+    ).unwrap();
+    let provider = OpenAiProvider::new(home.path()).unwrap();
+    let mut session = InteractiveSession::new(
+        home.path().into(),
+        workspace.path().into(),
+        Config::default(),
+        std::env::var_os("ANTEX_BWRAP").map(Into::into),
+        provider,
+    )
+    .unwrap();
+    let CommandEffect::Notice(text) = session.command("/workflow check").await.unwrap() else {
+        panic!("expected workflow result");
+    };
+    assert_eq!(text, "{\"private\": true}");
+    assert_eq!(
+        session.conversation.extension_states().unwrap()["workflows"]["phase"],
+        "completed"
+    );
+}
+
+#[cfg(unix)]
+#[tokio::test]
 async fn installed_python_workflow_branches_through_the_in_process_action_loop() {
     let home = tempfile::tempdir().unwrap();
     let workspace = tempfile::tempdir().unwrap();
@@ -141,7 +173,10 @@ async fn installed_python_workflow_branches_through_the_in_process_action_loop()
     let mut session = InteractiveSession::new(
         home.path().into(),
         workspace.path().into(),
-        Config::default(),
+        Config {
+            trust_project_extensions: true,
+            ..Config::default()
+        },
         std::env::var_os("ANTEX_BWRAP").map(Into::into),
         provider,
     )

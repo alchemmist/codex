@@ -9,12 +9,20 @@ use futures::future::BoxFuture;
 
 pub(crate) struct RuntimeExtensionLauncher {
     sandbox: Arc<ExtensionSandbox>,
+    workflows: std::path::PathBuf,
+    project_trusted: bool,
 }
 
 impl RuntimeExtensionLauncher {
-    pub(crate) fn new(sandbox: ExtensionSandbox) -> Self {
+    pub(crate) fn new(
+        sandbox: ExtensionSandbox,
+        workflows: std::path::PathBuf,
+        project_trusted: bool,
+    ) -> Self {
         Self {
             sandbox: Arc::new(sandbox),
+            workflows,
+            project_trusted,
         }
     }
 }
@@ -32,14 +40,21 @@ impl ExtensionLauncher for RuntimeExtensionLauncher {
             } else {
                 ExtensionWorkspace::Hidden
             };
-            self.sandbox
+            let mut command = self
+                .sandbox
                 .command(
                     launch.program,
                     launch.arguments,
                     workspace,
                     launch.capabilities.contains(&Capability::Network),
                 )
-                .await
+                .await?;
+            command.env("ANTEX_WORKFLOWS_DIR", &self.workflows);
+            command.env(
+                "ANTEX_TRUST_PROJECT_WORKFLOWS",
+                if self.project_trusted { "1" } else { "0" },
+            );
+            Ok(command)
         })
     }
 }

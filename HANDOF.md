@@ -118,6 +118,15 @@ disk space before another full build.
 
 ## Remaining work, in recommended order
 
+2026-09-08 continuation: workflow discovery now includes personal workflows and
+requires project trust for project code. Duplicate IDs and symlink files fail
+closed. Runs persist bounded source snapshots, hashes, parameters, identities,
+timestamps and completion/failure metadata. Agent batches honor parallelism;
+unsupported agent options fail explicitly. Seven Python acceptance tests and
+19 CLI tests passed; local `just fmt` and remote scoped `just fix` passed.
+The personal-workflow sandbox test verifies adjacent credentials stay hidden.
+Background control, picker and interrupted-run recovery remain unfinished.
+
 1. Finish workflow control and discovery:
    - make workflow execution non-blocking from the TUI command dispatcher;
    - implement `/workflow pause`, `/workflow stop`, `/workflow resume`, and a

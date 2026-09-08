@@ -1,17 +1,48 @@
 #!/usr/bin/env python3
-import importlib.util
+import hashlib
 import json
+import os
 import pathlib
 import queue
 import re
 import shlex
 import sys
 import threading
+import time
+import types
+import uuid
 
 
 MAX_FRAME_BYTES = 256 * 1024
 MAX_TEXT_BYTES = 8000
 ID = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
+
+def encoded_size(value):
+    return len(json.dumps(value, separators=(",", ":"), ensure_ascii=False).encode())
+
+
+def workflow_paths(cwd):
+    roots = []
+    personal = os.environ.get("ANTEX_WORKFLOWS_DIR")
+    if personal:
+        roots.append(pathlib.Path(personal))
+    if os.environ.get("ANTEX_TRUST_PROJECT_WORKFLOWS") == "1":
+        roots.append(pathlib.Path(cwd) / ".antex" / "workflows")
+    paths = {}
+    for root in roots:
+        if root.is_symlink() or not root.is_dir():
+            continue
+        root = root.resolve()
+        for path in sorted(root.glob("*.py")):
+            if path.is_symlink() or not path.is_file() or not ID.fullmatch(path.stem):
+                continue
+            if path.stem in paths:
+                raise ValueError(f"duplicate workflow id: {path.stem}")
+            paths[path.stem] = path
+            if len(paths) > 256:
+                raise ValueError("workflow catalog exceeds 256 entries")
+    return paths
 
 
 def respond(request, result=None, error=None):
@@ -68,7 +99,7 @@ class Context:
         )
 
     def agent(self, prompt, model=None, **options):
-        unsupported = set(options) - {"reasoning_effort", "developer_instructions", "cwd"}
+        unsupported = set(options)
         if unsupported:
             raise ValueError(f"unsupported agent options: {sorted(unsupported)}")
         if not isinstance(prompt, str) or not prompt or len(prompt) > MAX_TEXT_BYTES:
@@ -94,11 +125,7 @@ class Context:
                 text = prompt
                 model = None
                 prompt_options = options
-            unsupported = set(prompt_options) - {
-                "reasoning_effort",
-                "developer_instructions",
-                "cwd",
-            }
+            unsupported = set(prompt_options)
             if unsupported:
                 raise ValueError(f"unsupported agent options: {sorted(unsupported)}")
             if not isinstance(text, str) or not text or len(text) > MAX_TEXT_BYTES:
@@ -111,7 +138,11 @@ class Context:
                     "model": model,
                 }
             )
-        return self.action_batch(actions)
+        results = []
+        width = int(parallelism) if parallelism is not None else 8
+        for offset in range(0, len(actions), width):
+            results.extend(self.action_batch(actions[offset:offset + width]))
+        return results
 
     def inspect(self, target):
         if target not in {"transcript", "context", "systemPrompt"}:
@@ -145,35 +176,44 @@ class Runner:
         self.results = queue.Queue(maxsize=1)
         self.thread = None
         self.awaiting = 0
+        self.metadata = None
 
     def start(self, arguments):
         if self.thread is not None and self.thread.is_alive():
             raise RuntimeError("a workflow is already running")
         workflow_id, separator, encoded = arguments.strip().partition(" ")
+        if not workflow_id or workflow_id == "list":
+            return {"text": "\n".join(workflow_paths(self.cwd)) or "No trusted workflows found.", "records": [], "actions": []}
         if not ID.fullmatch(workflow_id):
             raise ValueError("usage: /workflow <id> [json-params]")
         params = json.loads(encoded) if separator else {}
         if not isinstance(params, dict):
             raise ValueError("workflow parameters must be a JSON object")
-        root = (self.cwd / ".antex" / "workflows").resolve()
-        path = (root / f"{workflow_id}.py").resolve()
-        try:
-            path.relative_to(root)
-        except ValueError:
+        path = workflow_paths(self.cwd).get(workflow_id)
+        if path is None:
             raise ValueError(f"workflow not found: {workflow_id}")
-        if not path.is_file() or path.is_symlink():
-            raise ValueError(f"workflow not found: {workflow_id}")
-        spec = importlib.util.spec_from_file_location(f"antex_workflow_{workflow_id}", path)
-        module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(module)
-        manifest = getattr(module, "WORKFLOW", {})
-        if manifest.get("id") != workflow_id or not callable(getattr(module, "run", None)):
-            raise ValueError("workflow manifest or run function is invalid")
-        restored = self.restored if self.restored.get("workflow") == workflow_id else {}
-        context = Context(params, restored.get("state", {}), self.pending, self.results)
+        with path.open("rb") as source_file:
+            source_bytes = source_file.read(4097)
+        if len(source_bytes) > 4096:
+            raise ValueError("workflow source exceeds its 4096-byte snapshot budget")
+        source = source_bytes.decode("utf-8")
+        self.metadata = {"workflow": workflow_id, "runId": uuid.uuid4().hex,
+                         "source": source, "sourceSha256": hashlib.sha256(source_bytes).hexdigest(),
+                         "params": params, "startedAt": int(time.time()), "phase": "running"}
+        if encoded_size(self.metadata) > 6000:
+            raise ValueError("workflow source and parameters exceed their record budget")
+        module = types.ModuleType(f"antex_workflow_{workflow_id}")
+        module.__file__ = str(path)
+        self.pending = queue.Queue(maxsize=1)
+        self.results = queue.Queue(maxsize=1)
+        context = Context(params, {}, self.pending, self.results)
 
         def run():
             try:
+                exec(compile(source, str(path), "exec"), module.__dict__)
+                manifest = getattr(module, "WORKFLOW", {})
+                if manifest.get("id") != workflow_id or not callable(getattr(module, "run", None)):
+                    raise ValueError("workflow manifest or run function is invalid")
                 result = module.run(context)
                 self.pending.put(("done", result, context.snapshot()))
             except Exception as error:
@@ -194,7 +234,18 @@ class Runner:
 
     def next(self, workflow_id):
         kind, value, snapshot = self.pending.get(timeout=900)
-        record = {"workflow": workflow_id, "state": snapshot["state"]}
+        record = {**self.metadata, "state": snapshot["state"]}
+        record["phase"] = {"done": "completed", "error": "failed"}.get(kind, "running")
+        if kind == "error":
+            record["error"] = str(value)[:256]
+        if kind in {"done", "error"}:
+            record["finishedAt"] = int(time.time())
+        if encoded_size(record) > MAX_TEXT_BYTES:
+            record["state"] = {}
+            record["phase"] = "failed"
+            record["error"] = "workflow checkpoint exceeds the remaining record budget"
+            kind, value = "error", record["error"]
+        self.restored = record
         common = {"records": [record], "actions": []}
         if snapshot["status"] is not None:
             common["status"] = snapshot["status"]
@@ -206,7 +257,8 @@ class Runner:
         if kind == "done":
             common["text"] = json.dumps(value, ensure_ascii=False)[:MAX_TEXT_BYTES]
             return common
-        raise RuntimeError(value)
+        common["text"] = f"Workflow failed: {value}".encode()[:MAX_TEXT_BYTES].decode("utf-8", "ignore")
+        return common
 
 
 def main():

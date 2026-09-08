@@ -1,4 +1,5 @@
 import json
+import os
 import pathlib
 import subprocess
 import sys
@@ -29,6 +30,7 @@ class ExtensionTest(unittest.TestCase):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 text=True,
+                env={**os.environ, "ANTEX_TRUST_PROJECT_WORKFLOWS": "1"},
             )
             try:
                 self.request(
@@ -73,7 +75,9 @@ class ExtensionTest(unittest.TestCase):
                         },
                     },
                 )
-                self.assertEqual(second["records"], [{"workflow": "check", "state": {"exit": 1}}])
+                self.assertEqual(second["records"][0]["state"], {"exit": 1})
+                self.assertEqual(second["records"][0]["workflow"], "check")
+                self.assertEqual(second["records"][0]["phase"], "running")
                 self.assertEqual(second["actions"][0]["prompt"], "fix src")
                 final = self.request(
                     process,
@@ -110,6 +114,7 @@ class ExtensionTest(unittest.TestCase):
                 stdin=subprocess.PIPE,
                 stdout=subprocess.PIPE,
                 text=True,
+                env={**os.environ, "ANTEX_TRUST_PROJECT_WORKFLOWS": "1"},
             )
             try:
                 self.request(
