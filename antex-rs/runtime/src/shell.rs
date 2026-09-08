@@ -149,8 +149,16 @@ pub(crate) async fn execute_command(
         .ok_or_else(|| io::Error::other("missing shell stderr"))?;
     let execution = async {
         let (status, stdout, stderr) = tokio::join!(child.wait(), capture(stdout), capture(stderr));
+        let status = status?;
+        #[cfg(unix)]
+        if let Some(signal) = std::os::unix::process::ExitStatusExt::signal(&status) {
+            return Err(io::Error::other(format!(
+                "shell terminated by signal {signal}\n{}{}",
+                stdout?, stderr?
+            )));
+        }
         Ok(ShellResult {
-            exit_code: status?.code(),
+            exit_code: status.code(),
             stdout: stdout?,
             stderr: stderr?,
         })

@@ -103,7 +103,18 @@ impl ToolHost for LocalRuntime {
                 ToolDefinition {name:"edit".into(),description:"Replace exactly one occurrence of old_text, preserving all other bytes.".into(),parameters:json!({"type":"object","properties":{"path":{"type":"string","maxLength":4096},"old_text":{"type":"string","minLength":1},"new_text":{"type":"string"}},"required":["path","old_text","new_text"],"additionalProperties":false})},
             ]);
         }
-        definitions.push(ToolDefinition {name:"shell".into(),description:"Run a POSIX shell command. Use shell for searching and listing. requestFull requires explicit approval outside the sandbox.".into(),parameters:json!({"type":"object","properties":{"command":{"type":"string","maxLength":7800},"access":{"enum":["sandboxed","requestFull"]}},"required":["command"],"additionalProperties":false})});
+        let policy = match self.profile {
+            PermissionProfile::Full => {
+                "This session has full access; commands are not sandboxed and can use the network."
+            }
+            PermissionProfile::Workspace => {
+                "This session permits workspace writes but blocks network access in the sandbox."
+            }
+            PermissionProfile::ReadOnly => {
+                "This session is read-only and blocks network access in the sandbox."
+            }
+        };
+        definitions.push(ToolDefinition {name:"shell".into(),description:format!("Run a POSIX shell command. Use shell for searching, listing and fetching URLs when network access is available. {policy} The default sandboxed access value follows the session policy. requestFull requests a one-time approval outside the sandbox."),parameters:json!({"type":"object","properties":{"command":{"type":"string","maxLength":7800},"access":{"enum":["sandboxed","requestFull"]}},"required":["command"],"additionalProperties":false})});
         definitions
     }
 
@@ -210,8 +221,12 @@ impl ToolHost for LocalRuntime {
                         }
                         .map_err(|error| error.to_string())?;
                         let text = format!(
-                            "exit: {:?}\n{}{}",
-                            output.exit_code, output.stdout, output.stderr
+                            "exit: {}\n{}{}",
+                            output
+                                .exit_code
+                                .map_or_else(|| "unavailable".to_owned(), |code| code.to_string()),
+                            output.stdout,
+                            output.stderr
                         );
                         if output.exit_code == Some(0) {
                             Ok(text)

@@ -16,6 +16,17 @@ fn shell(directory: &std::path::Path, profile: PermissionProfile) -> Shell {
         .with_bubblewrap(program)
 }
 
+#[cfg(unix)]
+#[tokio::test]
+async fn signal_termination_reports_the_signal_instead_of_an_absent_exit_code() {
+    let directory = tempfile::tempdir().unwrap();
+    let error = shell(directory.path(), PermissionProfile::Full)
+        .run("kill -TERM $$", CancellationToken::new())
+        .await
+        .unwrap_err();
+    assert_eq!(error.to_string(), "shell terminated by signal 15\n");
+}
+
 #[tokio::test]
 async fn workspace_shell_can_write_locally_but_cannot_read_host_home_or_open_sockets() {
     let directory = tempfile::tempdir().unwrap();

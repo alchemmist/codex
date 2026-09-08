@@ -7,6 +7,25 @@ use antex_runtime::WorkspaceFiles;
 use pretty_assertions::assert_eq;
 
 #[tokio::test]
+async fn environment_identifies_the_canonical_workspace_for_relative_paths() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let context = ProjectContext::load(home.path(), workspace.path()).unwrap();
+    let messages = context.prepare(&[]).await.unwrap().messages;
+    let expected = format!(
+        "Execution environment\nCurrent working directory: {}\nResolve relative file paths against this directory.",
+        serde_json::to_string(&workspace.path().canonicalize().unwrap()).unwrap()
+    );
+    let environment = messages.iter().find_map(|message| match message {
+        Message::Context(fragment) if fragment.text().starts_with("Execution environment\n") => {
+            Some(fragment.text())
+        }
+        _ => None,
+    });
+    assert_eq!(environment, Some(expected.as_str()));
+}
+
+#[tokio::test]
 async fn nested_instructions_are_ordered_bounded_and_leave_history_unchanged() {
     let home = tempfile::tempdir().unwrap();
     let root = tempfile::tempdir().unwrap();

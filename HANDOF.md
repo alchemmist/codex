@@ -167,7 +167,9 @@ denied. The subsequent full-suite evidence is recorded above.
 4. Finish live interruption and the remaining interactive acceptance scenarios.
    Device login, model discovery, plain turns, write/edit/read/shell, resume and
    fork succeeded on deimos. A separately authenticated macOS binary completed
-   model discovery, the four-tool task and a direct TUI turn. See
+   model discovery and a direct TUI turn. Its initial four-tool smoke was later
+   found to contain a failed shell result despite the model's success response.
+   See `migration/macos-shell-regression.md` and
    `migration/live-acceptance.md` and `migration/macos-cross-build.md`.
 5. Resolve the OpenAI identification experiment: remove the compatibility
    revision if the endpoint accepts native Antex identification, otherwise keep

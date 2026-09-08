@@ -148,9 +148,7 @@ impl Sandbox {
         }
         #[cfg(target_os = "macos")]
         {
-            let mut policy = String::from(
-                "(version 1)(deny default)(allow process-exec)(allow process-fork)(allow signal (target same-sandbox))(allow process-info* (target same-sandbox))(allow sysctl-read)(allow file-read-metadata)(allow mach-lookup (global-name \"com.apple.system.opendirectoryd.libinfo\"))(allow file-read* file-write-data (literal \"/dev/null\"))(allow file-read* (subpath \"/dev/fd\"))(allow file-write-data (literal \"/dev/fd/1\") (literal \"/dev/fd/2\"))",
-            );
+            let mut policy = include_str!("seatbelt_base.sbpl").to_owned();
             for root in [
                 Path::new("/System"),
                 Path::new("/usr"),

@@ -42,6 +42,10 @@ impl ProjectContext {
             "Antex",
             include_str!("system_prompt.md"),
         )?;
+        context.append(ContextKind::System, "Execution environment", &format!(
+            "Current working directory: {}\nResolve relative file paths against this directory.",
+            serde_json::to_string(&workspace)?
+        ))?;
         if let Some(text) = read_file(&home_directory, Path::new("AGENTS.md"))? {
             context.append(ContextKind::Project, "Global AGENTS.md", &text)?;
         }

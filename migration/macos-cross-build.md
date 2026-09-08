@@ -44,6 +44,10 @@ transfer checksum matched deimos; after local ad-hoc signing its SHA-256 is
 The refresh took 1m36s on deimos. Five CLI identity tests, 26 clipboard tests and
 scoped Clippy fix passed before the final remote build.
 
+Correction: the initial four-tool smoke below was not a complete pass. Journal
+inspection later found a failed shell result; the model's ANTEX_MAC_OK response
+was insufficient evidence. See `migration/macos-shell-regression.md`.
+
 The maintainer completed a separate OAuth login on the Mac. Local discovery
 returned seven models. A live write/edit/read/shell round trip returned
 ANTEX_MAC_OK and left acceptance.txt containing beta in the isolated workspace.
