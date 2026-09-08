@@ -23,7 +23,18 @@ def main():
     command = args.command[1:] if args.command[0] == "--" else args.command
     if not command:
         parser.error("a command is required")
+    commit = subprocess.check_output(
+        ["git", "rev-parse", "--short=10", "HEAD"], cwd=ROOT, text=True
+    ).strip()
+    changed = subprocess.check_output(
+        ["git", "status", "--porcelain", "--untracked-files=normal", "--", workspace],
+        cwd=ROOT,
+        text=True,
+    )
+    if changed:
+        commit += ".dirty"
     environment = [
+        f"ANTEX_BUILD_COMMIT={commit}",
         f"PATH={args.tools}/bin:{args.tools}/git/bin:{args.tools}/cargo/bin:/usr/local/bin:/usr/bin:/bin",
         f"CARGO_HOME={args.tools}/cargo",
         f"RUSTUP_HOME={args.tools}/rustup",

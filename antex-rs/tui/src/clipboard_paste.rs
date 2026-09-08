@@ -75,6 +75,7 @@ pub(crate) fn image_source() -> Result<ImageSource, String> {
     })
 }
 
+#[cfg(target_os = "linux")]
 pub(crate) fn is_probably_wsl() -> bool {
     std::env::var_os("WSL_DISTRO_NAME").is_some()
         || std::env::var_os("WSL_INTEROP").is_some()

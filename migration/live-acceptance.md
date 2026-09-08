@@ -18,11 +18,15 @@ automated tests, which use fabricated credentials. No token values are recorded.
   isolated workspace's acceptance.txt contains beta followed by a newline. The
   final response was ANTEX_TOOLS_OK.
 - Resuming that session recalled beta without executing tools.
+- Forking from the original user message returned ANTEX_FORK_OK without tools.
+- A native Antex identification probe returned the same seven-model catalog.
+  Responses transport under native identification is still unverified, so the
+  working private compatibility contract remains in the downloaded build.
 
 The acceptance state is isolated under
 /home/antonmoss/antex-work/preflight-home. The workspace is
 /home/antonmoss/antex-work/acceptance-OWPc1K. This state is not a release artifact.
 The installed Codex fallback and its state were not modified.
 
-Still required: live fork and interruption, native transport identification
+Still required: live interruption, native Responses transport identification
 experiment, interactive terminal/platform acceptance and all release gates.

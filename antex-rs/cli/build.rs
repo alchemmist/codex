@@ -1,5 +1,9 @@
 fn main() {
-    let commit = git(&["rev-parse", "--short=10", "HEAD"]).unwrap_or_else(|| "dev".into());
+    let commit = std::env::var("ANTEX_BUILD_COMMIT")
+        .ok()
+        .or_else(|| git(&["rev-parse", "--short=10", "HEAD"]))
+        .unwrap_or_else(|| "dev".into());
+    println!("cargo:rerun-if-env-changed=ANTEX_BUILD_COMMIT");
     let mut paths = vec!["HEAD".into(), "packed-refs".into()];
     if let Some(reference) = git(&["symbolic-ref", "--quiet", "HEAD"]) {
         paths.push(reference);
