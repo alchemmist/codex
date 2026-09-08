@@ -1,0 +1,13 @@
+---
+source: tui/src/pager_tests.rs
+assertion_line: 14
+expression: text
+---
+Transcript
+## You
+
+Inspect the file.
+
+## Antex
+
+↑↓ scroll · PgUp at top loads older · Esc closes

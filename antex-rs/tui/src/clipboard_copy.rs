@@ -1,0 +1,517 @@
+//! Clipboard copy backend for the TUI's `/copy` command and `Ctrl+O` hotkey.
+//!
+//! This module decides *how* to get text onto the user's clipboard based on the
+//! current environment. The selection order is:
+//!
+//! 1. **SSH session** (`SSH_TTY` / `SSH_CONNECTION` set): use tmux clipboard
+//!    integration when available, otherwise OSC 52, because the native clipboard
+//!    belongs to the remote machine.
+//! 2. **Local session**: try `arboard` (native clipboard) first. On WSL, fall back
+//!    to the Windows clipboard through PowerShell if `arboard` fails. Finally, fall
+//!    back to terminal-mediated copy if no native/WSL clipboard path succeeds.
+//!
+//! On Linux, X11 and some Wayland compositors require the process that wrote the
+//! clipboard to keep its handle open. `ClipboardLease` wraps the `arboard::Clipboard`
+//! so callers can store it for the lifetime of the TUI. On other platforms the lease
+//! is always `None`.
+//!
+//! Markdown copies also offer HTML on the native clipboard. Terminal and WSL
+//! fallbacks retain the original text. Image paste lives in `clipboard_paste`.
+
+use base64::Engine;
+use std::io::Write;
+
+/// Maximum raw bytes we will base64-encode into an OSC 52 sequence.
+/// Large payloads are rejected before encoding to avoid overwhelming the terminal.
+const OSC52_MAX_RAW_BYTES: usize = 100_000;
+#[cfg(target_os = "macos")]
+static STDERR_SUPPRESSION_MUTEX: std::sync::OnceLock<std::sync::Mutex<()>> =
+    std::sync::OnceLock::new();
+
+/// Whether copied text should also have a rendered HTML representation.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CopyFormat {
+    PlainText,
+    Markdown,
+}
+
+/// Copy text to the system clipboard.
+///
+/// Over SSH, uses terminal-mediated copy so the text reaches the *local*
+/// terminal emulator's clipboard rather than a remote X11/Wayland clipboard
+/// that the user cannot access. On a local session, tries `arboard` (native
+/// clipboard) first and falls back to WSL PowerShell, then terminal-mediated
+/// copy, if needed.
+///
+/// OSC 52 is supported by kitty, WezTerm, iTerm2, Ghostty, and others.
+pub(crate) fn copy_to_clipboard(
+    text: &str,
+    format: CopyFormat,
+) -> Result<Option<ClipboardLease>, String> {
+    copy_to_clipboard_with(
+        text,
+        format,
+        CopyEnvironment {
+            ssh_session: is_ssh_session(),
+            wsl_session: is_wsl_session(),
+            tmux_session: is_tmux_session(),
+        },
+        tmux_clipboard_copy,
+        osc52_copy,
+        arboard_copy,
+        wsl_clipboard_copy,
+    )
+}
+
+/// Keeps a platform clipboard owner alive when the backend requires one.
+///
+/// On Linux/X11 and some Wayland compositors, clipboard contents are served by the
+/// owning process. Dropping the `arboard::Clipboard` before the user pastes causes
+/// the content to vanish. Store this lease on the widget that triggered the copy so
+/// the handle lives as long as the TUI does. On non-Linux native paths and OSC 52
+/// paths the lease is `None` — those backends do not require process-lifetime
+/// ownership.
+pub(crate) struct ClipboardLease {
+    #[cfg(target_os = "linux")]
+    _clipboard: Option<arboard::Clipboard>,
+}
+
+impl ClipboardLease {
+    #[cfg(target_os = "linux")]
+    fn native_linux(clipboard: arboard::Clipboard) -> Self {
+        Self {
+            _clipboard: Some(clipboard),
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test() -> Self {
+        Self {
+            #[cfg(target_os = "linux")]
+            _clipboard: None,
+        }
+    }
+}
+
+/// Core copy logic with injected backends, enabling deterministic unit tests
+/// without touching real clipboards or terminal I/O.
+#[derive(Clone, Copy)]
+struct CopyEnvironment {
+    ssh_session: bool,
+    wsl_session: bool,
+    tmux_session: bool,
+}
+
+fn copy_to_clipboard_with(
+    text: &str,
+    format: CopyFormat,
+    environment: CopyEnvironment,
+    tmux_copy_fn: impl Fn(&str) -> Result<(), String>,
+    osc52_copy_fn: impl Fn(&str) -> Result<(), String>,
+    arboard_copy_fn: impl Fn(&str, Option<&str>) -> Result<Option<ClipboardLease>, String>,
+    wsl_copy_fn: impl Fn(&str) -> Result<(), String>,
+) -> Result<Option<ClipboardLease>, String> {
+    if environment.ssh_session {
+        // Over SSH the native clipboard writes to the remote machine which is
+        // useless. Terminal-mediated copy reaches the local terminal emulator.
+        return terminal_clipboard_copy_with(
+            text,
+            environment.tmux_session,
+            &tmux_copy_fn,
+            &osc52_copy_fn,
+        )
+        .map(|()| None)
+        .map_err(|terminal_err| {
+            tracing::warn!("terminal clipboard copy failed over SSH: {terminal_err}");
+            if environment.tmux_session {
+                format!("terminal clipboard copy failed over SSH: {terminal_err}")
+            } else {
+                format!("OSC 52 clipboard copy failed over SSH: {terminal_err}")
+            }
+        });
+    }
+
+    let html = match format {
+        CopyFormat::PlainText => None,
+        CopyFormat::Markdown => Some(crate::clipboard_html::render_markdown(text)),
+    };
+    match arboard_copy_fn(text, html.as_deref()) {
+        Ok(lease) => Ok(lease),
+        Err(native_err) => {
+            if environment.wsl_session {
+                tracing::warn!(
+                    "native clipboard copy failed: {native_err}, falling back to WSL PowerShell"
+                );
+                match wsl_copy_fn(text) {
+                    Ok(()) => return Ok(None),
+                    Err(wsl_err) => {
+                        tracing::warn!(
+                            "WSL PowerShell clipboard copy failed: {wsl_err}, falling back to terminal clipboard"
+                        );
+                        return terminal_clipboard_copy_with(
+                            text,
+                            environment.tmux_session,
+                            &tmux_copy_fn,
+                            &osc52_copy_fn,
+                        )
+                        .map(|()| None)
+                        .map_err(|terminal_err| {
+                            if environment.tmux_session {
+                                format!(
+                                    "native clipboard: {native_err}; WSL fallback: {wsl_err}; terminal fallback: {terminal_err}"
+                                )
+                            } else {
+                                format!(
+                                    "native clipboard: {native_err}; WSL fallback: {wsl_err}; OSC 52 fallback: {terminal_err}"
+                                )
+                            }
+                        });
+                    }
+                }
+            }
+            tracing::warn!(
+                "native clipboard copy failed: {native_err}, falling back to terminal clipboard"
+            );
+            terminal_clipboard_copy_with(
+                text,
+                environment.tmux_session,
+                &tmux_copy_fn,
+                &osc52_copy_fn,
+            )
+            .map(|()| None)
+            .map_err(|terminal_err| {
+                if environment.tmux_session {
+                    format!("native clipboard: {native_err}; terminal fallback: {terminal_err}")
+                } else {
+                    format!("native clipboard: {native_err}; OSC 52 fallback: {terminal_err}")
+                }
+            })
+        }
+    }
+}
+
+/// Copy through the active terminal, preferring tmux's native clipboard path.
+fn terminal_clipboard_copy_with(
+    text: &str,
+    tmux_session: bool,
+    tmux_copy_fn: &impl Fn(&str) -> Result<(), String>,
+    osc52_copy_fn: &impl Fn(&str) -> Result<(), String>,
+) -> Result<(), String> {
+    if tmux_session {
+        match tmux_copy_fn(text) {
+            Ok(()) => return Ok(()),
+            Err(tmux_err) => {
+                tracing::warn!("tmux clipboard copy failed: {tmux_err}, falling back to OSC 52");
+                return osc52_copy_fn(text).map_err(|osc_err| {
+                    format!("tmux clipboard: {tmux_err}; OSC 52 fallback: {osc_err}")
+                });
+            }
+        }
+    }
+
+    osc52_copy_fn(text)
+}
+
+/// Detect whether the current process is running inside an SSH session.
+fn is_ssh_session() -> bool {
+    std::env::var_os("SSH_TTY").is_some() || std::env::var_os("SSH_CONNECTION").is_some()
+}
+
+/// Detect whether the current process is running inside tmux.
+fn is_tmux_session() -> bool {
+    std::env::var_os("TMUX").is_some() || std::env::var_os("TMUX_PANE").is_some()
+}
+
+#[cfg(target_os = "linux")]
+fn is_wsl_session() -> bool {
+    crate::clipboard_paste::is_probably_wsl()
+}
+
+#[cfg(not(target_os = "linux"))]
+fn is_wsl_session() -> bool {
+    false
+}
+
+/// Run arboard with stderr suppressed.
+///
+/// On macOS, `arboard::Clipboard::new()` initializes `NSPasteboard` which
+/// triggers `os_log` / `NSLog` output on stderr. Because the TUI owns the
+/// terminal, that stray output corrupts the display. We temporarily redirect
+/// fd 2 to `/dev/null` around the call to keep the screen clean.
+#[cfg(not(target_os = "android"))]
+fn arboard_copy(text: &str, html: Option<&str>) -> Result<Option<ClipboardLease>, String> {
+    #[cfg(target_os = "macos")]
+    let _stderr_lock = STDERR_SUPPRESSION_MUTEX
+        .get_or_init(|| std::sync::Mutex::new(()))
+        .lock()
+        .map_err(|_| "stderr suppression lock poisoned".to_string())?;
+    let _guard = SuppressStderr::new();
+    let mut clipboard =
+        arboard::Clipboard::new().map_err(|e| format!("clipboard unavailable: {e}"))?;
+    match html {
+        Some(html) => clipboard
+            .set_html(html, Some(text))
+            .or_else(|_| clipboard.set_text(text)),
+        None => clipboard.set_text(text),
+    }
+    .map_err(|e| format!("failed to set clipboard text: {e}"))?;
+    // Linux clipboard owners must stay alive until the user pastes.
+    #[cfg(target_os = "linux")]
+    {
+        Ok(Some(ClipboardLease::native_linux(clipboard)))
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        Ok(None)
+    }
+}
+
+#[cfg(target_os = "android")]
+fn arboard_copy(_text: &str, _html: Option<&str>) -> Result<Option<ClipboardLease>, String> {
+    Err("native clipboard unavailable on Android".to_string())
+}
+
+/// Copy text into the Windows clipboard from a WSL process.
+#[cfg(target_os = "linux")]
+fn wsl_clipboard_copy(text: &str) -> Result<(), String> {
+    let mut child = std::process::Command::new("powershell.exe")
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .args([
+            "-NoProfile",
+            "-Command",
+            "[Console]::InputEncoding = [System.Text.Encoding]::UTF8; $ErrorActionPreference = 'Stop'; $text = [Console]::In.ReadToEnd(); Set-Clipboard -Value $text",
+        ])
+        .spawn()
+        .map_err(|e| format!("failed to spawn powershell.exe: {e}"))?;
+
+    let Some(mut stdin) = child.stdin.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("failed to open powershell.exe stdin".to_string());
+    };
+
+    if let Err(err) = stdin.write_all(text.as_bytes()) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("failed to write to powershell.exe: {err}"));
+    }
+
+    drop(stdin);
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("failed to wait for powershell.exe: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            let status = output.status;
+            Err(format!("powershell.exe exited with status {status}"))
+        } else {
+            Err(format!("powershell.exe failed: {stderr}"))
+        }
+    }
+}
+
+#[cfg(not(target_os = "linux"))]
+fn wsl_clipboard_copy(_text: &str) -> Result<(), String> {
+    Err("WSL clipboard fallback unavailable on this platform".to_string())
+}
+
+/// Copy text through tmux's native clipboard integration.
+///
+/// `load-buffer -w -` lets tmux read the text from stdin, keep a matching tmux
+/// paste buffer, and forward the contents to the outer terminal clipboard when
+/// possible without relying on DCS passthrough.
+fn tmux_clipboard_copy(text: &str) -> Result<(), String> {
+    tmux_clipboard_copy_ready(
+        || tmux_command_output(["show-options", "-gv", "set-clipboard"]),
+        || tmux_command_output(["info"]),
+    )?;
+
+    let mut child = std::process::Command::new("tmux")
+        .args(["load-buffer", "-w", "-"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("failed to spawn tmux: {e}"))?;
+
+    let Some(mut stdin) = child.stdin.take() else {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err("failed to open tmux stdin".to_string());
+    };
+
+    if let Err(err) = stdin.write_all(text.as_bytes()) {
+        let _ = child.kill();
+        let _ = child.wait();
+        return Err(format!("failed to write to tmux: {err}"));
+    }
+
+    drop(stdin);
+
+    let output = child
+        .wait_with_output()
+        .map_err(|e| format!("failed to wait for tmux: {e}"))?;
+
+    if output.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            let status = output.status;
+            Err(format!("tmux exited with status {status}"))
+        } else {
+            Err(format!("tmux failed: {stderr}"))
+        }
+    }
+}
+
+/// Verify that tmux is configured to forward clipboard writes to the outer terminal.
+fn tmux_clipboard_copy_ready(
+    set_clipboard_fn: impl FnOnce() -> Result<String, String>,
+    tmux_info_fn: impl FnOnce() -> Result<String, String>,
+) -> Result<(), String> {
+    let set_clipboard = set_clipboard_fn()?;
+    if set_clipboard.trim() == "off" {
+        return Err("tmux clipboard forwarding is disabled".to_string());
+    }
+
+    let tmux_info = tmux_info_fn()?;
+    if tmux_info.lines().any(|line| line.contains("Ms: [missing]")) {
+        return Err("tmux clipboard forwarding is unavailable: missing Ms capability".to_string());
+    }
+
+    Ok(())
+}
+
+fn tmux_command_output<const N: usize>(args: [&str; N]) -> Result<String, String> {
+    let output = std::process::Command::new("tmux")
+        .args(args)
+        .output()
+        .map_err(|e| format!("failed to spawn tmux: {e}"))?;
+
+    if output.status.success() {
+        String::from_utf8(output.stdout).map_err(|e| format!("tmux output was not UTF-8: {e}"))
+    } else {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        if stderr.is_empty() {
+            let status = output.status;
+            Err(format!("tmux exited with status {status}"))
+        } else {
+            Err(format!("tmux failed: {stderr}"))
+        }
+    }
+}
+
+/// RAII guard that redirects stderr (fd 2) to `/dev/null` on creation and
+/// restores the original fd on drop.
+#[cfg(target_os = "macos")]
+struct SuppressStderr {
+    saved_fd: Option<libc::c_int>,
+}
+
+#[cfg(target_os = "macos")]
+impl SuppressStderr {
+    fn new() -> Self {
+        unsafe {
+            // Save the current stderr fd.
+            let saved = libc::dup(2);
+            if saved < 0 {
+                return Self { saved_fd: None };
+            }
+            // Open /dev/null and point fd 2 at it.
+            let devnull = libc::open(c"/dev/null".as_ptr(), libc::O_WRONLY);
+            if devnull < 0 {
+                libc::close(saved);
+                return Self { saved_fd: None };
+            }
+            if libc::dup2(devnull, 2) < 0 {
+                libc::close(saved);
+                libc::close(devnull);
+                return Self { saved_fd: None };
+            }
+            libc::close(devnull);
+            Self {
+                saved_fd: Some(saved),
+            }
+        }
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Drop for SuppressStderr {
+    fn drop(&mut self) {
+        if let Some(saved) = self.saved_fd {
+            unsafe {
+                libc::dup2(saved, 2);
+                libc::close(saved);
+            }
+        }
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+struct SuppressStderr;
+
+#[cfg(not(target_os = "macos"))]
+impl SuppressStderr {
+    fn new() -> Self {
+        Self
+    }
+}
+
+/// Write text to the clipboard via the OSC 52 terminal escape sequence.
+fn osc52_copy(text: &str) -> Result<(), String> {
+    let sequence = osc52_sequence(text, std::env::var_os("TMUX").is_some())?;
+    #[cfg(unix)]
+    {
+        match std::fs::OpenOptions::new().write(true).open("/dev/tty") {
+            Ok(tty) => match write_osc52_to_writer(tty, &sequence) {
+                Ok(()) => return Ok(()),
+                Err(err) => tracing::debug!(
+                    "failed to write OSC 52 to /dev/tty: {err}; falling back to stdout"
+                ),
+            },
+            Err(err) => {
+                tracing::debug!("failed to open /dev/tty for OSC 52: {err}; falling back to stdout")
+            }
+        }
+    }
+
+    write_osc52_to_writer(std::io::stdout().lock(), &sequence)
+}
+
+fn write_osc52_to_writer(mut writer: impl Write, sequence: &str) -> Result<(), String> {
+    writer
+        .write_all(sequence.as_bytes())
+        .map_err(|e| format!("failed to write OSC 52: {e}"))?;
+    writer
+        .flush()
+        .map_err(|e| format!("failed to flush OSC 52: {e}"))
+}
+
+fn osc52_sequence(text: &str, tmux: bool) -> Result<String, String> {
+    let raw_bytes = text.len();
+    if raw_bytes > OSC52_MAX_RAW_BYTES {
+        return Err(format!(
+            "OSC 52 payload too large ({raw_bytes} bytes; max {OSC52_MAX_RAW_BYTES})"
+        ));
+    }
+
+    let encoded = base64::engine::general_purpose::STANDARD.encode(text.as_bytes());
+    if tmux {
+        Ok(format!("\x1bPtmux;\x1b\x1b]52;c;{encoded}\x07\x1b\\"))
+    } else {
+        Ok(format!("\x1b]52;c;{encoded}\x07"))
+    }
+}
+
+#[cfg(test)]
+#[path = "clipboard_copy_tests.rs"]
+mod tests;

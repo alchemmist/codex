@@ -1,0 +1,130 @@
+use std::process::Command;
+
+#[test]
+fn version_is_independent_and_does_not_initialize_data_directories() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = directory.path().join("not-created");
+    let output = Command::new(env!("CARGO_BIN_EXE_antex"))
+        .arg("--version")
+        .env("ANTEX_HOME", &home)
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(
+        String::from_utf8(output.stdout)
+            .unwrap()
+            .starts_with("antex 0.0.0+")
+    );
+    assert!(!home.exists());
+}
+
+#[test]
+fn legacy_home_override_is_rejected_without_writing_credentials() {
+    let directory = tempfile::tempdir().unwrap();
+    let legacy = directory.path().join(".codex");
+    std::fs::create_dir(&legacy).unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_antex"))
+        .arg("accounts")
+        .env("HOME", directory.path())
+        .env("ANTEX_HOME", &legacy)
+        .output()
+        .unwrap();
+    assert!(!output.status.success());
+    assert_eq!(std::fs::read_dir(&legacy).unwrap().count(), 0);
+}
+
+#[test]
+fn failed_provider_turn_is_persisted_and_can_be_resumed_without_credentials() {
+    let home = tempfile::tempdir().unwrap();
+    let workspace = tempfile::tempdir().unwrap();
+    let run = |arguments: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_antex"))
+            .arg("--cd")
+            .arg(workspace.path())
+            .args(arguments)
+            .env("HOME", home.path())
+            .env("ANTEX_HOME", home.path())
+            .output()
+            .unwrap()
+    };
+    assert!(!run(&["exec", "--model", "fake", "first"]).status.success());
+    let listing = run(&["sessions"]);
+    assert!(listing.status.success());
+    let id = String::from_utf8(listing.stdout).unwrap();
+    assert!(
+        !run(&["exec", "--model", "fake", "--resume", id.trim(), "second"])
+            .status
+            .success()
+    );
+    let store = antex_runtime::SessionStore::new(home.path(), workspace.path()).unwrap();
+    let history = store
+        .open(id.trim().parse().unwrap())
+        .unwrap()
+        .active_path()
+        .unwrap();
+    pretty_assertions::assert_eq!(
+        history
+            .into_iter()
+            .map(|entry| entry.message)
+            .collect::<Vec<_>>(),
+        vec![
+            antex_core::Message::User("first".into()),
+            antex_core::Message::User("second".into())
+        ]
+    );
+}
+
+#[test]
+fn migration_dry_run_does_not_create_the_antex_home() {
+    let directory = tempfile::tempdir().unwrap();
+    let legacy = directory.path().join(".codex");
+    let destination = directory.path().join("not-created");
+    std::fs::create_dir(&legacy).unwrap();
+    std::fs::write(legacy.join("config.toml"), "model = 'test'\n").unwrap();
+    let output = Command::new(env!("CARGO_BIN_EXE_antex"))
+        .args([
+            "--home",
+            destination.to_str().unwrap(),
+            "migrate",
+            "codex",
+            "--dry-run",
+        ])
+        .env("HOME", directory.path())
+        .output()
+        .unwrap();
+    assert!(output.status.success());
+    assert!(!destination.exists());
+}
+
+#[test]
+fn single_binary_installs_first_party_extensions_only_on_request() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = directory.path().join("antex");
+    let run = |arguments: &[&str]| {
+        Command::new(env!("CARGO_BIN_EXE_antex"))
+            .args(arguments)
+            .env("HOME", directory.path())
+            .env("ANTEX_HOME", &home)
+            .output()
+            .unwrap()
+    };
+    let listing = run(&["extensions", "list"]);
+    assert!(listing.status.success());
+    assert_eq!(
+        String::from_utf8(listing.stdout).unwrap(),
+        "agents\ndiagnostics\nplan\ntmux-log\nworkflows\n"
+    );
+    assert!(!home.exists());
+    let install = run(&["extensions", "install", "tmux-log"]);
+    assert!(install.status.success());
+    assert!(
+        home.join("extensions/tmux-log/antex_ext_tmux_log.py")
+            .exists()
+    );
+    assert_eq!(
+        std::fs::read_dir(home.join("extensions/tmux-log"))
+            .unwrap()
+            .count(),
+        2
+    );
+}

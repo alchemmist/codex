@@ -1,0 +1,18 @@
+---
+source: tui/src/frontend_tests.rs
+assertion_line: 151
+expression: visible
+---
+  ▄▀█████▀▄    ╭─ Antex · 0.0.0 ─────╮
+▄█▀▀█████▀▀█▄  │  fake               │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  /project           │
+  ██  ▄  ██    ╰─────────────────────╯
+   ▀▀▀ ▀▀▀
+
+
+ ┃ hello
+
+• Hello from the kernel.
+
+ 
+ ┃ /quit

@@ -1,0 +1,5 @@
+{
+  "name": "tmux-log",
+  "program": "antex_ext_tmux_log.py",
+  "capabilities": ["persist", "ui"]
+}

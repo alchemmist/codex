@@ -1,0 +1,7 @@
+---
+source: tui/src/terminal_hyperlinks.rs
+assertion_line: 856
+expression: terminal.backend()
+---
+visible-
+link

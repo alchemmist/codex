@@ -1,0 +1,5 @@
+---
+source: cli/src/interactive/workflow_tests.rs
+expression: paused
+---
+Workflow paused; the current action may finish.

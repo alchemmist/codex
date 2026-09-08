@@ -1,0 +1,5 @@
+{
+  "name": "agents",
+  "program": "antex_ext_agents.py",
+  "capabilities": ["agent", "persist", "ui"]
+}

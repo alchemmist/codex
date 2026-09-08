@@ -1,0 +1,14 @@
+{
+  "name": "workflows",
+  "program": "antex_ext_workflows.py",
+  "capabilities": [
+    "agent",
+    "contextRead",
+    "persist",
+    "sessionRead",
+    "shell",
+    "ui",
+    "workspaceRead",
+    "workspaceWrite"
+  ]
+}

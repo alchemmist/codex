@@ -1,0 +1,143 @@
+use std::io;
+
+use antex_core::AgentEvent;
+use antex_core::Message;
+use uuid::Uuid;
+
+use crate::Session;
+use crate::SessionMessage;
+
+pub struct Conversation {
+    session: Session,
+    entries: Vec<SessionMessage>,
+}
+
+impl Conversation {
+    pub fn new(mut session: Session) -> io::Result<Self> {
+        session.recover_pending_tools()?;
+        let entries = session.active_path()?;
+        Ok(Self { session, entries })
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.session.id()
+    }
+
+    pub fn entries(&self) -> &[SessionMessage] {
+        &self.entries
+    }
+
+    pub fn messages(&self) -> Vec<Message> {
+        self.entries
+            .iter()
+            .map(|entry| entry.message.clone())
+            .collect()
+    }
+
+    pub fn pending_commands(&mut self) -> io::Result<Vec<antex_core::AgentCommand>> {
+        self.session.pending_commands()
+    }
+
+    pub fn queue_command(&mut self, command: &antex_core::AgentCommand) -> io::Result<()> {
+        let mut pending = self.session.pending_commands()?;
+        pending.push(command.clone());
+        self.session.save_pending_commands(&pending)
+    }
+
+    pub fn load_ui_state(&mut self, name: &str) -> io::Result<Option<serde_json::Value>> {
+        self.session.load_ui_state(name)
+    }
+
+    pub fn transcript_page(&mut self, cursor: Option<Uuid>) -> io::Result<crate::TranscriptPage> {
+        self.session.transcript_page(cursor)
+    }
+
+    pub fn save_ui_state(&mut self, name: &str, value: &serde_json::Value) -> io::Result<()> {
+        self.session.save_ui_state(name, value)
+    }
+
+    pub fn append_extension(&mut self, name: &str, value: serde_json::Value) -> io::Result<Uuid> {
+        self.session.append_extension(name, value)
+    }
+
+    pub fn extension_states(
+        &mut self,
+    ) -> io::Result<std::collections::HashMap<String, serde_json::Value>> {
+        self.session.extension_states()
+    }
+
+    pub fn append_extension_event(
+        &mut self,
+        name: &str,
+        event: serde_json::Value,
+    ) -> io::Result<Uuid> {
+        self.session.append_extension_event(name, event)
+    }
+
+    pub fn flush(&self) -> io::Result<()> {
+        self.session.finish_turn()
+    }
+
+    pub fn branch(&mut self, parent: Uuid) -> io::Result<()> {
+        self.session.branch(parent)?;
+        self.entries = self.session.active_path()?;
+        Ok(())
+    }
+
+    pub fn record(&mut self, event: &AgentEvent) -> io::Result<()> {
+        match event {
+            AgentEvent::MessageCommitted(message) => {
+                let record_id = self.session.append(message)?;
+                self.entries.push(SessionMessage {
+                    record_id,
+                    message: message.clone(),
+                });
+            }
+            AgentEvent::ContextCheckpoint(checkpoint) => {
+                let retained = checkpoint
+                    .retained
+                    .iter()
+                    .map(|index| {
+                        self.entries
+                            .get(*index)
+                            .map(|entry| entry.record_id)
+                            .ok_or_else(|| io::Error::other("missing retained session record"))
+                    })
+                    .collect::<io::Result<Vec<_>>>()?;
+                let tail = self
+                    .entries
+                    .get(checkpoint.tail_start)
+                    .ok_or_else(|| io::Error::other("missing session checkpoint tail"))?
+                    .record_id;
+                self.session
+                    .checkpoint(checkpoint.summary.clone(), &retained, tail)?;
+                self.entries = self.session.active_path()?;
+            }
+            AgentEvent::Finished { pending, .. } => {
+                let mut retained = self.session.pending_commands()?;
+                for command in pending {
+                    if let Some(index) = retained.iter().position(|saved| saved == command) {
+                        retained.remove(index);
+                    }
+                }
+                let mut remaining = pending.clone();
+                remaining.extend(retained);
+                self.session.save_pending_commands(&remaining)?;
+            }
+            AgentEvent::Interaction { .. }
+            | AgentEvent::ToolProgress { .. }
+            | AgentEvent::Quota(_)
+            | AgentEvent::TextDelta(_)
+            | AgentEvent::ReasoningDelta(_)
+            | AgentEvent::ToolStarted(_)
+            | AgentEvent::Usage(_)
+            | AgentEvent::TurnCompleted
+            | AgentEvent::Error(_) => {}
+        }
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+#[path = "conversation_tests.rs"]
+mod tests;

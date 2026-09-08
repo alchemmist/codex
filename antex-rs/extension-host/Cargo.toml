@@ -1,0 +1,21 @@
+[package]
+name = "antex-extension-host"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[dependencies]
+antex-core = { path = "../core" }
+antex-extension-protocol = { path = "../extension-protocol" }
+futures.workspace = true
+serde = { version = "1", features = ["derive"] }
+serde_json.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util", "process"] }
+tokio-util.workspace = true
+
+[dev-dependencies]
+antex-runtime = { path = "../runtime" }
+pretty_assertions = "1"
+tempfile = "3"
+tokio = { workspace = true, features = ["fs", "rt-multi-thread"] }
