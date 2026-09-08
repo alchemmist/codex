@@ -102,6 +102,8 @@ pub(crate) struct Composer {
     vim_start: crate::editor_types::VimModeStart,
     burst: crate::paste_burst::PasteBurst,
     burst_enabled: bool,
+    status_line: Vec<String>,
+    status_line_use_colors: bool,
 }
 
 impl Composer {
@@ -121,11 +123,15 @@ impl Composer {
             vim_start: crate::editor_types::VimModeStart::Normal,
             burst: crate::paste_burst::PasteBurst::default(),
             burst_enabled: true,
+            status_line: Vec::new(),
+            status_line_use_colors: false,
         }
     }
 
     pub(crate) fn configure(&mut self, settings: &crate::Settings) {
         self.keymap = settings.keymap.clone();
+        self.status_line = settings.status_line.clone();
+        self.status_line_use_colors = settings.status_line_use_colors;
         self.editor.set_keymap_bindings(&self.keymap);
         self.editor.set_vim_mode_start(settings.vim_start);
         self.vim_start = settings.vim_start;
@@ -328,19 +334,29 @@ impl Composer {
     }
 
     pub(crate) fn height(&self, width: u16) -> u16 {
-        self.editor.desired_height(width.saturating_sub(2)).max(1)
+        self.editor.desired_height(width.saturating_sub(4)).max(1)
+            + 2
             + u16::from(self.editor.vim_query().is_some())
     }
 
+    pub(crate) fn footer(&self, view: &crate::SessionView) -> Line<'static> {
+        let line = crate::status_line::render(&self.status_line, self.status_line_use_colors, view);
+        if line.spans.is_empty() && self.editor.is_empty() {
+            Line::from("  ? for shortcuts".dim())
+        } else {
+            line
+        }
+    }
+
     pub(crate) fn render(&mut self, area: Rect, buffer: &mut Buffer) -> Option<(u16, u16)> {
-        if area.width < 3 || area.height == 0 {
+        if area.width < 5 || area.height < 3 {
             return None;
         }
-        Line::from("› ".cyan()).render(Rect { width: 2, ..area }, buffer);
         let input = Rect {
-            x: area.x + 2,
-            width: area.width - 2,
-            ..area
+            x: area.x + 3,
+            y: area.y + 1,
+            width: area.width - 4,
+            height: area.height - 2,
         };
         let body = Rect {
             height: input
@@ -354,6 +370,14 @@ impl Composer {
             .into_iter()
             .map(|range| (range, ratatui::style::Style::default().reversed().bold()))
             .collect::<Vec<_>>();
+        for y in body.y..body.bottom() {
+            buffer.set_span(
+                area.x + 1,
+                y,
+                &ratatui::text::Span::styled("┃", crate::style::accent_style()),
+                1,
+            );
+        }
         self.editor.render_ref_styled_with_highlights(
             body,
             buffer,

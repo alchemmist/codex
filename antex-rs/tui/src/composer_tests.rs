@@ -157,9 +157,9 @@ fn narrow_composer_keeps_unicode_cursor_inside_its_viewport() {
         .collect::<Vec<_>>()
         .join("\n");
     insta::assert_snapshot!(visible, @"
-    |› привет 👩‍💻      |
-    |  next          |
+    |                |
+    | ┃ next         |
     |                |
     ");
-    insta::assert_debug_snapshot!(buffer[(0, 0)].fg, @"Cyan");
+    insta::assert_debug_snapshot!(buffer[(1, 1)].fg, @"Cyan");
 }

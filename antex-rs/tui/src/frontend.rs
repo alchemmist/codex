@@ -113,7 +113,7 @@ where
         && let Some(panel) = startup.take()
     {
         let width = tui.terminal.last_known_screen_size.width;
-        insert_history_lines(&mut tui.terminal, panel.final_lines(width))?;
+        insert_history_lines(&mut tui.terminal, panel.final_lines(width, &session.view()))?;
     }
     for message in history {
         if let Some(text) = crate::transcript::assistant_text(&message) {
@@ -269,7 +269,7 @@ where
                         if let Some(panel) = startup.take() {
                             draw(tui, &mut composer, session, &status, &live, &mut prompt, &startup)?;
                             let width = tui.terminal.last_known_screen_size.width;
-                            insert_history_lines(&mut tui.terminal, panel.final_lines(width))?;
+                            insert_history_lines(&mut tui.terminal, panel.final_lines(width, &session.view()))?;
                         }
                         write_message(&mut tui.terminal, &message, &session.view().directory)?;
                         live.clear();
@@ -289,7 +289,7 @@ where
                     AgentEvent::Error(error) => status = safe_text(&error.to_string()),
                     AgentEvent::Finished { reason, .. } => {
                         pending = session.pending_commands().map_err(io::Error::other)?;
-                        status = format!("{reason:?}; {} unsent inputs retained", pending.len());
+                        status = if pending.is_empty() && reason == antex_core::FinishReason::Completed { String::new() } else { format!("{reason:?}; {} unsent inputs retained", pending.len()) };
                         run = None;
                         turn_ready = false;
                         prompt = None;

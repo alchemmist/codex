@@ -1,6 +1,5 @@
 use crate::Session;
 use crate::composer::Composer;
-use crate::transcript::safe_text;
 use crate::tui::Tui;
 use ratatui::layout::Rect;
 use ratatui::style::Stylize;
@@ -34,23 +33,27 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         startup
             .as_ref()
             .map(|panel| {
-                panel.lines(if header_room < 6 {
-                    size.width.min(35)
-                } else {
-                    size.width
-                })
+                panel.lines(
+                    if header_room < 6 {
+                        size.width.min(35)
+                    } else {
+                        size.width
+                    },
+                    &view,
+                )
             })
             .unwrap_or_default()
+    };
+    let header = if header.len() > usize::from(header_room) {
+        Vec::new()
+    } else {
+        header
     };
     let header_height = header.len() as u16;
     let live_lines = if live.is_empty() {
         Vec::new()
     } else {
-        crate::markdown::render_markdown_agent_with_links_and_cwd(
-            live,
-            Some(usize::from(size.width)),
-            Some(&view.directory),
-        )
+        crate::transcript::assistant_lines(live, usize::from(size.width), &view.directory)
     };
     let live_height = (live_lines.len().min(8) as u16)
         .min(size.height.saturating_sub(header_height + input_height + 2));
@@ -107,20 +110,15 @@ pub(super) fn draw<B: ratatui::backend::Backend<Error = io::Error> + io::Write>(
         if let Some(cursor) = cursor {
             frame.set_cursor_position(cursor);
         }
-        let mut footer = safe_text(&format!(
-            "{} · {} · {}",
-            view.model,
-            view.directory.display(),
-            view.permissions,
-        ));
+        let mut footer = composer.footer(&view);
         if let Some(mode) = composer.mode_label() {
-            footer.push_str(&format!(" · {mode}"));
+            footer.spans.push(format!(" · {mode}").dim());
         }
         if composer.has_stash() {
-            footer.insert_str(0, "stashed · ");
+            footer.spans.insert(0, "  stashed · ".dim());
         }
         if area.height >= 2 {
-            Line::from(footer.dim()).render(
+            footer.render(
                 Rect {
                     y: area.bottom() - 2,
                     height: 1,

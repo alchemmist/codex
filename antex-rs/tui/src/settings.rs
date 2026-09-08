@@ -22,6 +22,8 @@ pub struct Settings {
     pub(crate) theme: Option<String>,
     pub(crate) home: Option<PathBuf>,
     pub(crate) warnings: Vec<String>,
+    pub(crate) status_line: Vec<String>,
+    pub(crate) status_line_use_colors: bool,
 }
 
 #[derive(Deserialize)]
@@ -35,6 +37,8 @@ struct RawSettings {
     startup_panel: StartupSettings,
     keymap: TuiKeymap,
     theme: Option<String>,
+    status_line: Vec<String>,
+    status_line_use_colors: bool,
 }
 
 impl Default for RawSettings {
@@ -48,6 +52,8 @@ impl Default for RawSettings {
             startup_panel: StartupSettings::default(),
             keymap: TuiKeymap::default(),
             theme: None,
+            status_line: Vec::new(),
+            status_line_use_colors: false,
         }
     }
 }
@@ -82,6 +88,8 @@ impl Default for Settings {
             theme: None,
             home: None,
             warnings: Vec::new(),
+            status_line: Vec::new(),
+            status_line_use_colors: false,
         }
     }
 }
@@ -90,7 +98,9 @@ impl Settings {
     pub fn from_config(value: &Value, home: PathBuf) -> Result<Self, String> {
         let raw: RawSettings = serde_json::from_value(value.clone())
             .map_err(|_| "invalid TUI configuration field types")?;
-        if raw.startup_panel.title.len() > 128
+        if raw.status_line.len() > 16
+            || raw.status_line.iter().any(|field| field.len() > 64)
+            || raw.startup_panel.title.len() > 128
             || raw.startup_panel.title.chars().any(char::is_control)
             || raw
                 .theme
@@ -108,6 +118,8 @@ impl Settings {
             "startup_panel",
             "keymap",
             "theme",
+            "status_line",
+            "status_line_use_colors",
         ];
         let warnings = value
             .as_object()
@@ -136,6 +148,8 @@ impl Settings {
             theme: raw.theme,
             home: Some(home),
             warnings,
+            status_line: raw.status_line,
+            status_line_use_colors: raw.status_line_use_colors,
         })
     }
 }

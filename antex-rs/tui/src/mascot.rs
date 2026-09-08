@@ -10,7 +10,6 @@ use crate::mascot_palette::MascotColor;
 use crate::mascot_palette::mascot_color;
 use crate::tui::FrameRequester;
 
-#[cfg(test)]
 pub(super) const MASCOT_WIDTH: usize = 13;
 const MASCOT_LOGICAL_HEIGHT: usize = 12;
 const FRAME_TICK: Duration = Duration::from_millis(180);

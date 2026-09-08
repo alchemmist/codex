@@ -59,6 +59,11 @@ pub use pager::TextPage;
 pub use picker::PickerItem;
 pub use picker::PickerSpec;
 pub use session::CommandEffect;
+
+#[cfg(test)]
+mod fork_visual_tests;
+
+mod status_line;
 pub use session::Session;
 pub use session::SessionView;
 pub use settings::Settings;

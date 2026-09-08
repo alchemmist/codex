@@ -1,20 +1,18 @@
 ---
 source: tui/src/frontend_tests.rs
-assertion_line: 136
+assertion_line: 151
 expression: visible
 ---
- ▀▄       ▄▀  Antex v0.0.0
-  ▄▀█████▀▄
-▄█▀▀█████▀▀█▄  Terminal coding agent
-▀▀▄▄▀▀▀▀▀▄▄▀▀
-  ██  ▄  ██  /help for commands
+  ▄▀█████▀▄    ╭─ Antex · 0.0.0 ─────╮
+▄█▀▀█████▀▀█▄  │  fake               │
+▀▀▄▄▀▀▀▀▀▄▄▀▀  │  /project           │
+  ██  ▄  ██    ╰─────────────────────╯
    ▀▀▀ ▀▀▀
-›
-hello
 
-Antex
-Hello from the kernel.
 
-› /quit
-fake · /project · workspace
-Completed; 0 unsent inputs retained
+ ┃ hello
+
+• Hello from the kernel.
+
+ 
+ ┃ /quit

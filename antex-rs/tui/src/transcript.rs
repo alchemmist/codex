@@ -1,5 +1,4 @@
 use crate::terminal_hyperlinks::HyperlinkLine;
-use crate::terminal_hyperlinks::plain_hyperlink_lines;
 
 pub(crate) fn tool_preview(
     call: &antex_core::ToolCall,
@@ -83,39 +82,111 @@ pub(crate) fn safe_text(text: &str) -> String {
     visible
 }
 
-fn message_lines(message: &Message, width: usize, cwd: &std::path::Path) -> Vec<HyperlinkLine> {
-    let (label, text) = match message {
+pub(crate) fn display_directory(path: &std::path::Path) -> String {
+    if let Some(home) = std::env::var_os("HOME")
+        && let Ok(relative) = path.strip_prefix(std::path::Path::new(&home))
+    {
+        return if relative.as_os_str().is_empty() {
+            "~".into()
+        } else {
+            safe_text(&format!("~/{}", relative.display()))
+        };
+    }
+    safe_text(&path.display().to_string())
+}
+
+pub(crate) fn message_lines(
+    message: &Message,
+    width: usize,
+    cwd: &std::path::Path,
+) -> Vec<HyperlinkLine> {
+    let text = match message {
         Message::Context(_) => return Vec::new(),
-        Message::User(input) => ("›", content_text(&input.content)),
-        Message::Assistant { content, .. } => ("Antex", content_text(content)),
-        Message::Tool(output) => ("tool", output.text().to_owned()),
+        Message::User(input) => content_text(&input.content),
+        Message::Assistant { content, .. } => content_text(content),
+        Message::Tool(output) => output.text().to_owned(),
     };
     if text.is_empty() {
         return Vec::new();
     }
-    let mut lines = plain_hyperlink_lines(vec![Line::from(label.to_owned().bold())]);
     let text = safe_text(&text);
-    if matches!(message, Message::Assistant { .. }) {
-        lines.extend(crate::markdown::render_markdown_agent_with_links_and_cwd(
-            &text,
-            Some(width),
-            Some(cwd),
-        ));
-    } else {
-        lines.extend(plain_hyperlink_lines(
-            text.lines()
-                .map(|line| Line::from(line.to_owned()))
-                .collect(),
-        ));
-    }
+    let mut lines = match message {
+        Message::User(_) => {
+            let mut lines = vec![HyperlinkLine::default()];
+            for text in text.lines() {
+                let logical = crate::terminal_hyperlinks::annotate_web_urls_in_line(Line::from(
+                    text.to_owned(),
+                ));
+                let wrapped = crate::wrapping::word_wrap_line(
+                    &logical.line,
+                    crate::wrapping::RtOptions::new(width.saturating_sub(4).max(1))
+                        .break_words(true),
+                )
+                .iter()
+                .map(crate::render::line_utils::line_to_static)
+                .collect();
+                lines.extend(
+                    crate::terminal_hyperlinks::remap_wrapped_line(&logical, wrapped)
+                        .into_iter()
+                        .map(|line| {
+                            prefix(
+                                line,
+                                ratatui::text::Span::styled(" ┃ ", crate::style::accent_style()),
+                            )
+                        }),
+                );
+            }
+            lines
+        }
+        Message::Assistant { .. } => assistant_lines(&text, width, cwd),
+        Message::Tool(_) => text
+            .lines()
+            .map(|line| HyperlinkLine::new(Line::from(format!("  └ {line}")).dim()))
+            .collect(),
+        Message::Context(_) => unreachable!(),
+    };
     if lines.len() > 2048 {
         lines.truncate(2048);
-        lines.extend(plain_hyperlink_lines(vec![Line::from(
+        lines.push(HyperlinkLine::new(Line::from(
             "[display truncated; full content remains in the session]",
-        )]));
+        )));
     }
-    lines.extend(plain_hyperlink_lines(vec![Line::default()]));
+    lines.push(HyperlinkLine::default());
     lines
+}
+
+pub(crate) fn assistant_lines(
+    text: &str,
+    width: usize,
+    cwd: &std::path::Path,
+) -> Vec<HyperlinkLine> {
+    crate::markdown::render_markdown_agent_with_links_and_cwd(
+        text,
+        Some(width.saturating_sub(2).max(1)),
+        Some(cwd),
+    )
+    .into_iter()
+    .enumerate()
+    .map(|(index, line)| {
+        prefix(
+            line,
+            if index == 0 {
+                "• ".dim()
+            } else {
+                "  ".into()
+            },
+        )
+    })
+    .collect()
+}
+
+fn prefix(mut line: HyperlinkLine, prefix: ratatui::text::Span<'static>) -> HyperlinkLine {
+    let width = crate::width::display_width(&prefix.content);
+    for link in &mut line.hyperlinks {
+        link.columns = link.columns.start + width..link.columns.end + width;
+    }
+    line.line.spans.insert(0, prefix);
+    line
 }
 
 fn content_text(content: &[Content]) -> String {
