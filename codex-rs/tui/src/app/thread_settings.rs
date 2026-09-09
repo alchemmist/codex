@@ -183,7 +183,20 @@ impl App {
             personality: *personality,
             ..ThreadSettingsUpdateParams::default()
         };
+        let active_turn_id = if service_tier.is_some() {
+            self.active_turn_id_for_thread(thread_id).await
+        } else {
+            None
+        };
         self.send_thread_settings_update(app_server, params).await;
+        if let (Some(turn_id), Some(service_tier)) = (active_turn_id, service_tier)
+            && let Err(err) = app_server
+                .update_active_service_tier(thread_id, turn_id, service_tier.clone())
+                .await
+        {
+            self.chat_widget
+                .add_error_message(format!("Failed to update thread settings: {err}"));
+        }
     }
 
     pub(super) async fn apply_thread_settings_to_cached_session(

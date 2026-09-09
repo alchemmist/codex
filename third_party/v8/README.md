@@ -16,6 +16,15 @@ The Bazel `v8` crate feature selection enables V8's in-process sandbox for
 Darwin, Linux, and Windows GNU. Windows MSVC remains on upstream non-sandboxed
 prebuilts.
 
+For Linux-to-macOS ARM64 consumer builds, use `make build-macos-arm64` (or
+`--config=macos-arm64`). Selecting only `--platforms` leaves the snapshot
+transition using the legacy host `--cpu`, which can produce an x64 snapshot
+inside an ARM64 executable. The named configuration also sets `v8_target_cpu=arm64`.
+Before installing cross-built binaries, run `python3 scripts/smoke-code-mode-host.py
+/path/to/codex-code-mode-host` on the destination Mac. This opens a real V8 isolate,
+executes JavaScript, and round-trips a nested tool; `--help` cannot detect snapshot
+initialization failures.
+
 Current pinned versions:
 
 - Rust crate: `v8 = =150.4.0`

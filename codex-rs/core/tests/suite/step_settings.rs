@@ -1481,3 +1481,97 @@ async fn request_preference_activation_keeps_admitted_model_metadata() -> Result
 
     Ok(())
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 2)]
+async fn service_tier_updates_apply_during_a_turn_without_model_switching() -> Result<()> {
+    skip_if_no_network!(Ok(()));
+    let server = start_mock_server().await;
+    let response_mock = mount_sse_sequence(
+        &server,
+        vec![
+            paused_response("resp-1", "pause-first"),
+            paused_response("resp-2", "pause-second"),
+            sse_completed("resp-3"),
+        ],
+    )
+    .await;
+    let test = step_settings_test()
+        .with_config(|config| {
+            config
+                .features
+                .disable(Feature::StepModelSwitching)
+                .expect("disable model switching");
+        })
+        .build_with_auto_env(&server)
+        .await?;
+    let initial = test.codex.thread_settings_snapshot().await;
+    let first = start_paused_turn(&test.codex).await?;
+    assert_eq!(
+        submit_turn_settings(
+            &test.codex,
+            &first.turn_id,
+            TurnSettingsUpdate {
+                service_tier: Some(Some(ServiceTier::Fast.request_value().to_string())),
+                ..Default::default()
+            },
+        )
+        .await?,
+        TurnSettingsUpdateOutcome::Applied
+    );
+    answer_paused_turn(&test.codex, &first.turn_id).await?;
+    let second = wait_for_event_match(&test.codex, |event| match event {
+        EventMsg::RequestUserInput(request) => Some(request.clone()),
+        _ => None,
+    })
+    .await;
+    assert_eq!(
+        submit_turn_settings(
+            &test.codex,
+            &second.turn_id,
+            TurnSettingsUpdate {
+                service_tier: Some(Some("default".to_string())),
+                ..Default::default()
+            },
+        )
+        .await?,
+        TurnSettingsUpdateOutcome::Applied
+    );
+    answer_paused_turn(&test.codex, &second.turn_id).await?;
+    wait_for_event(&test.codex, |event| {
+        matches!(event, EventMsg::TurnComplete(_))
+    })
+    .await;
+    let requests = response_mock.requests();
+    assert_eq!(
+        requests
+            .iter()
+            .map(|request| (
+                request_turn_id(request),
+                request
+                    .body_json()
+                    .get("service_tier")
+                    .cloned()
+                    .unwrap_or(Value::Null),
+            ))
+            .collect::<Vec<_>>(),
+        vec![
+            (first.turn_id.clone(), Value::Null),
+            (first.turn_id.clone(), json!("priority")),
+            (first.turn_id.clone(), Value::Null),
+        ]
+    );
+    assert_eq!(test.codex.thread_settings_snapshot().await, initial);
+    assert_eq!(
+        submit_turn_settings(
+            &test.codex,
+            &first.turn_id,
+            TurnSettingsUpdate {
+                service_tier: Some(Some(ServiceTier::Fast.request_value().to_string())),
+                ..Default::default()
+            },
+        )
+        .await?,
+        TurnSettingsUpdateOutcome::TargetUnavailable
+    );
+    Ok(())
+}

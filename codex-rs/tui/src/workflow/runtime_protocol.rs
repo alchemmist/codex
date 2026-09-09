@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use serde::Deserialize;
 use serde_json::Value;
 
+use super::executor::AgentApprovalMode;
 use super::executor::AgentRequest;
 use super::executor::AgentSandbox;
 
@@ -41,6 +42,8 @@ pub(super) enum WorkflowRequest {
         forbid_quality_graph_ignore: bool,
         #[serde(default)]
         sandbox: AgentSandbox,
+        #[serde(default)]
+        approval_mode: AgentApprovalMode,
         cwd: Option<String>,
         timeout_seconds: Option<u64>,
     },

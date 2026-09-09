@@ -2,6 +2,8 @@ SHELL := /bin/zsh
 .DEFAULT_GOAL := install-local
 
 CARGO ?= cargo
+BAZEL ?= bazel
+CODEX_BAZEL_BUILD_FLAGS ?=
 INSTALL ?= install
 CODEX_RS_DIR := $(CURDIR)/codex-rs
 CODEX_TARGET_DIR := $(CODEX_RS_DIR)/target
@@ -14,12 +16,16 @@ CODEX_GIT_DIRTY := $(shell test -z "$$(git status --porcelain --untracked-files=
 CODEX_BUILD_COMMIT := $(CODEX_GIT_COMMIT)$(CODEX_GIT_DIRTY)
 CODEX_FORK_VERSION := $(shell tr -d '[:space:]' < "$(CURDIR)/FORK_VERSION")
 
-.PHONY: build install-local install-mac install-linux release-patch release-minor release-major
+.PHONY: build build-macos-arm64 install-local install-mac install-linux release-patch release-minor release-major
 
 build:
 	CODEX_REPO_ROOT="$(CURDIR)" CARGO_TARGET_DIR="$(CODEX_TARGET_DIR)" STABLE_GIT_COMMIT="$(CODEX_BUILD_COMMIT)" ALCHEMMIST_FORK_VERSION="$(CODEX_FORK_VERSION)" python3 scripts/build-fork-local.py "$(CARGO)"
 
+build-macos-arm64:
+	$(BAZEL) build $(CODEX_BAZEL_BUILD_FLAGS) -c opt --config=macos-arm64 //codex-rs/cli:codex //codex-rs/code-mode-host:codex-code-mode-host
+
 install-local: build
+	python3 scripts/smoke-code-mode-host.py "$(CODEX_CODE_MODE_HOST_BINARY)"
 	$(INSTALL) -d "$(CODEX_INSTALL_DIR)"
 	$(INSTALL) -m 755 "$(CODEX_BINARY)" "$(CODEX_INSTALL_DIR)/codex"
 	$(INSTALL) -m 755 "$(CODEX_CODE_MODE_HOST_BINARY)" "$(CODEX_INSTALL_DIR)/codex-code-mode-host"

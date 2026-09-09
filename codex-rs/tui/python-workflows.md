@@ -66,6 +66,12 @@ the async execution machinery.
 - `ctx.agent_batch(prompts, parallelism=None, model=None, reasoning_effort=None, developer_instructions=None, forbid_quality_graph_ignore=False, cwd=None, timeout_seconds=None)`: run
   independent ephemeral agents concurrently. A prompt can be a string or a dictionary containing
   `prompt`, `model`, `reasoning_effort`, `developer_instructions`, `forbid_quality_graph_ignore`, `cwd`, and `timeout_seconds`.
+Both agent methods also accept `approval_mode="inherit"` (the default) or `"auto-review"`.
+Auto-review runs the child with `--approve-for-me`: approval requests go to the automatic reviewer
+and the sandbox is workspace-write, overriding the requested `sandbox`. A reviewer denial remains
+a denial; this mode does not disable approval checks. Bot maintenance selects it only for merge
+agents working on non-archived repositories.
+
 - `ctx.checkpoint(json_value)`: persist at most 1 MiB of restart state.
 - `ctx.log(message)`: write a diagnostic to the Codex log without corrupting the protocol stream.
 

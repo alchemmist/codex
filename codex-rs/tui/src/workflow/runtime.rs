@@ -232,6 +232,7 @@ impl Runtime {
                 developer_instructions,
                 forbid_quality_graph_ignore,
                 sandbox,
+                approval_mode,
                 cwd,
                 timeout_seconds,
                 ..
@@ -243,6 +244,7 @@ impl Runtime {
                     developer_instructions,
                     forbid_quality_graph_ignore,
                     sandbox,
+                    approval_mode,
                     cwd,
                     timeout_seconds,
                 };

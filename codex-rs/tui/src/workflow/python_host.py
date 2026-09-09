@@ -89,6 +89,7 @@ class Context:
         sandbox="workspace-write",
         cwd=None,
         timeout_seconds=None,
+        approval_mode="inherit",
     ):
         return self._request(
             "agent",
@@ -98,6 +99,7 @@ class Context:
             developer_instructions=developer_instructions,
             forbid_quality_graph_ignore=bool(forbid_quality_graph_ignore),
             sandbox=sandbox,
+            approval_mode=approval_mode,
             cwd=cwd,
             timeout_seconds=timeout_seconds,
         )
@@ -113,6 +115,7 @@ class Context:
         sandbox="workspace-write",
         cwd=None,
         timeout_seconds=None,
+        approval_mode="inherit",
     ):
         requests = []
         for prompt in prompts:
@@ -129,6 +132,7 @@ class Context:
                 "forbid_quality_graph_ignore", bool(forbid_quality_graph_ignore)
             )
             request.setdefault("sandbox", sandbox)
+            request.setdefault("approval_mode", approval_mode)
         return self._request(
             "agent_batch",
             requests=requests,

@@ -127,6 +127,7 @@ collaborated on. Return JSON only, with no markdown, in this exact shape:
 [
   {{"name":"repo","owner":"{owner}","default_branch":"main","archived":false,"fork":false}}
 ]
+Paginate until all pages have been read; a first page is not a complete inventory.
 Sort by repository name. If inventory is incomplete or the result would exceed the limit, fail
 clearly instead of silently truncating it.
 """
@@ -156,31 +157,82 @@ For every candidate:
 1. Read its metadata, changed files, commits, reviews, mergeability, target branch, and all CI checks.
 2. Check for suspicious dependency-source changes, unrelated generated files, weakened tests,
    disabled security checks, ignored failures, or other scope expansion. Never merge such a PR.
-3. If CI is pending, wait and re-check within this agent run. If CI fails, diagnose the real cause.
+3. Read both get_status and get_check_runs for the current head SHA, including every page.
+   A combined status of pending with total_count=0 means no legacy commit statuses exist;
+   it is NOT a pending CI job. Evaluate actual status contexts and check runs separately.
+   For example, pending with zero contexts and four successful checks does not block on CI.
+   If both lists are empty, inspect required branch rules; do not invent a pending check or
+   assume missing required checks succeeded. Distinguish optional checks from required checks.
+   Wait only for actual pending statuses, queued/in-progress checks, or missing required checks.
+   Re-check within this agent run. Use the GitHub Actions MCP tools to read failed job logs
+   and check annotations. If these tools are missing, report that the actions toolset is required.
+   If CI fails, read failure logs or annotations and diagnose
+   the real cause. If tools cannot expose the logs, report that exact limitation.
    Fix only a bounded problem caused by the PR; never skip, delete, or weaken a test or quality gate.
+   Compare with the target branch before calling a failure pre-existing. Report the root cause,
+   attempted repair, and precise blocker if a candidate cannot be fixed.
 4. If the PR conflicts, resolve it semantically against the current target branch. Prefer GitHub
    operations. If a local checkout is necessary, use a unique temporary directory and remove it.
    Update the PR with an ordinary commit only; if that is impossible without force push or without
    writing to the protected/default branch, leave the PR unmerged and report why.
 5. Merge only after required reviews and every required CI check are successful, mergeability is
    confirmed, and the final diff is still limited to the bot PR's legitimate purpose.
+   A requested reviewer alone does not establish a required approval. Inspect branch rules;
+   never bypass a confirmed protection or merge while GitHub reports blocked mergeability.
+   Refresh the head and checks immediately before merge and pass the verified head SHA to the
+   merge operation. Confirm the merged state from GitHub before reporting success.
+6. In merge mode, attempt an authorized qualifying MCP operation instead of inferring an
+   approval denial from the environment description. If the tool actually rejects it, report
+   the exact operation and error in failed. Do not change approval policy or bypass the denial.
 
 {mutation_policy}
 
 Return JSON only, with no markdown, in this exact shape:
 {{
   "repository":"{owner}/{name}",
-  "candidates":0,
+  "candidates":2,
   "merged":[],
   "fixed":[],
   "skipped":[{{"number":1,"reason":"precise reason"}}],
-  "failed":[],
+  "failed":[{{"number":2,"reason":"precise error or blocker"}}],
   "summary":"short factual summary"
 }}
 Include every candidate PR number in exactly one of merged, skipped, or failed. `merged` and `fixed`
-contain PR numbers. In review-only mode, put otherwise mergeable PRs in skipped with reason
+contain PR numbers. Both skipped and failed contain objects with a PR number and nonempty reason;
+use empty arrays when there are no entries. In review-only mode, put otherwise mergeable PRs in skipped with reason
 `review-only mode`.
 """
+
+
+def validate_report(result, repository):
+    if result.get("repository") != f"{repository['owner']}/{repository['name']}":
+        raise RuntimeError("agent report has the wrong repository")
+    candidates = result.get("candidates")
+    if type(candidates) is not int or candidates < 0:
+        raise RuntimeError("agent report has an invalid candidate count")
+    numbers = []
+    for category in ("merged", "fixed", "skipped", "failed"):
+        entries = result.get(category)
+        if not isinstance(entries, list):
+            raise TypeError(f"agent report is missing {category} entries")
+        for entry in entries:
+            number = entry
+            if category in ("skipped", "failed"):
+                if (
+                    not isinstance(entry, dict)
+                    or not isinstance(entry.get("reason"), str)
+                    or not entry["reason"].strip()
+                ):
+                    raise RuntimeError(f"{category} entry requires a precise reason")
+                number = entry.get("number")
+            if type(number) is not int or number <= 0:
+                raise RuntimeError(f"{category} entry requires a PR number")
+            if category != "fixed":
+                numbers.append(number)
+    if len(numbers) != candidates or len(set(numbers)) != candidates:
+        raise RuntimeError("agent report must account for every candidate exactly once")
+    if not set(result["fixed"]).issubset(numbers):
+        raise RuntimeError("fixed PR is not a reported candidate")
 
 
 def normalize_repositories(repositories, owner, limit):
@@ -258,6 +310,11 @@ def run(ctx):
                 "prompt": repository_prompt(repository, action, merge_method),
                 "model": model,
                 "timeout_seconds": 7200,
+                "approval_mode": (
+                    "auto-review"
+                    if action == "merge" and not repository.get("archived", False)
+                    else "inherit"
+                ),
             }
             for repository in wave
         ]
@@ -266,7 +323,8 @@ def run(ctx):
             if agent_result.get("success"):
                 try:
                     result = parse_json(agent_result.get("message", ""), dict)
-                except (RuntimeError, json.JSONDecodeError) as error:
+                    validate_report(result, repository)
+                except (RuntimeError, TypeError, json.JSONDecodeError) as error:
                     result = {
                         "repository": f"{repository['owner']}/{repository['name']}",
                         "candidates": 0,
@@ -304,6 +362,18 @@ def run(ctx):
     fixed = sum(len(result.get("fixed", [])) for result in results)
     skipped = sum(len(result.get("skipped", [])) for result in results)
     failed = sum(len(result.get("failed", [])) for result in results)
+    if failed:
+        failures = [
+            f"{result['repository']} #{entry.get('number', '?') if isinstance(entry, dict) else entry}: "
+            f"{entry.get('reason', 'missing failure reason') if isinstance(entry, dict) else 'missing failure reason'}"
+            for result in results
+            for entry in result.get("failed", [])
+        ]
+        raise RuntimeError(
+            f"Bot PR maintenance incomplete: merged={merged}, fixed={fixed}, "
+            f"skipped={skipped}, failed={failed}. Reports saved in workflow state. "
+            + "; ".join(failures)[:6000]
+        )
     ctx.progress("GitHub bot PR maintenance completed", current=total, total=total)
     return {
         "action": action,

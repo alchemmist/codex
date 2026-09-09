@@ -3656,3 +3656,28 @@ async fn compact_queues_user_messages_snapshot() {
         normalize_snapshot_paths(term.backend().vt100().screen().contents())
     );
 }
+
+#[tokio::test]
+async fn fast_toggle_during_a_running_task_updates_the_status() {
+    let (mut chat, mut rx, _op_rx) = make_chatwidget_manual(Some("gpt-5.4")).await;
+    set_chatgpt_auth(&mut chat);
+    set_fast_mode_test_catalog(&mut chat);
+    chat.thread_id = Some(ThreadId::new());
+    chat.bottom_pane.set_task_running(/*running*/ true);
+    submit_composer_text(&mut chat, "/fast");
+    assert_eq!(
+        chat.current_service_tier(),
+        Some(ServiceTier::Fast.request_value())
+    );
+    assert!(
+        std::iter::from_fn(|| rx.try_recv().ok()).any(|event| matches!(
+            event,
+            AppEvent::CodexOp(Op::OverrideTurnContext { service_tier: Some(Some(tier)), .. })
+                if tier == ServiceTier::Fast.request_value()
+        ))
+    );
+    insta::assert_snapshot!(
+        "fast_toggle_during_task",
+        render_bottom_popup(&chat, /*width*/ 80)
+    );
+}

@@ -90,6 +90,7 @@ jobs:
             codesign --force --sign - "${staging}/codex"
             codesign --force --sign - "${staging}/codex-code-mode-host"
           fi
+          python3 ../scripts/smoke-code-mode-host.py "${staging}/codex-code-mode-host"
           tar -C "${staging}" -czf "${RUNNER_TEMP}/${archive}" \
             codex codex-code-mode-host
           if [[ "${PLATFORM}" == "mac" ]]; then

@@ -39,6 +39,8 @@ pub(super) struct AgentRequest {
     pub(super) timeout_seconds: Option<u64>,
     #[serde(default)]
     pub(super) sandbox: AgentSandbox,
+    #[serde(default)]
+    pub(super) approval_mode: AgentApprovalMode,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
@@ -48,6 +50,14 @@ pub(super) enum AgentSandbox {
     #[default]
     WorkspaceWrite,
     DangerFullAccess,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq)]
+#[serde(rename_all = "kebab-case")]
+pub(super) enum AgentApprovalMode {
+    #[default]
+    Inherit,
+    AutoReview,
 }
 
 impl AgentSandbox {
@@ -202,10 +212,16 @@ pub(super) async fn execute_agent(
         .arg("--json")
         .arg("--ephemeral")
         .arg("--skip-git-repo-check")
-        .arg("--sandbox")
-        .arg(request.sandbox.as_cli_value())
         .arg("--cd")
         .arg(&cwd);
+    match request.approval_mode {
+        AgentApprovalMode::Inherit => {
+            command.arg("--sandbox").arg(request.sandbox.as_cli_value());
+        }
+        AgentApprovalMode::AutoReview => {
+            command.arg("--approve-for-me");
+        }
+    }
     if let Some(model) = &request.model
         && !model.trim().is_empty()
     {

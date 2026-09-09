@@ -238,12 +238,13 @@ impl Session {
         turn_id: &str,
         update: TurnSettingsUpdate,
     ) -> TurnSettingsUpdateOutcome {
-        let reviewer_only = update.approvals_reviewer.is_some()
+        let reviewer_or_service_tier_only = (update.approvals_reviewer.is_some()
+            || update.service_tier.is_some())
             && update.model.is_none()
             && update.effort.is_none()
-            && update.summary.is_none()
-            && update.service_tier.is_none();
-        if !reviewer_only && !self.features.enabled(Feature::StepModelSwitching) {
+            && update.summary.is_none();
+        let reviewer_only = reviewer_or_service_tier_only && update.service_tier.is_none();
+        if !reviewer_or_service_tier_only && !self.features.enabled(Feature::StepModelSwitching) {
             return TurnSettingsUpdateOutcome::Rejected {
                 reason: "turn settings updates require the step_model_switching feature"
                     .to_string(),

@@ -7,6 +7,7 @@ mod fs;
 mod history;
 mod models;
 mod rollout_history;
+mod service_tiers;
 
 #[cfg(test)]
 #[path = "app_server_session/collaboration_catalog_tests.rs"]

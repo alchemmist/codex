@@ -100,3 +100,21 @@ async fn builtin_pr_babysitter_completes_only_after_a_clean_snapshot() {
         String::from_utf8_lossy(&output.stderr)
     );
 }
+
+#[tokio::test]
+async fn builtin_bot_maintenance_rejects_failed_and_incomplete_reports() {
+    let test_script = codex_utils_cargo_bin::find_resource!(
+        "src/workflow/_builtin_github_bot_pr_maintenance_tests.py"
+    )
+    .expect("bot maintenance test script");
+    let output = Command::new(python_program())
+        .arg(test_script)
+        .output()
+        .await
+        .expect("run bot maintenance tests");
+    assert!(
+        output.status.success(),
+        "{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
