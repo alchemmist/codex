@@ -364,7 +364,20 @@ impl TextArea {
                     }
                     VimEditTarget::Line => {
                         if operator == VimOperator::Delete {
-                            self.kill_current_line();
+                            let range = self.expand_range_to_element_boundaries(
+                                self.current_line_range_with_newline(),
+                            );
+                            if range.end == self.text.len()
+                                && range.start > 0
+                                && self.text.as_bytes()[range.start - 1] == b'\n'
+                            {
+                                let removed = format!("{}\n", &self.text[range.clone()]);
+                                self.store_kill_buffer(removed, super::KillBufferKind::Linewise);
+                                self.replace_range_raw(range.start - 1..range.end, "");
+                                self.set_cursor(self.beginning_of_current_line());
+                            } else {
+                                self.kill_current_line();
+                            }
                         } else {
                             let range =
                                 self.beginning_of_current_line()..self.end_of_current_line();

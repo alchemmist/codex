@@ -663,3 +663,46 @@ fn external_editor_import_preserves_replace_backspace_recovery() {
         ("bc", Some("Replace"))
     );
 }
+
+#[test]
+fn dd_deletes_complete_lines_and_undo_restores_them() {
+    for (original, cursor, expected) in [
+        ("one\ntwo\nthree", 0, "two\nthree"),
+        ("one\ntwo\nthree", 5, "one\nthree"),
+        ("one\ntwo", 5, "one"),
+        ("one\n", 4, "one"),
+        ("one", 1, ""),
+    ] {
+        let mut composer = vim_composer(original);
+        composer.set_disable_paste_burst(/*disabled*/ false);
+        composer.draft.textarea.set_cursor(cursor);
+        keys(&mut composer, "dd");
+        assert_eq!(composer.current_text(), expected, "original: {original:?}");
+        keys(&mut composer, "u");
+        assert_eq!(composer.current_text(), original);
+    }
+}
+
+#[test]
+fn dd_on_final_empty_line_can_be_pasted_and_repeated() {
+    let mut composer = vim_composer("one\ntwo\n");
+    composer.draft.textarea.set_cursor(/*pos*/ 8);
+    keys(&mut composer, "dd");
+    assert_eq!(composer.current_text(), "one\ntwo");
+    keys(&mut composer, "p");
+    assert_eq!(composer.current_text(), "one\ntwo\n");
+    keys(&mut composer, "dd");
+    keys(&mut composer, ".");
+    assert_eq!(composer.current_text(), "one");
+    snapshot_composer_state_with_width(
+        "vim_dd_final_line",
+        /*width*/ 60,
+        /*enhanced_keys_supported*/ true,
+        |composer| {
+            composer.set_text_content("one\ntwo".to_string(), Vec::new(), Vec::new());
+            composer.set_vim_enabled(/*enabled*/ true);
+            composer.draft.textarea.set_cursor(/*pos*/ 5);
+            keys(composer, "dd");
+        },
+    );
+}
